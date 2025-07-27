@@ -5,11 +5,14 @@ compatibility_date = "2024-01-01"
 command = "npm run build"
 watch_dir = "src"
 
+# Pages configuration
+pages_build_output_dir = ".next"
+
 [env.production]
 name = "cruiserapp-production"
 
 [env.staging]
-name = "cruiserapp-staging" 
+name = "cruiserapp-staging"
 
 # Supabase configuration
 # Remove D1 database config since we're using Supabase
