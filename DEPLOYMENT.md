@@ -14,39 +14,23 @@ This guide will help you deploy the Cruiser Aviation Flight School Management Sy
 2. Create a new account or sign in
 3. Get your API token from Account Settings > API Tokens
 
-## Step 2: Set Up Database
+## Step 2: Set Up Supabase Database
 
-### Option A: Cloudflare D1 (Recommended)
+### Option A: Supabase (Recommended)
 
-1. Install Wrangler CLI:
-   ```bash
-   npm install -g wrangler
-   ```
+1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
+2. Create a new project or use existing one
+3. Get your database connection details:
+   - Go to Settings > Database
+   - Copy the connection string
+   - Note your database password
 
-2. Login to Cloudflare:
-   ```bash
-   wrangler login
-   ```
-
-3. Create a D1 database:
-   ```bash
-   wrangler d1 create cruiserapp-db
-   ```
-
-4. Add the database to your wrangler.toml:
-   ```toml
-   [[d1_databases]]
-   binding = "DB"
-   database_name = "cruiserapp-db"
-   database_id = "your-database-id"
-   ```
-
-### Option B: External PostgreSQL
+### Option B: Other PostgreSQL Services
 
 Use a service like:
 - [Neon](https://neon.tech/) (Free tier available)
-- [Supabase](https://supabase.com/) (Free tier available)
 - [Railway](https://railway.app/) (Free tier available)
+- [PlanetScale](https://planetscale.com/) (Free tier available)
 
 ## Step 3: Configure Environment Variables
 
@@ -57,12 +41,23 @@ Use a service like:
 
 2. Update the variables in `.env.production`:
    ```env
-   DATABASE_URL="your-database-connection-string"
+   # Supabase Database
+   DATABASE_URL="postgresql://postgres:[YOUR-PASSWORD]@db.[YOUR-PROJECT-REF].supabase.co:5432/postgres"
+   
+   # JWT Secret
    JWT_SECRET="your-super-secret-jwt-key"
+   
+   # Next.js
    NEXTAUTH_URL="https://your-domain.com"
    NEXTAUTH_SECRET="your-nextauth-secret"
+   
+   # Cloudflare
    CLOUDFLARE_API_TOKEN="your-cloudflare-api-token"
    CLOUDFLARE_ACCOUNT_ID="your-cloudflare-account-id"
+   
+   # Supabase (Optional)
+   SUPABASE_URL="https://[YOUR-PROJECT-REF].supabase.co"
+   SUPABASE_ANON_KEY="your-supabase-anon-key"
    ```
 
 ## Step 4: Deploy to Cloudflare Pages
@@ -98,15 +93,17 @@ Use a service like:
 
 ## Step 5: Set Up Database Schema
 
-1. Run the production database setup:
+1. Run the Supabase database setup:
    ```bash
-   node scripts/setup-production-db.js
+   node scripts/setup-supabase.js
    ```
 
 2. This will:
+   - Test database connection
    - Run all migrations
    - Create initial roles
    - Create a super admin user
+   - Show database statistics
 
 ## Step 6: Configure Custom Domain (Optional)
 
