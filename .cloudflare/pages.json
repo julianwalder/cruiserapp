@@ -1,0 +1,19 @@
+{
+  "build": {
+    "command": "npm run build",
+    "output": ".next",
+    "environment": {
+      "NODE_VERSION": "18"
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ]
+} 
