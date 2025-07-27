@@ -1,0 +1,6 @@
+callSign,serialNumber,yearOfManufacture,icaoTypeDesignator,model,manufacturer,status,imagePath
+YR-ZCK,456789,2021,CRUZ,SportCruiser,CSA,ACTIVE,/uploads/cruz.jpg
+YR-ABC,123456,2020,CRUZ,PS-28 Cruiser,CAG (2),ACTIVE,/uploads/cruz2.jpg
+YR-DEF,789012,2019,CRUZ,PiperSport,PIPER,ACTIVE,/uploads/cruz3.jpg
+YR-GHI,345678,2022,CRUZ,Triton Sport,TRITON,ACTIVE,/uploads/cruz4.jpg
+YR-JKL,901234,2018,CRUZ,Eagle,PARADISE,ACTIVE,/uploads/cruz5.jpg 

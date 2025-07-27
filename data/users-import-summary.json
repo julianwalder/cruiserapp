@@ -1,0 +1,58 @@
+{
+  "timestamp": "2025-07-27T06:23:26.288Z",
+  "imported": 8,
+  "errors": 0,
+  "success": true,
+  "total": 0,
+  "details": [
+    {
+      "row": 2,
+      "email": "noemail23@email.com",
+      "status": "success",
+      "message": "User created successfully"
+    },
+    {
+      "row": 3,
+      "email": "noemail25@email.com",
+      "status": "success",
+      "message": "User created successfully"
+    },
+    {
+      "row": 4,
+      "email": "noemail26@email.com",
+      "status": "success",
+      "message": "User created successfully"
+    },
+    {
+      "row": 5,
+      "email": "noemail27@email.com",
+      "status": "success",
+      "message": "User created successfully"
+    },
+    {
+      "row": 6,
+      "email": "noemail29@email.com",
+      "status": "success",
+      "message": "User created successfully"
+    },
+    {
+      "row": 7,
+      "email": "noemail33@email.com",
+      "status": "success",
+      "message": "User created successfully"
+    },
+    {
+      "row": 8,
+      "email": "noemail34@email.com",
+      "status": "success",
+      "message": "User created successfully"
+    },
+    {
+      "row": 9,
+      "email": "noemail36@email.com",
+      "status": "success",
+      "message": "User created successfully"
+    }
+  ],
+  "errorDetails": []
+}
