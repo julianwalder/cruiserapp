@@ -281,7 +281,7 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
       case 'ULTRALIGHT_FIELD':
         return 'bg-accent-10 text-accent-foreground border-accent-20';
       default:
-        return 'bg-muted text-muted-foreground border-border';
+        return 'bg-muted text-muted-foreground border-gray-200 dark:border-gray-700';
     }
   };
 
@@ -491,7 +491,7 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
                   )}
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-border">
+                <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
                                         <Badge className={base.isActive ? 'bg-success-10 text-success border-success-20' : 'bg-destructive-10 text-destructive border-destructive-20'}>
                     {base.isActive ? 'Active' : 'Inactive'}
                   </Badge>

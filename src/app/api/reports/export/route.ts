@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { AuthService } from '@/lib/auth';
+import { getSupabaseClient } from '@/lib/supabase';
 
+// GET /api/reports/export - Export data for reports
 export async function GET(request: NextRequest) {
   try {
+    // Verify authentication
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -11,283 +13,169 @@ export async function GET(request: NextRequest) {
 
     const user = await AuthService.validateSession(token);
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
+    // Get user roles from JWT token
+    const payload = AuthService.verifyToken(token);
+    const userRoles = payload?.roles || [];
+    
+    // Check if user has appropriate permissions
+    if (!AuthService.hasPermission(userRoles, 'ADMIN')) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions' },
+        { status: 403 }
+      );
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection error' }, { status: 500 });
+    }
+
+    // Get query parameters
     const { searchParams } = new URL(request.url);
-    const reportType = searchParams.get('type') || 'overview';
-    const timeframe = searchParams.get('timeframe') || 'month';
-    const fromDate = searchParams.get('from');
-    const toDate = searchParams.get('to');
+    const type = searchParams.get('type') || 'flights';
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
 
-    // Calculate date range
-    let startDate: Date;
-    let endDate: Date = new Date();
+    let data: any[] = [];
+    let count = 0;
 
-    switch (timeframe) {
-      case 'week':
-        startDate = new Date();
-        startDate.setDate(startDate.getDate() - 7);
-        break;
-      case 'month':
-        startDate = new Date();
-        startDate.setMonth(startDate.getMonth() - 1);
-        break;
-      case 'quarter':
-        startDate = new Date();
-        startDate.setMonth(startDate.getMonth() - 3);
-        break;
-      case 'year':
-        startDate = new Date();
-        startDate.setFullYear(startDate.getFullYear() - 1);
-        break;
-      default:
-        startDate = new Date();
-        startDate.setMonth(startDate.getMonth() - 1);
-    }
-
-    if (fromDate && toDate) {
-      startDate = new Date(fromDate);
-      endDate = new Date(toDate);
-    }
-
-    let csvContent = '';
-
-    switch (reportType) {
+    switch (type) {
       case 'flights':
-        csvContent = await generateFlightCSV(startDate, endDate);
+        // Export flight logs
+        let flightsQuery = supabase
+          .from('flight_logs')
+          .select(`
+            id,
+            date,
+            type,
+            "departureTime",
+            "arrivalTime",
+            "flightDuration",
+            "departureAirfield",
+            "destinationAirfield",
+            "pilotId",
+            "instructorId",
+            "aircraftId",
+            "purpose",
+            "remarks",
+            "createdAt",
+            "updatedAt"
+          `);
+
+        if (startDate && endDate) {
+          flightsQuery = flightsQuery.gte('date', startDate).lte('date', endDate);
+        }
+
+        const { data: flights, count: flightsCount } = await flightsQuery;
+        data = flights || [];
+        count = flightsCount || 0;
         break;
+
       case 'users':
-        csvContent = await generateUserCSV(startDate, endDate);
+        // Export users
+        const { data: users, count: usersCount } = await supabase
+          .from('users')
+          .select(`
+            id,
+            email,
+            "firstName",
+            "lastName",
+            "personalNumber",
+            phone,
+            "dateOfBirth",
+            address,
+            city,
+            state,
+            "zipCode",
+            country,
+            status,
+            "totalFlightHours",
+            "licenseNumber",
+            "medicalClass",
+            "instructorRating",
+            "lastLoginAt",
+            "createdAt",
+            "updatedAt"
+          `);
+        data = users || [];
+        count = usersCount || 0;
         break;
+
       case 'aircraft':
-        csvContent = await generateAircraftCSV(startDate, endDate);
+        // Export aircraft
+        const { data: aircraft, count: aircraftCount } = await supabase
+          .from('aircraft')
+          .select(`
+            id,
+            "registrationNumber",
+            "icaoType",
+            "manufacturer",
+            model,
+            type,
+            status,
+            "yearOfManufacture",
+            "totalFlightHours",
+            "lastMaintenanceDate",
+            "nextMaintenanceDate",
+            "insuranceExpiryDate",
+            "registrationExpiryDate",
+            "createdAt",
+            "updatedAt"
+          `);
+        data = aircraft || [];
+        count = aircraftCount || 0;
         break;
-      case 'financial':
-        csvContent = await generateFinancialCSV(startDate, endDate);
-        break;
+
       default:
-        csvContent = await generateOverviewCSV(startDate, endDate);
+        return NextResponse.json(
+          { error: 'Invalid export type. Must be flights, users, or aircraft' },
+          { status: 400 }
+        );
     }
 
-    return new NextResponse(csvContent, {
-      headers: {
-        'Content-Type': 'text/csv',
-        'Content-Disposition': `attachment; filename="${reportType}-report-${new Date().toISOString().split('T')[0]}.csv"`,
+    // Get additional statistics for the export
+    const [
+      totalFlightsResult,
+      totalUsersResult,
+      totalAircraftResult
+    ] = await Promise.all([
+      supabase.from('flight_logs').select('id', { count: 'exact', head: true }),
+      supabase.from('users').select('id', { count: 'exact', head: true }),
+      supabase.from('aircraft').select('id', { count: 'exact', head: true })
+    ]);
+
+    const exportData = {
+      type,
+      data,
+      count,
+      totalRecords: count,
+      statistics: {
+        totalFlights: totalFlightsResult.count || 0,
+        totalUsers: totalUsersResult.count || 0,
+        totalAircraft: totalAircraftResult.count || 0,
       },
-    });
+      exportDate: new Date().toISOString(),
+      exportedBy: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      },
+      filters: {
+        startDate: startDate || null,
+        endDate: endDate || null,
+      },
+    };
+
+    return NextResponse.json(exportData);
   } catch (error) {
-    console.error('Export API error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error exporting data:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
-}
-
-async function generateFlightCSV(startDate: Date, endDate: Date) {
-  const flights = await prisma.flightLog.findMany({
-    where: {
-      date: {
-        gte: startDate,
-        lte: endDate,
-      },
-    },
-    include: {
-      aircraft: { select: { callSign: true } },
-      pilot: { select: { firstName: true, lastName: true } },
-      instructor: { select: { firstName: true, lastName: true } },
-      departureAirfield: { select: { code: true, name: true } },
-      arrivalAirfield: { select: { code: true, name: true } },
-    },
-    orderBy: { date: 'desc' },
-  });
-
-  const headers = [
-    'Date',
-    'Aircraft',
-    'Pilot',
-    'Instructor',
-    'Departure',
-    'Arrival',
-    'Flight Type',
-    'Total Hours',
-    'Purpose',
-    'Remarks',
-  ];
-
-  const rows = flights.map(flight => [
-    flight.date.toISOString().split('T')[0],
-    flight.aircraft.callSign,
-    `${flight.pilot.firstName} ${flight.pilot.lastName}`,
-    flight.instructor ? `${flight.instructor.firstName} ${flight.instructor.lastName}` : '',
-    `${flight.departureAirfield.code} - ${flight.departureAirfield.name}`,
-    `${flight.arrivalAirfield.code} - ${flight.arrivalAirfield.name}`,
-    flight.flightType,
-    flight.totalHours.toString(),
-    flight.purpose || '',
-    flight.remarks || '',
-  ]);
-
-  return [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-}
-
-async function generateUserCSV(startDate: Date, endDate: Date) {
-  const users = await prisma.user.findMany({
-    include: {
-      userRoles: {
-        include: {
-          role: { select: { name: true } },
-        },
-      },
-      pilotFlightLogs: {
-        where: {
-          date: { gte: startDate, lte: endDate },
-        },
-        select: { totalHours: true },
-      },
-    },
-  });
-
-  const headers = [
-    'Name',
-    'Email',
-    'Roles',
-    'Status',
-    'Total Flight Hours',
-    'Hours This Period',
-    'License Number',
-    'Medical Class',
-    'Created Date',
-  ];
-
-  const rows = users.map(user => [
-    `${user.firstName} ${user.lastName}`,
-    user.email,
-    user.userRoles.map(ur => ur.role.name).join(', '),
-    user.status,
-    user.totalFlightHours.toString(),
-    user.pilotFlightLogs.reduce((sum, log) => sum + log.totalHours, 0).toString(),
-    user.licenseNumber || '',
-    user.medicalClass || '',
-    user.createdAt.toISOString().split('T')[0],
-  ]);
-
-  return [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-}
-
-async function generateAircraftCSV(startDate: Date, endDate: Date) {
-  const aircraft = await prisma.aircraft.findMany({
-    include: {
-      flightLogs: {
-        where: {
-          date: { gte: startDate, lte: endDate },
-        },
-        select: { totalHours: true },
-      },
-    },
-  });
-
-  const headers = [
-    'Call Sign',
-    'Serial Number',
-    'Status',
-    'Total Hours This Period',
-    'Flights This Period',
-    'Year of Manufacture',
-  ];
-
-  const rows = aircraft.map(ac => [
-    ac.callSign,
-    ac.serialNumber || '',
-    ac.status,
-    ac.flightLogs.reduce((sum, log) => sum + log.totalHours, 0).toString(),
-    ac.flightLogs.length.toString(),
-    ac.yearOfManufacture.toString(),
-  ]);
-
-  return [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-}
-
-async function generateFinancialCSV(startDate: Date, endDate: Date) {
-  const flights = await prisma.flightLog.findMany({
-    where: {
-      date: { gte: startDate, lte: endDate },
-    },
-    select: {
-      totalHours: true,
-      flightType: true,
-      date: true,
-      aircraft: { select: { callSign: true } },
-    },
-  });
-
-  const rates = {
-    INVOICED: 250,
-    SCHOOL: 200,
-    FERRY: 150,
-    CHARTER: 300,
-    DEMO: 180,
-  };
-
-  const headers = [
-    'Date',
-    'Aircraft',
-    'Flight Type',
-    'Hours',
-    'Rate per Hour',
-    'Revenue',
-  ];
-
-  const rows = flights.map(flight => {
-    const rate = rates[flight.flightType as keyof typeof rates] || 200;
-    const revenue = flight.totalHours * rate;
-    return [
-      flight.date.toISOString().split('T')[0],
-      flight.aircraft.callSign,
-      flight.flightType,
-      flight.totalHours.toString(),
-      rate.toString(),
-      revenue.toString(),
-    ];
-  });
-
-  return [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-}
-
-async function generateOverviewCSV(startDate: Date, endDate: Date) {
-  // Generate a summary CSV with key metrics
-  const [
-    totalFlights,
-    totalHours,
-    totalUsers,
-    totalAircraft,
-    revenue
-  ] = await Promise.all([
-    prisma.flightLog.count({ where: { date: { gte: startDate, lte: endDate } } }),
-    prisma.flightLog.aggregate({
-      where: { date: { gte: startDate, lte: endDate } },
-      _sum: { totalHours: true },
-    }),
-    prisma.user.count(),
-    prisma.aircraft.count(),
-    prisma.flightLog.findMany({
-      where: { date: { gte: startDate, lte: endDate } },
-      select: { totalHours: true, flightType: true },
-    }),
-  ]);
-
-  const rates = { INVOICED: 250, SCHOOL: 200, FERRY: 150, CHARTER: 300, DEMO: 180 };
-  const totalRevenue = revenue.reduce((sum, flight) => {
-    const rate = rates[flight.flightType as keyof typeof rates] || 200;
-    return sum + (flight.totalHours * rate);
-  }, 0);
-
-  const headers = ['Metric', 'Value', 'Period'];
-  const rows = [
-    ['Total Flights', totalFlights.toString(), `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`],
-    ['Total Hours', (totalHours._sum.totalHours || 0).toString(), `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`],
-    ['Total Users', totalUsers.toString(), 'All Time'],
-    ['Total Aircraft', totalAircraft.toString(), 'All Time'],
-    ['Total Revenue', totalRevenue.toString(), `${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`],
-  ];
-
-  return [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
 } 

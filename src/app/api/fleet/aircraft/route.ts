@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { getSupabaseClient } from '@/lib/supabase';
 import { AuthService } from '@/lib/auth';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
-
-const prisma = new PrismaClient();
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,29 +16,39 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Check if user has admin or super admin role
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: {
-        userRoles: {
-          include: {
-            role: true,
-          },
-        },
-      },
-    });
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+    }
 
-    if (!user) {
+    // Check if user has admin or super admin role
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select(`
+        id,
+        user_roles!user_roles_userId_fkey (
+          roles (
+            name
+          )
+        )
+      `)
+      .eq('id', decoded.userId)
+      .single();
+
+    if (userError || !user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const hasAccess = user.userRoles.some(
-      (userRole) => 
-        userRole.role.name === 'SUPER_ADMIN' || 
-        userRole.role.name === 'ADMIN' ||
-        userRole.role.name === 'INSTRUCTOR' ||
-        userRole.role.name === 'PILOT'
+    const hasAccess = user.user_roles.some(
+      (userRole: any) => 
+        userRole.roles.name === 'SUPER_ADMIN' || 
+        userRole.roles.name === 'ADMIN' ||
+        userRole.roles.name === 'INSTRUCTOR' ||
+        userRole.roles.name === 'PILOT'
     );
+
+    console.log('User roles:', user.user_roles.map((ur: any) => ur.roles.name));
+    console.log('Has access:', hasAccess);
 
     if (!hasAccess) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
@@ -50,44 +58,69 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
     const search = searchParams.get('search') || '';
+    const icaoOnly = searchParams.get('icaoOnly') === 'true';
     const skip = (page - 1) * limit;
 
-    // Build where clause
-    const where: any = {};
+    // Build query
+    let query = supabase
+      .from('aircraft')
+      .select(`
+        *,
+        icao_reference_type (
+          *
+        )
+      `);
+
     if (search) {
-      where.OR = [
-        { callSign: { contains: search, mode: 'insensitive' } },
-        { serialNumber: { contains: search, mode: 'insensitive' } },
-      ];
+      query = query.or(`callSign.ilike.%${search}%,serialNumber.ilike.%${search}%`);
     }
 
-    const [aircraft, total] = await Promise.all([
-      prisma.aircraft.findMany({
-        where,
-        include: {
-          icaoReferenceType: true,
-        },
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.aircraft.count({ where }),
-    ]);
+    // If icaoOnly is true, only return aircraft that have ICAO reference types
+    if (icaoOnly) {
+      query = query.not('icaoReferenceTypeId', 'is', null);
+    }
 
-    const pages = Math.ceil(total / limit);
+    // Get total count
+    const { count: total } = await supabase
+      .from('aircraft')
+      .select('*', { count: 'exact', head: true });
+
+    // Get aircraft with pagination
+    const { data: aircraft, error: aircraftError } = await query
+      .order('createdAt', { ascending: false })
+      .range(skip, skip + limit - 1);
+
+    if (aircraftError) {
+      console.error('Error fetching aircraft:', aircraftError);
+      return NextResponse.json({ 
+        error: 'Internal server error', 
+        details: aircraftError.message || 'Unknown database error' 
+      }, { status: 500 });
+    }
+
+    const pages = Math.ceil((total || 0) / limit);
+
+    // Transform the data to match frontend expectations
+    const transformedAircraft = (aircraft || []).map((aircraft: any) => ({
+      ...aircraft,
+      icaoReferenceType: aircraft.icao_reference_type,
+    }));
 
     return NextResponse.json({
-      aircraft,
+      aircraft: transformedAircraft,
       pagination: {
         page,
         limit,
-        total,
+        total: total || 0,
         pages,
       },
     });
   } catch (error) {
     console.error('Error fetching aircraft:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ 
+      error: 'Internal server error', 
+      details: error instanceof Error ? error.message : 'Unknown error' 
+    }, { status: 500 });
   }
 }
 
@@ -103,24 +136,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Check if user has admin or super admin role
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: {
-        userRoles: {
-          include: {
-            role: true,
-          },
-        },
-      },
-    });
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+    }
 
-    if (!user) {
+    // Check if user has admin or super admin role
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select(`
+        id,
+        user_roles!user_roles_userId_fkey (
+          roles (
+            name
+          )
+        )
+      `)
+      .eq('id', decoded.userId)
+      .single();
+
+    if (userError || !user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const hasAccess = user.userRoles.some(
-      (userRole) => userRole.role.name === 'SUPER_ADMIN' || userRole.role.name === 'ADMIN'
+    const hasAccess = user.user_roles.some(
+      (userRole: any) => userRole.roles.name === 'SUPER_ADMIN' || userRole.roles.name === 'ADMIN'
     );
 
     if (!hasAccess) {
@@ -147,28 +187,27 @@ export async function POST(request: NextRequest) {
     }
 
     // Find the ICAOReferenceType
-    const icaoRef = await prisma.iCAOReferenceType.findFirst({
-      where: {
-        typeDesignator: icaoTypeDesignator,
-        model,
-      manufacturer,
-      },
-    });
+    const { data: icaoRef, error: icaoError } = await supabase
+      .from('icao_reference_type')
+      .select('id')
+      .eq('icaoCode', icaoTypeDesignator)
+      .eq('model', model)
+      .eq('manufacturer', manufacturer)
+      .single();
+
     console.log('ICAOReferenceType lookup result:', icaoRef);
-    if (!icaoRef) {
+    if (icaoError || !icaoRef) {
       console.error('ICAO reference type not found for:', { icaoTypeDesignator, model, manufacturer });
       return NextResponse.json({ error: 'ICAO reference type not found' }, { status: 400 });
     }
 
-    const existingAircraft = await prisma.aircraft.findFirst({
-      where: {
-        OR: [
-          { callSign },
-          { serialNumber },
-        ],
-      },
-    });
-    if (existingAircraft) {
+    const { data: existingAircraft } = await supabase
+      .from('aircraft')
+      .select('id')
+      .or(`callSign.eq.${callSign},serialNumber.eq.${serialNumber}`)
+      .limit(1);
+
+    if (existingAircraft && existingAircraft.length > 0) {
       console.error('Aircraft with this call sign or serial number already exists:', { callSign, serialNumber });
       return NextResponse.json({ error: 'Aircraft with this call sign or serial number already exists' }, { status: 400 });
     }
@@ -176,36 +215,49 @@ export async function POST(request: NextRequest) {
     // Handle image upload
     let imagePath = null;
     if (imageFile) {
-      // Ensure upload directory exists
-      await mkdir(join(process.cwd(), 'public', 'uploads'), { recursive: true });
+      // Upload to Vercel Blob
+      const { put } = await import('@vercel/blob');
       
-      const fileName = `${Date.now()}-${imageFile.name}`;
-      const newPath = join(process.cwd(), 'public', 'uploads', fileName);
-      const buffer = Buffer.from(await imageFile.arrayBuffer());
-      await writeFile(newPath, buffer);
-      imagePath = `/uploads/${fileName}`;
+      const timestamp = Date.now();
+      const extension = imageFile.name.split('.').pop();
+      const filename = `aircraft-${timestamp}.${extension}`;
+      
+      const blob = await put(filename, imageFile, {
+        access: 'public',
+        addRandomSuffix: false,
+      });
+      
+      imagePath = blob.url;
     }
 
-    const aircraft = await prisma.aircraft.create({
-      data: {
+    const { data: aircraft, error: createError } = await supabase
+      .from('aircraft')
+      .insert({
         callSign,
         serialNumber,
         yearOfManufacture,
-        icaoReferenceType: {
-          connect: { id: icaoRef.id }
-        },
+        icaoReferenceTypeId: icaoRef.id,
         imagePath,
         status,
-      },
-      include: {
-        icaoReferenceType: true,
-      },
-    });
+      })
+      .select(`
+        *,
+        icao_reference_type (
+          *
+        )
+      `)
+      .single();
+
+    if (createError) {
+      console.error('Error creating aircraft:', createError);
+      return NextResponse.json({ error: 'Internal server error', details: (createError as any).message }, { status: 500 });
+    }
+
     console.log('Aircraft created:', aircraft);
     return NextResponse.json({ aircraft }, { status: 201 });
   } catch (error) {
     console.error('Error creating aircraft:', error);
-    return NextResponse.json({ error: 'Internal server error', details: error?.message || error }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error', details: (error as any)?.message || String(error) }, { status: 500 });
   }
 }
 
@@ -220,30 +272,53 @@ export async function GET_ICAO_REFERENCE_TYPES(request: NextRequest) {
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+    }
+
     // Only allow admin/superadmin
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: { userRoles: { include: { role: true } } },
-    });
-    if (!user) {
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select(`
+        id,
+        user_roles!user_roles_userId_fkey (
+          roles (
+            name
+          )
+        )
+      `)
+      .eq('id', decoded.userId)
+      .single();
+
+    if (userError || !user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
-    const hasAccess = user.userRoles.some(
-      (userRole) => userRole.role.name === 'SUPER_ADMIN' || userRole.role.name === 'ADMIN'
+
+    const hasAccess = user.user_roles.some(
+      (userRole: any) => userRole.roles.name === 'SUPER_ADMIN' || userRole.roles.name === 'ADMIN'
     );
     if (!hasAccess) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
-    const icaoTypes = await prisma.iCAOReferenceType.findMany({
-      select: {
-        id: true,
-        typeDesignator: true,
-        model: true,
-        manufacturer: true,
-      },
-      orderBy: { typeDesignator: 'asc' },
-    });
-    return NextResponse.json({ icaoTypes });
+
+    const { data: icaoTypes, error: icaoError } = await supabase
+      .from('icao_reference_type')
+      .select(`
+        id,
+        "typeDesignator",
+        model,
+        manufacturer
+      `)
+      .order('typeDesignator', { ascending: true });
+
+    if (icaoError) {
+      console.error('Error fetching ICAO reference types:', icaoError);
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
+
+    return NextResponse.json({ icaoTypes: icaoTypes || [] });
   } catch (error) {
     console.error('Error fetching ICAO reference types:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

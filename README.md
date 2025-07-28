@@ -1,32 +1,22 @@
 # Cruiser Aviation Management System
 
-A modern web application for managing Cruiser Aviations with comprehensive user management, role-based access control, and a beautiful UI built with Next.js, TypeScript, and Shadcn/ui.
+A comprehensive flight school management system built with Next.js, TypeScript, and Supabase.
 
-## 🚀 Features
+## ✨ Features
 
-### User Management
-- **Role-based Access Control**: 5 different user roles (Pilot, Flight Instructor, Base Manager, Admin, Super Admin)
-- **User Registration & Authentication**: Secure JWT-based authentication with session management
-- **User Profiles**: Comprehensive user profiles with flight-specific information
-- **User Status Management**: Active, Inactive, Suspended, and Pending Approval statuses
-- **Search & Filtering**: Advanced search and filtering capabilities for user management
+- **User Management** - Complete user registration, authentication, and role-based access control
+- **Flight Log Management** - Track flight hours, aircraft usage, and pilot training progress
+- **Aircraft Fleet Management** - Manage aircraft inventory, maintenance, and availability
+- **Airfield Management** - Organize airfields, bases, and operational areas
+- **Reporting & Analytics** - Generate comprehensive reports and flight statistics
+- **Real-time Updates** - Live data synchronization across all users
+- **Responsive Design** - Works seamlessly on desktop, tablet, and mobile devices
 
-### Security
-- **Password Hashing**: Secure password storage using bcrypt
-- **JWT Authentication**: Token-based authentication with session management
-- **Role-based Permissions**: Hierarchical permission system
-- **Input Validation**: Comprehensive form validation using Zod
-
-### UI/UX
-- **Modern Design**: Beautiful, responsive UI built with Shadcn/ui components
-- **Dark/Light Mode**: Support for both themes
-- **Responsive Layout**: Works perfectly on desktop, tablet, and mobile
-- **Real-time Feedback**: Loading states, error handling, and success notifications
-
-## 🛠 Tech Stack
+## 🛠️ Tech Stack
 
 ### Frontend
-- **Next.js 14** - React framework with App Router
+- **Next.js 15** - React framework with App Router
+- **React 19** - UI library
 - **TypeScript** - Type-safe development
 - **Tailwind CSS** - Utility-first CSS framework
 - **Shadcn/ui** - Beautiful, accessible component library
@@ -35,8 +25,7 @@ A modern web application for managing Cruiser Aviations with comprehensive user 
 
 ### Backend
 - **Next.js API Routes** - Server-side API endpoints
-- **Prisma** - Type-safe database ORM
-- **PostgreSQL** - Primary database
+- **Supabase** - PostgreSQL database with real-time features
 - **bcryptjs** - Password hashing
 - **jsonwebtoken** - JWT token management
 
@@ -51,7 +40,7 @@ Before running this application, make sure you have:
 
 - **Node.js** (v18 or higher)
 - **npm** or **yarn**
-- **PostgreSQL** database
+- **Supabase** account and project
 - **Git**
 
 ## 🚀 Quick Start
@@ -71,32 +60,36 @@ npm install
 
 ### 3. Set Up Environment Variables
 
-Create a `.env` file in the root directory:
+Create a `.env.local` file in the root directory:
 
 ```env
-# Database
-DATABASE_URL="postgresql://username:password@localhost:5432/flightschool?schema=public"
+# Supabase Configuration
+SUPABASE_URL="your-supabase-project-url"
+SUPABASE_ANON_KEY="your-supabase-anon-key"
+SUPABASE_SERVICE_ROLE_KEY="your-supabase-service-role-key"
 
-# JWT
+# JWT Configuration
 JWT_SECRET="your-super-secret-jwt-key-change-this-in-production"
 JWT_EXPIRES_IN="7d"
 
-# App
+# App Configuration
 NEXTAUTH_SECRET="your-nextauth-secret-change-this-in-production"
 NEXTAUTH_URL="http://localhost:3000"
+
+# ICAO Scraper (Optional)
+ICAO_SCRAPER_TOKEN="change_this_to_a_strong_random_value"
+NEXT_PUBLIC_ICAO_SCRAPER_TOKEN="change_this_to_a_strong_random_value"
 ```
 
-### 4. Set Up Database
+### 4. Set Up Supabase Database
+
+1. Create a new Supabase project at [supabase.com](https://supabase.com)
+2. Get your project URL and API keys from the project settings
+3. Update your `.env.local` file with the Supabase credentials
+4. Run the setup script to initialize the database:
 
 ```bash
-# Generate Prisma client
-npx prisma generate
-
-# Run database migrations
-npx prisma migrate dev --name init
-
-# (Optional) Seed the database with initial data
-npx prisma db seed
+npm run setup
 ```
 
 ### 5. Start the Development Server
@@ -118,171 +111,109 @@ cruiserapp/
 │   │   │   │   ├── login/
 │   │   │   │   ├── logout/
 │   │   │   │   └── register/
-│   │   │   └── users/
+│   │   │   ├── users/
+│   │   │   ├── fleet/
+│   │   │   ├── flight-logs/
+│   │   │   ├── airfields/
+│   │   │   └── reports/
 │   │   ├── dashboard/
 │   │   ├── login/
 │   │   ├── register/
 │   │   └── page.tsx
 │   ├── components/
 │   │   ├── ui/
-│   │   └── UserManagement.tsx
+│   │   ├── UserManagement.tsx
+│   │   ├── FleetManagement.tsx
+│   │   ├── FlightLogs.tsx
+│   │   └── Reports.tsx
 │   └── lib/
 │       ├── auth.ts
-│       ├── middleware.ts
-│       ├── validations.ts
+│       ├── supabase.ts
 │       └── utils.ts
-├── prisma/
-│   └── schema.prisma
+├── scripts/
+│   └── setup.js
 ├── public/
 └── package.json
 ```
 
-## 👥 User Roles & Permissions
+## 🔧 Available Scripts
 
-### Role Hierarchy
-1. **Pilot** - Basic user access
-2. **Flight Instructor** - Can manage students and flights
-3. **Base Manager** - Can manage instructors and aircraft
-4. **Admin** - Full system access
-5. **Super Admin** - Highest level access
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run start` - Start production server
+- `npm run lint` - Run ESLint
+- `npm run setup` - Initialize database with default data
 
-### Permissions
-- **Pilot**: View own profile, update personal information
-- **Flight Instructor**: All pilot permissions + manage students
-- **Base Manager**: All instructor permissions + manage aircraft
-- **Admin**: All permissions + user management
-- **Super Admin**: All permissions + system configuration
+## 🗄️ Database Schema
 
-## 🔐 Authentication Flow
+The application uses Supabase (PostgreSQL) with the following main tables:
 
-1. **Registration**: Users register with email, password, and role
-2. **Login**: Users authenticate with email and password
-3. **JWT Token**: Server generates JWT token with user information
-4. **Session Management**: Tokens stored in database with expiration
-5. **Authorization**: Middleware validates tokens and permissions
+- **users** - User accounts and profiles
+- **roles** - User roles and permissions
+- **userRoles** - Many-to-many relationship between users and roles
+- **aircraft** - Aircraft inventory and specifications
+- **flightLogs** - Flight records and training data
+- **airfields** - Airfield information and operational areas
+- **baseManagement** - Base management and assignments
 
-## 📊 Database Schema
+## 🔐 Authentication & Authorization
 
-### Users Table
-- Basic information (name, email, phone, address)
-- Role and status
-- Flight-specific fields (license, medical class, flight hours)
-- Timestamps and audit trail
+The system uses JWT tokens for authentication and implements role-based access control:
 
-### Sessions Table
-- JWT token storage
-- User association
-- Expiration management
-
-## 🎨 UI Components
-
-The application uses Shadcn/ui components for a consistent and beautiful design:
-
-- **Cards** - Content containers
-- **Tables** - Data display
-- **Forms** - User input with validation
-- **Buttons** - Interactive elements
-- **Badges** - Status indicators
-- **Avatars** - User profile pictures
-- **Dialogs** - Modal windows
-- **Alerts** - Notifications and messages
+- **SUPER_ADMIN** - Full system access
+- **ADMIN** - Administrative functions
+- **BASE_MANAGER** - Base management operations
+- **INSTRUCTOR** - Flight instruction and training
+- **PILOT** - Flight logging and aircraft operations
+- **STUDENT** - Limited access for training
 
 ## 🚀 Deployment
 
-### Vercel (Recommended)
+### Vercel Deployment
 
-1. Push your code to GitHub
-2. Connect your repository to Vercel
-3. Set environment variables in Vercel dashboard
-4. Deploy
+1. Connect your repository to Vercel
+2. Set up environment variables in Vercel dashboard
+3. Deploy automatically on push to main branch
 
-### Other Platforms
+### Environment Variables for Production
 
-The application can be deployed to any platform that supports Next.js:
+Make sure to set all required environment variables in your production environment:
 
-- **Netlify**
-- **Railway**
-- **Heroku**
-- **AWS**
-- **DigitalOcean**
-
-## 🔧 Development
-
-### Available Scripts
-
-```bash
-# Development
-npm run dev
-
-# Build for production
-npm run build
-
-# Start production server
-npm start
-
-# Lint code
-npm run lint
-
-# Type checking
-npm run type-check
-```
-
-### Database Commands
-
-```bash
-# Generate Prisma client
-npx prisma generate
-
-# Run migrations
-npx prisma migrate dev
-
-# Reset database
-npx prisma migrate reset
-
-# Open Prisma Studio
-npx prisma studio
-```
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `JWT_SECRET`
+- `JWT_EXPIRES_IN`
+- `NEXTAUTH_SECRET`
+- `NEXTAUTH_URL`
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## 📝 License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🆘 Support
 
-If you encounter any issues or have questions:
+For support and questions:
 
-1. Check the documentation
-2. Search existing issues
-3. Create a new issue with detailed information
+- Create an issue in the GitHub repository
+- Contact the development team
+- Check the documentation in the `/docs` folder
 
-## 🔮 Roadmap
+## 🔄 Changelog
 
-### Phase 1 (Current)
-- ✅ User management
-- ✅ Authentication system
-- ✅ Role-based access control
-- ✅ Modern UI/UX
-
-### Phase 2 (Planned)
-- [ ] Aircraft management
-- [ ] Flight scheduling
-- [ ] Maintenance tracking
-- [ ] Student progress tracking
-
-### Phase 3 (Future)
-- [ ] Mobile app
-- [ ] Advanced reporting
-- [ ] Integration with flight planning software
-- [ ] Real-time notifications
-
----
-
-Built with ❤️ for Cruiser Aviations everywhere.
+### v1.0.0
+- Initial release
+- Complete user management system
+- Flight log tracking
+- Aircraft fleet management
+- Airfield management
+- Role-based access control
+- Real-time data synchronization with Supabase

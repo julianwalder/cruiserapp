@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import { AuthService } from '@/lib/auth';
-
-const prisma = new PrismaClient();
+import { getSupabaseClient } from '@/lib/supabase';
 
 // POST /api/operational-areas/save-bases - Save base airfields
 export async function POST(request: NextRequest) {
@@ -40,38 +38,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection error' }, { status: 500 });
+    }
+
     // Clear existing base airfields by updating isBase flag
-    await prisma.airfield.updateMany({
-      where: {
-        createdById: user.id,
-        isBase: true,
-      },
-      data: {
-        isBase: false,
-      },
-    });
+    const { error: clearError } = await supabase
+      .from('airfields')
+      .update({ isBase: false })
+      .eq('createdById', user.id)
+      .eq('isBase', true);
+
+    if (clearError) {
+      console.error('Error clearing existing base airfields:', clearError);
+      return NextResponse.json(
+        { error: 'Failed to clear existing base airfields' },
+        { status: 500 }
+      );
+    }
 
     // Save new base airfields
     const savedBases = [];
     for (const airfield of body.baseAirfields) {
       if (airfield.isBase) {
         // First, create or update the airfield in our database
-        const savedAirfield = await prisma.airfield.upsert({
-          where: { code: airfield.code },
-          update: {
-            name: airfield.name,
-            type: mapAirfieldType(airfield.type),
-            status: 'ACTIVE',
-            city: airfield.municipality || airfield.city || '',
-            country: airfield.country,
-            latitude: airfield.latitude,
-            longitude: airfield.longitude,
-            elevation: airfield.elevation,
-            phone: '',
-            email: '',
-            website: airfield.home_link || '',
-          },
-          create: {
+        const { data: savedAirfield, error: upsertError } = await supabase
+          .from('airfields')
+          .upsert({
             name: airfield.name,
             code: airfield.code,
             type: mapAirfieldType(airfield.type),
@@ -85,16 +79,29 @@ export async function POST(request: NextRequest) {
             email: '',
             website: airfield.home_link || '',
             createdById: user.id,
-          },
-        });
+          }, {
+            onConflict: 'code'
+          })
+          .select('*')
+          .single();
+
+        if (upsertError) {
+          console.error('Error upserting airfield:', upsertError);
+          continue;
+        }
 
         // Update the airfield to mark it as a base
-        const updatedAirfield = await prisma.airfield.update({
-          where: { id: savedAirfield.id },
-          data: {
-            isBase: true,
-          },
-        });
+        const { data: updatedAirfield, error: updateError } = await supabase
+          .from('airfields')
+          .update({ isBase: true })
+          .eq('id', savedAirfield.id)
+          .select('*')
+          .single();
+
+        if (updateError) {
+          console.error('Error updating airfield base status:', updateError);
+          continue;
+        }
 
         savedBases.push(updatedAirfield);
       }
@@ -113,19 +120,16 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function mapAirfieldType(ourAirportsType: string): 'AIRPORT' | 'AIRSTRIP' | 'HELIPORT' | 'SEAPLANE_BASE' {
-  switch (ourAirportsType) {
-    case 'large_airport':
-      return 'AIRPORT';
-    case 'medium_airport':
-      return 'AIRPORT';
-    case 'small_airport':
-      return 'AIRSTRIP';
-    case 'heliport':
-      return 'HELIPORT';
-    case 'seaplane_base':
-      return 'SEAPLANE_BASE';
-    default:
-      return 'AIRPORT';
-  }
+// Helper function to map airfield types
+function mapAirfieldType(ourAirportsType: string): string {
+  const typeMapping: { [key: string]: string } = {
+    'large_airport': 'LARGE_AIRPORT',
+    'medium_airport': 'MEDIUM_AIRPORT',
+    'small_airport': 'SMALL_AIRPORT',
+    'heliport': 'HELIPORT',
+    'seaplane_base': 'SEAPLANE_BASE',
+    'balloonport': 'BALLOONPORT',
+  };
+  
+  return typeMapping[ourAirportsType] || 'UNKNOWN';
 } 

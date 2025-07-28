@@ -1,309 +1,256 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcryptjs';
-import { parse } from 'csv-parse/sync';
-import { stringify } from 'csv-stringify/sync';
+import { AuthService } from '@/lib/auth';
+import { getSupabaseClient } from '@/lib/supabase';
 
-const prisma = new PrismaClient();
-
-// Helper function to verify super admin
-async function verifySuperAdmin(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-
-  const token = authHeader.substring(7);
-  
+// GET /api/users/import - Download CSV template
+export async function GET(request: NextRequest) {
   try {
-    const session = await prisma.session.findUnique({
-      where: { token },
-      include: {
-        user: {
-          include: {
-            userRoles: {
-              include: {
-                role: true
-              }
-            }
-          }
-        }
-      }
-    });
-
-    if (!session || session.expiresAt < new Date()) {
-      return null;
+    // Verify authentication
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const isSuperAdmin = session.user.userRoles.some(
-      userRole => userRole.role.name === 'SUPER_ADMIN'
-    );
+    // Simple token verification for template download
+    const payload = AuthService.verifyToken(token);
+    if (!payload) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
 
-    return isSuperAdmin ? session.user : null;
-  } catch (error) {
-    console.error('Error verifying super admin:', error);
-    return null;
-  }
-}
+    // Create CSV template content
+    const csvContent = `email,firstName,lastName,personalNumber,phone,dateOfBirth,address,city,state,zipCode,country,status,totalFlightHours,licenseNumber,medicalClass,instructorRating,role
+john.doe@example.com,John,Doe,1234567890123,+1234567890,1990-01-01,123 Main St,New York,NY,10001,USA,ACTIVE,100.5,PL123456,1,CFI,PILOT
+jane.smith@example.com,Jane,Smith,9876543210987,+1987654321,1985-05-15,456 Oak Ave,Los Angeles,CA,90210,USA,ACTIVE,250.0,PL789012,1,CFII,INSTRUCTOR
+bob.wilson@example.com,Bob,Wilson,5556667778889,+1555666777,1992-12-20,789 Pine Rd,Chicago,IL,60601,USA,ACTIVE,75.2,PL345678,2,,STUDENT`;
 
-// GET: Download CSV template
-export async function GET(request: NextRequest) {
-  const user = await verifySuperAdmin(request);
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized - Super Admin access required' }, { status: 401 });
-  }
-
-  try {
-    // Create CSV template with all user fields
-    const templateData = [
-      {
-        email: 'john.doe@example.com',
-        firstName: 'John',
-        lastName: 'Doe',
-        personalNumber: '1234567890123',
-        phone: '+1234567890',
-        dateOfBirth: '1990-01-01',
-        address: '123 Main St',
-        city: 'New York',
-        state: 'NY',
-        zipCode: '10001',
-        country: 'USA',
-        status: 'ACTIVE',
-        totalFlightHours: '150.5',
-        licenseNumber: 'PPL-123456',
-        medicalClass: 'Class 2',
-        instructorRating: 'CFI',
-        roles: 'PILOT,STUDENT' // Comma-separated roles
-      }
-    ];
-
-    const csvContent = stringify(templateData, {
-      header: true,
-      columns: [
-        'email',
-        'firstName',
-        'lastName',
-        'personalNumber',
-        'phone',
-        'dateOfBirth',
-        'address',
-        'city',
-        'state',
-        'zipCode',
-        'country',
-        'status',
-        'totalFlightHours',
-        'licenseNumber',
-        'medicalClass',
-        'instructorRating',
-        'roles'
-      ]
-    });
-
+    // Return CSV file
     return new NextResponse(csvContent, {
+      status: 200,
       headers: {
         'Content-Type': 'text/csv',
-        'Content-Disposition': 'attachment; filename="users_import_template.csv"'
-      }
+        'Content-Disposition': 'attachment; filename="users_import_template.csv"',
+      },
     });
   } catch (error) {
-    console.error('Error generating CSV template:', error);
-    return NextResponse.json({ error: 'Failed to generate CSV template' }, { status: 500 });
+    console.error('Error generating template:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
 
-// POST: Import users from CSV
+// POST /api/users/import - Import users from CSV
 export async function POST(request: NextRequest) {
-  const user = await verifySuperAdmin(request);
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized - Super Admin access required' }, { status: 401 });
-  }
-
   try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    // Verify authentication
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const csvText = await file.text();
-    const records = parse(csvText, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true
-    }) as Record<string, string>[];
+    const user = await AuthService.validateSession(token);
+    if (!user) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    // Get user roles from JWT token
+    const payload = AuthService.verifyToken(token);
+    const userRoles = payload?.roles || [];
+    
+    // Check if user has appropriate permissions
+    if (!AuthService.hasPermission(userRoles, 'ADMIN')) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions' },
+        { status: 403 }
+      );
+    }
+
+    const body = await request.json();
+
+    // Validate required fields
+    if (!body.users || !Array.isArray(body.users) || body.users.length === 0) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection error' }, { status: 500 });
+    }
 
     const results = {
-      success: 0,
-      errors: [] as string[],
-      details: [] as any[]
+      total: body.users.length,
+      created: 0,
+      updated: 0,
+      errors: [] as any[],
+      users: [] as any[],
     };
 
-    // Create a unique import ID for progress tracking
-    const importId = `import_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Store initial progress in memory (in production, use Redis or database)
-    const progressData = {
-      id: importId,
-      current: 0,
-      total: records.length,
-      percentage: 0,
-      status: 'Starting import...',
-      results: null,
-      completed: false
-    };
-    
-    // Store progress in a global variable (in production, use proper storage)
-    (global as any).importProgress = (global as any).importProgress || {};
-    (global as any).importProgress[importId] = progressData;
-
-    for (let i = 0; i < records.length; i++) {
-      const record = records[i];
-      const rowNumber = i + 2; // +2 because of 0-based index and header row
-
-      // Update progress
-      const currentProgress = (global as any).importProgress[importId];
-      currentProgress.current = i + 1;
-      currentProgress.percentage = Math.round(((i + 1) / records.length) * 100);
-      currentProgress.status = `Processing row ${rowNumber}: ${record.email}`;
-
+    for (const userData of body.users) {
       try {
         // Validate required fields
-        if (!record.email || !record.firstName || !record.lastName) {
-          results.errors.push(`Row ${rowNumber}: Missing required fields (email, firstName, lastName)`);
-          continue;
-        }
-
-        // Validate email format
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(record.email)) {
-          results.errors.push(`Row ${rowNumber}: Invalid email format: ${record.email}`);
-          continue;
-        }
-
-        // Validate date format if provided
-        if (record.dateOfBirth) {
-          const date = new Date(record.dateOfBirth);
-          if (isNaN(date.getTime())) {
-            results.errors.push(`Row ${rowNumber}: Invalid date format for dateOfBirth: ${record.dateOfBirth}`);
-            continue;
-          }
-        }
-
-        // Validate totalFlightHours if provided
-        if (record.totalFlightHours && isNaN(parseFloat(record.totalFlightHours))) {
-          results.errors.push(`Row ${rowNumber}: Invalid totalFlightHours format: ${record.totalFlightHours}`);
+        if (!userData.email || !userData.firstName || !userData.lastName) {
+          results.errors.push({
+            email: userData.email,
+            error: 'Missing required fields (email, firstName, lastName)',
+          });
           continue;
         }
 
         // Check if user already exists
-        const existingUser = await prisma.user.findUnique({
-          where: { email: record.email }
-        });
+        const { data: existingUser, error: existingError } = await supabase
+          .from('users')
+          .select('id, email')
+          .eq('email', userData.email)
+          .single();
+
+        if (existingError && existingError.code !== 'PGRST116') {
+          console.error('Error checking existing user:', existingError);
+          results.errors.push({
+            email: userData.email,
+            error: 'Database error checking existing user',
+          });
+          continue;
+        }
 
         if (existingUser) {
-          results.errors.push(`Row ${rowNumber}: User with email ${record.email} already exists`);
-          continue;
-        }
+          // Update existing user
+          const updateData: any = {
+            firstName: userData.firstName,
+            lastName: userData.lastName,
+            personalNumber: userData.personalNumber || null,
+            phone: userData.phone || null,
+            dateOfBirth: userData.dateOfBirth ? new Date(userData.dateOfBirth).toISOString() : null,
+            address: userData.address || null,
+            city: userData.city || null,
+            state: userData.state || null,
+            zipCode: userData.zipCode || null,
+            country: userData.country || null,
+            status: userData.status || 'ACTIVE',
+            totalFlightHours: userData.totalFlightHours || 0,
+            licenseNumber: userData.licenseNumber || null,
+            medicalClass: userData.medicalClass || null,
+            instructorRating: userData.instructorRating || null,
+            updatedAt: new Date().toISOString(),
+          };
 
-        // Hash password (generate random password if not provided)
-        const password = record.password || Math.random().toString(36).slice(-8);
-        const hashedPassword = await bcrypt.hash(password, 12);
+          const { data: updatedUser, error: updateError } = await supabase
+            .from('users')
+            .update(updateData)
+            .eq('id', existingUser.id)
+            .select('*')
+            .single();
 
-        // Parse roles
-        const roleNames = record.roles ? record.roles.split(',').map((r: string) => r.trim()) : [];
-        
-        // Validate roles exist
-        const validRoles = await prisma.role.findMany({
-          where: {
-            name: { in: roleNames },
-            isActive: true
+          if (updateError) {
+            console.error('Error updating user:', updateError);
+            results.errors.push({
+              email: userData.email,
+              error: 'Failed to update user',
+            });
+            continue;
           }
-        });
 
-        if (roleNames.length > 0 && validRoles.length !== roleNames.length) {
-          const invalidRoles = roleNames.filter(name => !validRoles.find(r => r.name === name));
-          results.errors.push(`Row ${rowNumber}: Invalid roles: ${invalidRoles.join(', ')}`);
-          continue;
-        }
+          results.updated++;
+          results.users.push(updatedUser);
+        } else {
+          // Create new user
+          const hashedPassword = await AuthService.hashPassword(userData.password || 'defaultPassword123');
 
-        // Create user
-        const newUser = await prisma.user.create({
-          data: {
-            email: record.email,
-            password: hashedPassword,
-            firstName: record.firstName,
-            lastName: record.lastName,
-            personalNumber: record.personalNumber || null,
-            phone: record.phone || null,
-            dateOfBirth: record.dateOfBirth ? new Date(record.dateOfBirth) : null,
-            address: record.address || null,
-            city: record.city || null,
-            state: record.state || null,
-            zipCode: record.zipCode || null,
-            country: record.country || null,
-            status: (record.status as any) || 'ACTIVE',
-            totalFlightHours: parseFloat(record.totalFlightHours) || 0,
-            licenseNumber: record.licenseNumber || null,
-            medicalClass: record.medicalClass || null,
-            instructorRating: record.instructorRating || null,
-            createdById: user.id
+          const { data: newUser, error: createError } = await supabase
+            .from('users')
+            .insert({
+              email: userData.email,
+              password: hashedPassword,
+              firstName: userData.firstName,
+              lastName: userData.lastName,
+              personalNumber: userData.personalNumber || null,
+              phone: userData.phone || null,
+              dateOfBirth: userData.dateOfBirth ? new Date(userData.dateOfBirth).toISOString() : null,
+              address: userData.address || null,
+              city: userData.city || null,
+              state: userData.state || null,
+              zipCode: userData.zipCode || null,
+              country: userData.country || null,
+              status: userData.status || 'ACTIVE',
+              totalFlightHours: userData.totalFlightHours || 0,
+              licenseNumber: userData.licenseNumber || null,
+              medicalClass: userData.medicalClass || null,
+              instructorRating: userData.instructorRating || null,
+              createdById: user.id,
+            })
+            .select('*')
+            .single();
+
+          if (createError) {
+            console.error('Error creating user:', createError);
+            results.errors.push({
+              email: userData.email,
+              error: 'Failed to create user',
+            });
+            continue;
           }
-        });
 
-        // Assign roles
-        if (validRoles.length > 0) {
-          await prisma.userRole.createMany({
-            data: validRoles.map(role => ({
-              userId: newUser.id,
-              roleId: role.id,
-              assignedBy: user.id,
-              assignedAt: new Date()
-            }))
-          });
+          // Assign default role (PILOT) if not specified
+          const roleToAssign = userData.role || 'PILOT';
+          const { data: role, error: roleError } = await supabase
+            .from('roles')
+            .select('id')
+            .eq('name', roleToAssign)
+            .single();
+
+          if (roleError) {
+            console.error('Error finding role:', roleError);
+            results.errors.push({
+              email: userData.email,
+              error: 'Failed to assign role',
+            });
+            continue;
+          }
+
+          if (role) {
+            const { error: assignRoleError } = await supabase
+              .from('userRoles')
+              .insert({
+                userId: newUser.id,
+                roleId: role.id,
+                assignedBy: user.id,
+                assignedAt: new Date().toISOString(),
+              });
+
+            if (assignRoleError) {
+              console.error('Error assigning role:', assignRoleError);
+              results.errors.push({
+                email: userData.email,
+                error: 'Failed to assign role',
+              });
+              continue;
+            }
+          }
+
+          results.created++;
+          results.users.push(newUser);
         }
-
-        results.success++;
-        results.details.push({
-          row: rowNumber,
-          email: record.email,
-          status: 'success',
-          message: 'User created successfully'
-        });
-
       } catch (error) {
-        console.error(`Error processing row ${rowNumber}:`, error);
-        results.errors.push(`Row ${rowNumber}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        console.error('Error processing user:', error);
+        results.errors.push({
+          email: userData.email,
+          error: 'Unexpected error processing user',
+        });
       }
     }
 
-    // Update final progress
-    const finalProgress = (global as any).importProgress[importId];
-    finalProgress.status = 'Import completed';
-    finalProgress.results = results;
-    finalProgress.completed = true;
-
-    // Clean up progress data after 5 minutes
-    setTimeout(() => {
-      if ((global as any).importProgress[importId]) {
-        delete (global as any).importProgress[importId];
-      }
-    }, 5 * 60 * 1000);
-
     return NextResponse.json({
-      message: `Import completed. ${results.success} users created successfully.`,
-      importId: importId,
-      results: {
-        success: results.success,
-        errors: results.errors,
-        details: results.details,
-        total: records.length
-      }
+      message: `Import completed. Created: ${results.created}, Updated: ${results.updated}, Errors: ${results.errors.length}`,
+      results,
     });
-
   } catch (error) {
     console.error('Error importing users:', error);
-    return NextResponse.json({ error: 'Failed to import users' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 } 

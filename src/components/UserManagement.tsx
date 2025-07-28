@@ -16,7 +16,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Plus, Search, Filter, MoreHorizontal, Edit, Trash2, UserCheck, UserX, Eye, EyeOff, X, User, MapPin, Plane, Settings, Download, Upload, ChevronsUpDown, Check, MoreVertical } from 'lucide-react';
+import { Plus, Search, Filter, MoreHorizontal, Edit, Trash2, UserCheck, UserX, Eye, EyeOff, X, User, MapPin, Plane, Settings, Download, Upload, ChevronsUpDown, Check, MoreVertical, UserMinus } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
 import { cn } from '@/lib/utils';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
@@ -187,6 +187,8 @@ export default function UserManagement() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<any>({});
   const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
   const {
     register,
@@ -249,7 +251,7 @@ export default function UserManagement() {
 
   useEffect(() => {
     fetchUsers();
-  }, [pagination.page, search, roleFilter, statusFilter]);
+  }, [pagination.page, pagination.limit, search, roleFilter, statusFilter]);
 
   // Fetch all users for combobox options (once on mount)
   useEffect(() => {
@@ -326,7 +328,7 @@ export default function UserManagement() {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`/api/users/${userId}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -335,7 +337,8 @@ export default function UserManagement() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to update user status');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update user status');
       }
 
       // Refresh users list
@@ -357,13 +360,16 @@ export default function UserManagement() {
   };
 
   const handleDeleteUser = async (userId: string) => {
-    if (!confirm('Are you sure you want to delete this user?')) {
-      return;
-    }
+    setUserToDelete(users.find(u => u.id === userId) || null);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/users/${userId}`, {
+      const response = await fetch(`/api/users/${userToDelete.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -371,11 +377,12 @@ export default function UserManagement() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to delete user');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete user');
       }
 
       // Get user info before deletion for toast
-      const user = users.find(u => u.id === userId);
+      const user = userToDelete;
       
       // Refresh users list
       fetchUsers();
@@ -391,6 +398,9 @@ export default function UserManagement() {
         description: err.message,
         duration: 4000,
       });
+    } finally {
+      setDeleteConfirmOpen(false);
+      setUserToDelete(null);
     }
   };
 
@@ -411,7 +421,7 @@ export default function UserManagement() {
       case 'PROSPECT':
         return 'bg-blue-10 text-blue border-blue-20';
       default:
-        return 'bg-muted text-muted-foreground border-border';
+        return 'bg-muted text-muted-foreground border-gray-200 dark:border-gray-700';
     }
   };
 
@@ -420,13 +430,13 @@ export default function UserManagement() {
       case 'ACTIVE':
         return 'bg-success-10 text-success border-success-20';
       case 'INACTIVE':
-        return 'bg-muted text-muted-foreground border-border';
+        return 'bg-muted text-muted-foreground border-gray-200 dark:border-gray-700';
       case 'SUSPENDED':
         return 'bg-destructive-10 text-destructive border-destructive-20';
       case 'PENDING_APPROVAL':
         return 'bg-warning-10 text-warning border-warning-20';
       default:
-        return 'bg-muted text-muted-foreground border-border';
+        return 'bg-muted text-muted-foreground border-gray-200 dark:border-gray-700';
     }
   };
 
@@ -468,7 +478,8 @@ export default function UserManagement() {
         
         if (response.ok) {
           const data = await response.json();
-          setCurrentUser(data.user);
+          console.log('Debug - API response data:', data); // Debug log
+          setCurrentUser(data); // The API returns user data directly, not nested under 'user'
         }
       } catch (error) {
         console.error('Error fetching current user:', error);
@@ -478,9 +489,16 @@ export default function UserManagement() {
     fetchCurrentUser();
   }, []);
 
-  const isSuperAdmin = currentUser?.userRoles?.some((userRole: any) => userRole.role.name === 'SUPER_ADMIN');
-  const isAdmin = currentUser?.userRoles?.some((userRole: any) => userRole.role.name === 'ADMIN');
+  const isSuperAdmin = currentUser?.userRoles?.some((userRole: any) => userRole.roles.name === 'SUPER_ADMIN');
+  const isAdmin = currentUser?.userRoles?.some((userRole: any) => userRole.roles.name === 'ADMIN');
   const canEdit = isSuperAdmin || isAdmin;
+
+  // Debug: Log role detection
+  console.log('Debug - currentUser:', currentUser);
+  console.log('Debug - currentUser.userRoles:', currentUser?.userRoles);
+  console.log('Debug - isSuperAdmin:', isSuperAdmin);
+  console.log('Debug - isAdmin:', isAdmin);
+  console.log('Debug - canEdit:', canEdit);
 
   // Initialize edit form when user is selected
   useEffect(() => {
@@ -769,14 +787,8 @@ export default function UserManagement() {
     <>
       {/* Main User Table Section - no Card wrapper */}
       <div className="space-y-6">
-        {error && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
         {/* Users Table */}
-        <Card className="w-full border border-border rounded-lg">
+        <Card className="w-full border border-gray-200 dark:border-gray-700 rounded-lg">
           <CardContent className="p-0">
             <div className="w-full overflow-x-auto">
               <Table>
@@ -889,17 +901,51 @@ export default function UserManagement() {
                               }}>
                                 <Edit className="h-4 w-4 mr-2" /> Edit User
                               </DropdownMenuItem>
-                              {user.status === 'ACTIVE' ? (
-                                <DropdownMenuItem onClick={() => handleStatusChange(user.id, 'SUSPENDED')}>
-                                  <UserX className="h-4 w-4 mr-2" /> Suspend User
-                                </DropdownMenuItem>
-                              ) : (
-                                <DropdownMenuItem onClick={() => handleStatusChange(user.id, 'ACTIVE')}>
-                                  <UserCheck className="h-4 w-4 mr-2" /> Activate User
-                                </DropdownMenuItem>
+                              {user.status === 'ACTIVE' && (
+                                <>
+                                  <DropdownMenuItem onClick={() => handleStatusChange(user.id, 'INACTIVE')}>
+                                    <UserMinus className="h-4 w-4 mr-2" /> Mark Inactive
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleStatusChange(user.id, 'SUSPENDED')}>
+                                    <UserX className="h-4 w-4 mr-2" /> Suspend
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              {user.status === 'INACTIVE' && (
+                                <>
+                                  <DropdownMenuItem onClick={() => handleStatusChange(user.id, 'ACTIVE')}>
+                                    <UserCheck className="h-4 w-4 mr-2" /> Activate
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleStatusChange(user.id, 'SUSPENDED')}>
+                                    <UserX className="h-4 w-4 mr-2" /> Suspend
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              {user.status === 'SUSPENDED' && (
+                                <>
+                                  <DropdownMenuItem onClick={() => handleStatusChange(user.id, 'ACTIVE')}>
+                                    <UserCheck className="h-4 w-4 mr-2" /> Activate
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleStatusChange(user.id, 'INACTIVE')}>
+                                    <UserMinus className="h-4 w-4 mr-2" /> Mark Inactive
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              {user.status === 'PENDING_APPROVAL' && (
+                                <>
+                                  <DropdownMenuItem onClick={() => handleStatusChange(user.id, 'ACTIVE')}>
+                                    <UserCheck className="h-4 w-4 mr-2" /> Activate
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleStatusChange(user.id, 'INACTIVE')}>
+                                    <UserMinus className="h-4 w-4 mr-2" /> Mark Inactive
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleStatusChange(user.id, 'SUSPENDED')}>
+                                    <UserX className="h-4 w-4 mr-2" /> Suspend
+                                  </DropdownMenuItem>
+                                </>
                               )}
                               <DropdownMenuItem onClick={() => handleDeleteUser(user.id)} className="text-destructive">
-                                <Trash2 className="h-4 w-4 mr-2" /> Delete User
+                                <Trash2 className="h-4 w-4 mr-2" /> Delete
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -1014,7 +1060,7 @@ export default function UserManagement() {
                     id="firstName"
                     placeholder="Enter first name"
                     {...register('firstName')}
-                    className={errors?.firstName ? 'border-destructive' : ''}
+                    className={`bg-background border-input ${errors?.firstName ? 'border-destructive' : ''}`}
                   />
                   {errors?.firstName && (
                     <p className="text-sm text-destructive">{errors.firstName.message}</p>
@@ -1027,7 +1073,7 @@ export default function UserManagement() {
                     id="lastName"
                     placeholder="Enter last name"
                     {...register('lastName')}
-                    className={errors?.lastName ? 'border-destructive' : ''}
+                    className={`bg-background border-input ${errors?.lastName ? 'border-destructive' : ''}`}
                   />
                   {errors?.lastName && (
                     <p className="text-sm text-destructive">{errors.lastName.message}</p>
@@ -1041,7 +1087,7 @@ export default function UserManagement() {
                     type="email"
                     placeholder="Enter email address"
                     {...register('email')}
-                    className={errors?.email ? 'border-destructive' : ''}
+                    className={`bg-background border-input ${errors?.email ? 'border-destructive' : ''}`}
                   />
                   {errors?.email && (
                     <p className="text-sm text-destructive">{errors.email.message}</p>
@@ -1054,6 +1100,7 @@ export default function UserManagement() {
                     id="personalNumber"
                     placeholder="CNP (Romania), SSN (US), etc."
                     {...register('personalNumber')}
+                    className="bg-background border-input"
                   />
                 </div>
 
@@ -1063,6 +1110,7 @@ export default function UserManagement() {
                     id="phone"
                     placeholder="Enter phone number"
                     {...register('phone')}
+                    className="bg-background border-input"
                   />
                 </div>
               </div>
@@ -1079,7 +1127,7 @@ export default function UserManagement() {
                     type={showPassword ? 'text' : 'password'}
                     placeholder="Enter password"
                     {...register('password')}
-                    className={errors?.password ? 'border-destructive' : ''}
+                    className={`bg-background border-input ${errors?.password ? 'border-destructive' : ''}`}
                   />
                   <Button
                     type="button"
@@ -1114,7 +1162,7 @@ export default function UserManagement() {
                         id={role}
                         checked={selectedRoles.includes(role)}
                         onChange={() => handleRoleToggle(role)}
-                        className="rounded border-border"
+                        className="rounded border-gray-200 dark:border-gray-700"
                       />
                       <Label htmlFor={role} className="text-sm font-normal">
                         {getRoleDisplayName(role)}
@@ -1133,6 +1181,7 @@ export default function UserManagement() {
                   id="licenseNumber"
                   placeholder="Enter license number"
                   {...register('licenseNumber')}
+                  className="bg-background border-input"
                 />
               </div>
 
@@ -1142,6 +1191,7 @@ export default function UserManagement() {
                   id="medicalClass"
                   placeholder="Enter medical class"
                   {...register('medicalClass')}
+                  className="bg-background border-input"
                 />
               </div>
 
@@ -1152,6 +1202,7 @@ export default function UserManagement() {
                     id="instructorRating"
                     placeholder="Enter instructor rating"
                     {...register('instructorRating')}
+                    className="bg-background border-input"
                   />
                 </div>
               )}
@@ -1166,6 +1217,7 @@ export default function UserManagement() {
                   id="address"
                   placeholder="Enter address"
                   {...register('address')}
+                  className="bg-background border-input"
                 />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1175,6 +1227,7 @@ export default function UserManagement() {
                     id="city"
                     placeholder="Enter city"
                     {...register('city')}
+                    className="bg-background border-input"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1183,6 +1236,7 @@ export default function UserManagement() {
                     id="state"
                     placeholder="Enter state"
                     {...register('state')}
+                    className="bg-background border-input"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1191,6 +1245,7 @@ export default function UserManagement() {
                     id="zipCode"
                     placeholder="Enter ZIP code"
                     {...register('zipCode')}
+                    className="bg-background border-input"
                   />
                 </div>
               </div>
@@ -1200,6 +1255,7 @@ export default function UserManagement() {
                   id="country"
                   placeholder="Enter country"
                   {...register('country')}
+                  className="bg-background border-input"
                 />
               </div>
             </div>
@@ -1277,6 +1333,7 @@ export default function UserManagement() {
                         value={editForm.firstName}
                         onChange={(e) => handleEditChange('firstName', e.target.value)}
                         placeholder="Enter first name"
+                        className="bg-background border-input"
                       />
                     ) : (
                       <p className="text-base font-medium text-card-foreground">{selectedUser.firstName}</p>
@@ -1289,6 +1346,7 @@ export default function UserManagement() {
                         value={editForm.lastName}
                         onChange={(e) => handleEditChange('lastName', e.target.value)}
                         placeholder="Enter last name"
+                        className="bg-background border-input"
                       />
                     ) : (
                       <p className="text-base font-medium text-card-foreground">{selectedUser.lastName}</p>
@@ -1302,6 +1360,7 @@ export default function UserManagement() {
                         onChange={(e) => handleEditChange('email', e.target.value)}
                         placeholder="Enter email"
                         type="email"
+                        className="bg-background border-input"
                       />
                     ) : (
                       <p className="text-base text-card-foreground">{selectedUser.email}</p>
@@ -1314,6 +1373,7 @@ export default function UserManagement() {
                         value={editForm.personalNumber}
                         onChange={(e) => handleEditChange('personalNumber', e.target.value)}
                         placeholder="Enter personal number"
+                        className="bg-background border-input"
                       />
                     ) : (
                       <p className="text-base text-card-foreground">{selectedUser.personalNumber || '-'}</p>
@@ -1326,6 +1386,7 @@ export default function UserManagement() {
                         value={editForm.phone}
                         onChange={(e) => handleEditChange('phone', e.target.value)}
                         placeholder="Enter phone number"
+                        className="bg-background border-input"
                       />
                     ) : (
                       <p className="text-base text-card-foreground">{selectedUser.phone || '-'}</p>
@@ -1362,6 +1423,7 @@ export default function UserManagement() {
                         value={editForm.address}
                         onChange={(e) => handleEditChange('address', e.target.value)}
                         placeholder="Enter address"
+                        className="bg-background border-input"
                       />
                     ) : (
                       <p className="text-base text-card-foreground">{selectedUser.address || '-'}</p>
@@ -1374,6 +1436,7 @@ export default function UserManagement() {
                         value={editForm.city}
                         onChange={(e) => handleEditChange('city', e.target.value)}
                         placeholder="Enter city"
+                        className="bg-background border-input"
                       />
                     ) : (
                       <p className="text-base text-card-foreground">{selectedUser.city || '-'}</p>
@@ -1386,6 +1449,7 @@ export default function UserManagement() {
                         value={editForm.state}
                         onChange={(e) => handleEditChange('state', e.target.value)}
                         placeholder="Enter state"
+                        className="bg-background border-input"
                       />
                     ) : (
                       <p className="text-base text-card-foreground">{selectedUser.state || '-'}</p>
@@ -1398,6 +1462,7 @@ export default function UserManagement() {
                         value={editForm.zipCode}
                         onChange={(e) => handleEditChange('zipCode', e.target.value)}
                         placeholder="Enter ZIP code"
+                        className="bg-background border-input"
                       />
                     ) : (
                       <p className="text-base text-card-foreground">{selectedUser.zipCode || '-'}</p>
@@ -1410,6 +1475,7 @@ export default function UserManagement() {
                         value={editForm.country}
                         onChange={(e) => handleEditChange('country', e.target.value)}
                         placeholder="Enter country"
+                        className="bg-background border-input"
                       />
                     ) : (
                       <p className="text-base text-card-foreground">{selectedUser.country || '-'}</p>
@@ -1464,7 +1530,7 @@ export default function UserManagement() {
                     <Label className="text-sm font-medium text-muted-foreground">Status</Label>
                     {isEditing ? (
                       <Select value={editForm.status} onValueChange={(value) => handleEditChange('status', value)}>
-                        <SelectTrigger>
+                        <SelectTrigger className="bg-background">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -1489,9 +1555,12 @@ export default function UserManagement() {
                         type="number"
                         step="0.1"
                         placeholder="Enter flight hours"
+                        className="bg-background border-input"
                       />
                     ) : (
-                      <p className="text-base font-medium text-card-foreground">{selectedUser.totalFlightHours.toLocaleString()}</p>
+                      <p className="text-base font-medium text-card-foreground">
+                        {selectedUser.totalFlightHours ? selectedUser.totalFlightHours.toLocaleString() : '0'}
+                      </p>
                     )}
                   </div>
                   <div className="space-y-2">
@@ -1501,6 +1570,7 @@ export default function UserManagement() {
                         value={editForm.licenseNumber}
                         onChange={(e) => handleEditChange('licenseNumber', e.target.value)}
                         placeholder="Enter license number"
+                        className="bg-background border-input"
                       />
                     ) : (
                       <p className="text-base text-card-foreground">{selectedUser.licenseNumber || '-'}</p>
@@ -1513,6 +1583,7 @@ export default function UserManagement() {
                         value={editForm.medicalClass}
                         onChange={(e) => handleEditChange('medicalClass', e.target.value)}
                         placeholder="Enter medical class"
+                        className="bg-background border-input"
                       />
                     ) : (
                       <p className="text-base text-card-foreground">{selectedUser.medicalClass || '-'}</p>
@@ -1525,6 +1596,7 @@ export default function UserManagement() {
                         value={editForm.instructorRating}
                         onChange={(e) => handleEditChange('instructorRating', e.target.value)}
                         placeholder="Enter instructor rating"
+                        className="bg-background border-input"
                       />
                     ) : (
                       <p className="text-base text-card-foreground">{selectedUser.instructorRating || '-'}</p>
@@ -1596,7 +1668,7 @@ export default function UserManagement() {
               <p className="text-sm text-muted-foreground">
                 Select a CSV file with user data to import. The file should follow the template format.
               </p>
-              <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
+              <div className="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center">
                 <input
                   type="file"
                   accept=".csv"
@@ -1687,6 +1759,26 @@ export default function UserManagement() {
               }}
             >
               Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete user "{userToDelete?.firstName} {userToDelete?.lastName}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeleteUser}>
+              Delete
             </Button>
           </div>
         </DialogContent>

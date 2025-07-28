@@ -1,61 +1,87 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Combobox } from '@/components/ui/combobox';
-import { Loader2, Download, CheckCircle, AlertCircle, Calendar, RefreshCw, Search, Filter, Plane, ChevronsUpDown, Check, AlertTriangle } from 'lucide-react';
-import { toast } from 'sonner';
 import { Label } from '@/components/ui/label';
-import { cn } from '@/lib/utils';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { useDateFormat } from '@/contexts/DateFormatContext';
-import { formatDate } from '@/lib/date-utils';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Progress } from '@/components/ui/progress';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { 
+  Plane, 
+  Download, 
+  Upload, 
+  Plus, 
+  CheckCircle, 
+  AlertTriangle, 
+  RefreshCw, 
+  Eye, 
+  EyeOff, 
+  Search, 
+  Filter,
+  X
+} from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { CompactCombobox } from './ui/compact-combobox';
+import { useDateFormat } from '@/contexts/DateFormatContext';
+import { formatDate, formatDateTimeWithCurrentFormat } from '@/lib/date-utils';
+import { toast } from 'sonner';
 
-interface ImportSummary {
-  timestamp: string;
-  totalEntries: number;
-  imported: number;
-  errors: number;
-  lastUpdated: string;
-  nextScheduledUpdate: string;
-  success: boolean;
-}
+// Aircraft creation schema
+const createAircraftSchema = z.object({
+  manufacturer: z.string().min(2, 'Manufacturer must be at least 2 characters'),
+  model: z.string().min(2, 'Model must be at least 2 characters'),
+  typeDesignator: z.string().min(3, 'ICAO type designator must be at least 3 characters').max(4, 'ICAO type designator must be at most 4 characters'),
+  description: z.enum(['LANDPLANE', 'SEAPLANE', 'AMPHIBIAN', 'HELICOPTER', 'GYROCOPTER', 'GLIDER', 'POWERED_GLIDER', 'AIRSHIP', 'BALLOON', 'ULTRALIGHT']),
+  engineType: z.enum(['PISTON', 'TURBOFAN', 'TURBOPROP', 'TURBOSHAFT', 'ELECTRIC', 'HYBRID']),
+  engineCount: z.number().min(1, 'Engine count must be at least 1').max(10, 'Engine count must be at most 10'),
+  wtc: z.enum(['LIGHT', 'MEDIUM', 'HEAVY', 'SUPER']),
+});
 
-interface StatsData {
-  LastUpdated: string;
-  NextUpdate: string;
-  AircraftTypeCount: number;
-  ManufacturerCount: number;
-}
+type CreateAircraftForm = z.infer<typeof createAircraftSchema>;
 
-interface AircraftData {
-  id: string;
-  manufacturer: string;
-  model: string;
-  typeDesignator: string;
-  description?: string;
-  engineType: string;
-  engineCount: number;
-  wtc: string;
-  createdAt: string;
-  updatedAt: string;
-}
+const ENGINE_TYPES = [
+  { value: 'PISTON', label: 'Piston' },
+  { value: 'TURBOFAN', label: 'Turbofan' },
+  { value: 'TURBOPROP', label: 'Turboprop' },
+  { value: 'TURBOSHAFT', label: 'Turboshaft' },
+  { value: 'ELECTRIC', label: 'Electric' },
+  { value: 'HYBRID', label: 'Hybrid' },
+];
+
+const WTC_TYPES = [
+  { value: 'LIGHT', label: 'Light' },
+  { value: 'MEDIUM', label: 'Medium' },
+  { value: 'HEAVY', label: 'Heavy' },
+  { value: 'SUPER', label: 'Super' },
+];
+
+const DESCRIPTION_TYPES = [
+  { value: 'LANDPLANE', label: 'Landplane' },
+  { value: 'SEAPLANE', label: 'Seaplane' },
+  { value: 'AMPHIBIAN', label: 'Amphibian' },
+  { value: 'HELICOPTER', label: 'Helicopter' },
+  { value: 'GYROCOPTER', label: 'Gyrocopter' },
+  { value: 'GLIDER', label: 'Glider' },
+  { value: 'POWERED_GLIDER', label: 'Powered Glider' },
+  { value: 'AIRSHIP', label: 'Airship' },
+  { value: 'BALLOON', label: 'Balloon' },
+  { value: 'ULTRALIGHT', label: 'Ultralight' },
+];
 
 export default function IcaoImportTab() {
   const { dateFormat } = useDateFormat();
-  const [isImporting, setIsImporting] = useState(false);
+  const [aircraft, setAircraft] = useState<any[]>([]);
 
   // Function to format aircraft description from JSON
   const formatAircraftDescription = (description: string | undefined): string => {
-    if (!description) return '';
+    if (!description) return '-';
     
     try {
       // Check if it's JSON
@@ -95,359 +121,505 @@ export default function IcaoImportTab() {
         }
       }
       
-      // If not JSON, return as is
+      // If it's a simple string (our new enum format), format it
+      switch (description.toUpperCase()) {
+        case 'LANDPLANE':
+          return 'Landplane';
+        case 'SEAPLANE':
+          return 'Seaplane';
+        case 'AMPHIBIAN':
+          return 'Amphibian';
+        case 'HELICOPTER':
+          return 'Helicopter';
+        case 'GYROCOPTER':
+          return 'Gyrocopter';
+        case 'GLIDER':
+          return 'Glider';
+        case 'POWERED_GLIDER':
+          return 'Powered Glider';
+        case 'AIRSHIP':
+          return 'Airship';
+        case 'BALLOON':
+          return 'Balloon';
+        case 'ULTRALIGHT':
+          return 'Ultralight';
+        default:
       return description;
+      }
     } catch (error) {
       // If JSON parsing fails, return original description
       return description;
     }
   };
-  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
-  const [statsData, setStatsData] = useState<StatsData | null>(null);
-  const [aircraftData, setAircraftData] = useState<AircraftData[]>([]);
-  const [filteredData, setFilteredData] = useState<AircraftData[]>([]);
-  const [filters, setFilters] = useState({
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [manufacturerFilter, setManufacturerFilter] = useState('');
+  const [modelFilter, setModelFilter] = useState('');
+  const [icaoFilter, setIcaoFilter] = useState('');
+  const [engineTypeFilter, setEngineTypeFilter] = useState('');
+  const [engineCountFilter, setEngineCountFilter] = useState('');
+  const [wtcFilter, setWtcFilter] = useState('');
+  const [importSummary, setImportSummary] = useState<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importLoading, setImportLoading] = useState(false);
+  const [importProgress, setImportProgress] = useState<{
+    current: number;
+    total: number;
+    percentage: number;
+    status: string;
+  } | null>(null);
+
+  // Create aircraft state
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createForm, setCreateForm] = useState({
     manufacturer: '',
     model: '',
     typeDesignator: '',
-    description: '',
-    engineType: '',
-    engineCount: '',
-    wtc: ''
+    description: 'LANDPLANE',
+    engineType: 'PISTON',
+    engineCount: 1,
+    wtc: 'LIGHT',
   });
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(50);
-  const [scraperLoading, setScraperLoading] = useState(false);
 
-  // Generate unique values for comboboxes
-  const uniqueValues = useMemo(() => {
-    if (!aircraftData.length) return {
-      descriptions: [],
-      engineTypes: [],
-      engineCounts: [],
-      wtcs: []
-    };
-
-    const descriptions = [...new Set(aircraftData.map(item => item.description).filter(Boolean))].sort();
-    const engineTypes = [...new Set(aircraftData.map(item => item.engineType).filter(Boolean))].sort();
-    const engineCounts = [...new Set(aircraftData.map(item => item.engineCount).filter(Boolean))].map(c => c.toString()).sort();
-    const wtcs = [...new Set(aircraftData.map(item => item.wtc).filter(Boolean))].sort();
-
-    return {
-      descriptions: descriptions.map(d => ({ value: d || '', label: d || '' })),
-      engineTypes: engineTypes.map(e => ({ value: e || '', label: e || '' })),
-      engineCounts: engineCounts.map(c => ({ value: c, label: c })),
-      wtcs: wtcs.map(w => ({ value: w || '', label: w || '' })),
-    };
-  }, [aircraftData]);
-
-  // Compact combobox for table header
-  const CompactCombobox = ({ 
-    options, 
-    value, 
-    onValueChange, 
-    placeholder 
-  }: { 
-    options: { value: string; label: string }[];
-    value: string;
-    onValueChange: (value: string) => void;
-    placeholder: string;
-  }) => {
-    const [open, setOpen] = useState(false);
-    const [searchValue, setSearchValue] = useState("");
-
-    return (
-      <Popover open={open} onOpenChange={(newOpen) => {
-        setOpen(newOpen);
-        if (!newOpen) {
-          setSearchValue("");
-        }
-      }}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            className="w-full h-8 justify-between text-xs"
-            size="sm"
-          >
-            {value
-              ? options.find((option) => option.value === value)?.label
-              : placeholder}
-            <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
-          <Command shouldFilter={false}>
-            <CommandInput 
-              placeholder="Search..." 
-              value={searchValue}
-              onValueChange={setSearchValue}
-              className="h-8 text-xs"
-            />
-            <CommandList>
-              <CommandEmpty className="text-xs">No options found.</CommandEmpty>
-              <CommandGroup>
-                {options
-                  .filter((option) => {
-                    if (!searchValue) return true;
-                    return option.label.toLowerCase().includes(searchValue.toLowerCase());
-                  })
-                  .map((option) => (
-                    <CommandItem
-                      key={option.value}
-                      value={option.value}
-                      onSelect={(currentValue: string) => {
-                        onValueChange(currentValue === value ? "" : currentValue)
-                        setOpen(false)
-                      }}
-                      className="text-xs"
-                    >
-                      <Check
-                        className={cn(
-                          "mr-2 h-3 w-3",
-                          value === option.value ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      {option.label}
-                    </CommandItem>
-                  ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-    );
+  const handleCreateFormChange = (field: string, value: any) => {
+    setCreateForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<CreateAircraftForm>({
+    resolver: zodResolver(createAircraftSchema),
+    defaultValues: {
+      description: 'LANDPLANE',
+      engineType: 'PISTON',
+      engineCount: 1,
+      wtc: 'LIGHT',
+    },
+  });
 
-  useEffect(() => {
-    applyFilters();
-  }, [aircraftData, filters]);
-
-  const loadData = async () => {
+  // Fetch aircraft with pagination
+  const fetchAircraft = async (page = pagination.page, limit = pagination.limit) => {
+    setLoading(true);
+    setError('');
     try {
+      console.log('🔍 fetchAircraft - Starting fetch with page:', page, 'limit:', limit);
       const token = localStorage.getItem('token');
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+      if (search) params.append('search', search);
+      if (manufacturerFilter) params.append('manufacturer', manufacturerFilter);
+      if (modelFilter) params.append('model', modelFilter);
+      if (icaoFilter) params.append('typeDesignator', icaoFilter);
+      if (engineTypeFilter) params.append('engineType', engineTypeFilter);
+      if (engineCountFilter) params.append('engineCount', engineCountFilter);
+      if (wtcFilter) params.append('wtc', wtcFilter);
       
-      // Load stats data
-      const statsResponse = await fetch('/api/settings/import-icao', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      if (statsResponse.ok) {
-        const stats = await statsResponse.json();
-        setStatsData(stats.statsData);
-        setImportSummary(stats.importSummary);
-      }
-
-      // Load aircraft data
-      const dataResponse = await fetch('/api/settings/icao-aircraft-data', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      if (dataResponse.ok) {
-        const data = await dataResponse.json();
-        // Map engineCount to number, and fill missing fields if needed
-        setAircraftData(data.map((item: any) => ({
-          id: item.id,
-          manufacturer: item.manufacturer,
-          model: item.model,
-          typeDesignator: item.typeDesignator,
-          description: item.description ?? '',
-          engineType: item.engineType,
-          engineCount: typeof item.engineCount === 'number' ? item.engineCount : parseInt(item.engineCount) || 1,
-          wtc: item.wtc,
-          createdAt: item.createdAt,
-          updatedAt: item.updatedAt,
-        })));
-      }
-    } catch (error) {
-      console.error('Error loading data:', error);
-      toast.error('Failed to load ICAO data');
-    }
-  };
-
-  const applyFilters = () => {
-    let filtered = [...aircraftData];
-
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value) {
-        filtered = filtered.filter(item => {
-          if (key === 'engineCount') {
-            return item.engineCount.toString().toLowerCase().includes(value.toLowerCase());
-          }
-          return item[key as keyof AircraftData]?.toString().toLowerCase().includes(value.toLowerCase());
-        });
-      }
-    });
-
-    setFilteredData(filtered);
-    setCurrentPage(1);
-  };
-
-  const handleImport = async () => {
-    setIsImporting(true);
-    try {
-      const token = localStorage.getItem('token');
+      const url = `/api/settings/icao-aircraft-data?${params}`;
+      console.log('🔍 fetchAircraft - Fetching from URL:', url);
       
-      const response = await fetch('/api/settings/import-icao', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
+      const response = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` },
       });
-
-      if (response.ok) {
-        const result = await response.json();
-        setImportSummary(result.summary);
-        if (result.success) {
-          const summary = result.summary;
-          toast.success('Database seeded successfully', {
-            description: `Inserted: ${summary?.inserted ?? 0}, Updated: ${summary?.updated ?? 0}, Unchanged: ${summary?.unchanged ?? 0}`
-          });
-        } else {
-          toast.error('Seeding failed', { description: result.error || 'Unknown error' });
-        }
-        await loadData(); // Reload data after import
-      } else {
-        const error = await response.json();
-        toast.error(`Import failed: ${error.error}`);
+      
+      console.log('🔍 fetchAircraft - Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('🔍 fetchAircraft - Response error:', errorText);
+        throw new Error(`Failed to fetch type designators: ${response.status} ${errorText}`);
       }
-    } catch (error) {
-      console.error('Import error:', error);
-      toast.error('Import failed. Please try again.');
-    } finally {
-      setIsImporting(false);
-    }
-  };
-
-  // Use a public env variable for the token
-  // Make sure to set NEXT_PUBLIC_ICAO_SCRAPER_TOKEN in your .env file
-
-  const handleRunScraper = async () => {
-    setScraperLoading(true);
-    try {
-      toast.info('ICAO data is now managed directly through the database seeding. Use the "Seed Database" button to import or update ICAO aircraft data.', {
-        description: 'The external scraper is no longer needed as the system now uses comprehensive ICAO data files.'
+      
+      const data = await response.json();
+      console.log('🔍 fetchAircraft - Received data:', data);
+      
+      setAircraft(data.aircraft || []);
+      setPagination({
+        page: data.pagination?.page || page,
+        limit: data.pagination?.limit || limit,
+        total: data.pagination?.total || (data.aircraft?.length || 0),
+        pages: data.pagination?.pages || Math.ceil((data.pagination?.total || (data.aircraft?.length || 0)) / limit),
       });
     } catch (err: any) {
-      toast.error('Failed to run scraper', { description: err.message });
+      console.error('🔍 fetchAircraft - Error:', err);
+      setError(err.message);
     } finally {
-      setScraperLoading(false);
+      setLoading(false);
     }
   };
 
-  const handleFilterChange = (key: string, value: string) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
-  };
-
-  const clearFilters = () => {
-    setFilters({
-      manufacturer: '',
-      model: '',
-      typeDesignator: '',
-      description: '',
-      engineType: '',
-      engineCount: '',
-      wtc: ''
-    });
-  };
-
-  const paginatedData = filteredData.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
-
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-
-  // Reset to page 1 when itemsPerPage changes
   useEffect(() => {
-    setCurrentPage(1);
-  }, [itemsPerPage]);
+    fetchAircraft();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagination.page, search, manufacturerFilter, modelFilter, icaoFilter, engineTypeFilter, engineCountFilter, wtcFilter]);
+
+  // Add this effect to fetch aircraft when limit changes
+  useEffect(() => {
+    fetchAircraft(1, pagination.limit);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagination.limit]);
+
+  // Fetch import summary on component mount
+  useEffect(() => {
+    const fetchImportSummary = async () => {
+    try {
+      const token = localStorage.getItem('token');
+        const response = await fetch('/api/settings/import-icao', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (response.ok) {
+          const summary = await response.json();
+          console.log('Fetched import summary:', summary);
+          if (summary.importSummary) {
+            setImportSummary(summary.importSummary);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch import summary:', error);
+      }
+    };
+    
+    fetchImportSummary();
+  }, []);
+
+  // Download CSV template
+  const handleDownloadTemplate = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/settings/icao-import', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('Failed to download template');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'icao_aircraft_import_template.csv';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      toast.success('Template downloaded successfully!', {
+        description: 'The CSV template has been downloaded to your device.',
+        duration: 3000,
+      });
+    } catch (error) {
+      toast.error('Failed to download template', {
+        description: 'There was an error downloading the template file.',
+        duration: 4000,
+      });
+    }
+  };
+
+  // Import aircraft from CSV
+  const handleImportAircraft = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    (async () => {
+      try {
+        setImportLoading(true);
+        setImportSummary(null);
+        setImportProgress({ current: 0, total: 0, percentage: 0, status: 'Starting import...' });
+        
+        const token = localStorage.getItem('token');
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // First, get the total number of records to import
+        const fileText = await file.text();
+        const lines = fileText.split('\n').filter(line => line.trim());
+        const totalRecords = Math.max(0, lines.length - 1); // Subtract header row
+        
+        setImportProgress({ current: 0, total: totalRecords, percentage: 0, status: 'Preparing import...' });
+        
+        // Start the import
+        const response = await fetch('/api/settings/icao-import', {
+          method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+          body: formData,
+        });
+        
+        if (!response.ok) {
+          const errorResult = await response.json();
+          throw new Error(errorResult.error || 'Failed to import aircraft');
+        }
+        
+        const result = await response.json();
+        
+        // Import completed
+        const summary = {
+          timestamp: new Date().toISOString(),
+          imported: result.results?.success || 0,
+          errors: result.results?.errors?.length || 0,
+          success: (result.results?.success || 0) > 0,
+          total: result.results?.total || 0,
+          details: result.results?.details || [],
+          errorDetails: result.results?.errors || []
+        };
+        setImportSummary(summary);
+        setImportProgress(null);
+        
+        // Show success/error messages
+        if (result.results?.success > 0) {
+          toast.success('Type designators imported successfully!', {
+            description: `${result.results.success} type designators were imported. ${result.results.errors?.length > 0 ? `${result.results.errors.length} errors occurred.` : ''}`,
+            duration: 4000,
+          });
+          // Refresh aircraft list
+          fetchAircraft();
+        } else if (result.results?.errors?.length > 0) {
+          toast.warning('Import completed with errors', {
+            description: `No type designators were imported. ${result.results.errors.length} errors occurred.`,
+            duration: 4000,
+          });
+        }
+      } catch (error: any) {
+        setError(error.message);
+        setImportProgress(null);
+        toast.error('Import failed', {
+          description: error.message,
+          duration: 4000,
+        });
+      } finally {
+        setImportLoading(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    })();
+  };
+
+  const handleAddAircraft = () => {
+    setShowCreateDialog(true);
+  };
+
+  const handleCreateAircraft = async () => {
+    try {
+      setCreateLoading(true);
+      
+      // Basic client-side validation
+      if (!createForm.manufacturer.trim() || !createForm.model.trim() || !createForm.typeDesignator.trim()) {
+        throw new Error('Please fill in all required fields (Manufacturer, Model, and ICAO Type Designator)');
+      }
+      
+      // Validate the form data using the Zod schema
+      const validationResult = createAircraftSchema.safeParse(createForm);
+      
+      if (!validationResult.success) {
+        const errors = validationResult.error.issues.map(err => `${err.path.join('.')}: ${err.message}`).join(', ');
+        throw new Error(`Validation error: ${errors}`);
+      }
+      
+      const token = localStorage.getItem('token');
+      
+      const aircraftData = validationResult.data; // Use validated data
+      
+      console.log('Sending aircraft data:', aircraftData);
+      
+      const response = await fetch('/api/settings/icao-aircraft-data', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(aircraftData),
+      });
+
+      console.log('Response status:', response.status);
+
+      if (!response.ok) {
+        const result = await response.json();
+        console.error('API Error Response:', result);
+        throw new Error(result.error || 'Failed to create aircraft');
+      }
+
+      const result = await response.json();
+      console.log('Success response:', result);
+
+      // Reset form and close dialog
+      setCreateForm({
+        manufacturer: '',
+        model: '',
+        typeDesignator: '',
+        description: 'LANDPLANE',
+        engineType: 'PISTON',
+        engineCount: 1,
+        wtc: 'LIGHT',
+      });
+      setShowCreateDialog(false);
+      
+      // Refresh aircraft list
+      fetchAircraft();
+      
+      // Clear any errors
+      setError('');
+      
+      // Show success toast
+      toast.success('Type designator created successfully!', {
+        description: `${aircraftData.manufacturer} ${aircraftData.model} (${aircraftData.typeDesignator}) has been added to the database.`,
+        duration: 3000,
+      });
+    } catch (err: any) {
+      console.error('Create aircraft error:', err);
+      setError(err.message);
+      toast.error('Failed to create type designator', {
+        description: err.message,
+        duration: 4000,
+      });
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
+  // Function to refresh import summary
+  const refreshImportSummary = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/settings/import-icao', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const summary = await response.json();
+        console.log('Refreshed import summary:', summary);
+        setImportSummary(summary.importSummary);
+      }
+    } catch (error) {
+      console.error('Failed to refresh import summary:', error);
+    }
+  };
+
+  // Badge color logic
+  const getEngineTypeBadgeColor = (engineType: string) => {
+    switch (engineType) {
+      case 'TURBOFAN':
+        return 'bg-blue-10 text-blue border-blue-20';
+      case 'TURBOPROP':
+        return 'bg-green-10 text-green border-green-20';
+      case 'TURBOSHAFT':
+        return 'bg-purple-10 text-purple border-purple-20';
+      case 'ELECTRIC':
+        return 'bg-yellow-10 text-yellow border-yellow-20';
+      case 'HYBRID':
+        return 'bg-orange-10 text-orange border-orange-20';
+      default:
+        return 'bg-gray-10 text-gray border-gray-20';
+    }
+  };
+
+  const getWtcBadgeColor = (wtc: string) => {
+    switch (wtc) {
+      case 'LIGHT':
+        return 'bg-green-10 text-green border-green-20';
+      case 'MEDIUM':
+        return 'bg-yellow-10 text-yellow border-yellow-20';
+      case 'HEAVY':
+        return 'bg-orange-10 text-orange border-orange-20';
+      case 'SUPER':
+        return 'bg-red-10 text-red border-red-20';
+      default:
+        return 'bg-gray-10 text-gray border-gray-20';
+    }
+  };
+
+  const manufacturerOptions = useMemo(() => {
+    const manufacturers = [...new Set(aircraft.map(a => a.manufacturer))].sort();
+    return [
+      { value: '', label: 'All manufacturers' },
+      ...manufacturers.map(m => ({ value: m, label: m })),
+    ];
+  }, [aircraft]);
+
+  const engineTypeOptions = useMemo(() => {
+    return [
+      { value: '', label: 'All engine types' },
+      ...ENGINE_TYPES,
+    ];
+  }, []);
+
+  const wtcOptions = useMemo(() => {
+    return [
+      { value: '', label: 'All WTCs' },
+      ...WTC_TYPES,
+    ];
+  }, []);
 
   return (
-    <div className="space-y-6">
-      {/* Header with Import Status */}
-      <Card>
+    <div className="space-y-6 w-full">
+      <input
+        type="file"
+        accept=".csv"
+        ref={fileInputRef}
+        style={{ display: 'none' }}
+        onChange={handleImportAircraft}
+        disabled={importLoading}
+      />
+      <Card className="w-full">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between w-full">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Download className="h-5 w-5" />
-                ICAO Aircraft Database Import
+                <Plane className="h-5 w-5" />
+                ICAO Type Designators Import
               </CardTitle>
               <CardDescription>
-                Import aircraft type designators from the ICAO database and manage reference data
+                Import ICAO type designators in bulk, download a template, or add a type designator manually. Only accessible to superadmins.
               </CardDescription>
             </div>
             <div className="flex items-center space-x-2">
-              <Button 
-                onClick={handleImport} 
-                disabled={isImporting}
-                className="flex items-center gap-2"
-              >
-                {isImporting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Seeding...
-                  </>
-                ) : (
-                  <>
-                    <Download className="h-4 w-4" />
-                    Seed Database
-                  </>
-                )}
+              <Button variant="outline" onClick={handleDownloadTemplate}>
+                <Download className="h-4 w-4 mr-2" />
+                Download Template
               </Button>
-              <Button onClick={handleRunScraper} disabled={scraperLoading} variant="secondary">
-                {scraperLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-4 w-4" />
-                    Info
-                  </>
-                )}
+              <Button 
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importLoading}
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                {importLoading ? 'Importing...' : 'Import Type Designators'}
+              </Button>
+              <Button onClick={handleAddAircraft}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Type Designator
               </Button>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Update Dates */}
-          {statsData && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg border">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Calendar className="h-5 w-5 text-primary" />
+        <CardContent className="flex flex-col gap-6 w-full">
+          {/* Import Progress Indicator */}
+          {importProgress && (
+            <div className="space-y-3 p-4 bg-muted/50 rounded-lg border">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  <span className="font-medium text-sm">Importing Type Designators</span>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">Last Updated</p>
-                  <p className="text-sm text-muted-foreground">{statsData.LastUpdated}</p>
+                <span className="text-sm text-muted-foreground">
+                  {importProgress.current} / {importProgress.total} ({importProgress.percentage}%)
+                </span>
                 </div>
-              </div>
-              <div className="flex items-center gap-3 p-4 bg-muted/50 rounded-lg border">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <RefreshCw className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground">Next Scheduled Update</p>
-                  <p className="text-sm text-muted-foreground">{statsData.NextUpdate}</p>
-                </div>
-              </div>
+              <Progress value={importProgress.percentage} className="h-2" />
+              <p className="text-xs text-muted-foreground">{importProgress.status}</p>
             </div>
           )}
 
-          {/* Import Summary */}
-          {importSummary && (
+          {/* Last Import Summary */}
             <Alert className="mb-0 w-full flex items-center gap-4">
+            {importSummary ? (
+              <>
               {importSummary.success ? (
                 <CheckCircle className="h-5 w-5 text-success shrink-0" />
               ) : (
@@ -456,208 +628,240 @@ export default function IcaoImportTab() {
               <div className="flex-1 min-w-0">
                 <AlertTitle>Last Import Summary</AlertTitle>
                 <AlertDescription>
-                  {formatDate(importSummary.timestamp, dateFormat)} -
-                  {importSummary.imported} aircraft imported successfully
+                    {formatDateTimeWithCurrentFormat(importSummary.timestamp)} -{' '}
+                    {importSummary.imported} type designators imported successfully
                   {importSummary.errors > 0 && ` (${importSummary.errors} errors)`}
+                    {importSummary.total > 0 && ` from ${importSummary.total} total records`}
                 </AlertDescription>
               </div>
-              <Badge className={(importSummary.success ? 'bg-success-10 text-success border-success-20' : 'bg-destructive-10 text-destructive border-destructive-20') + ' ml-auto'}>
+                <div className="flex items-center gap-2 ml-auto">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={refreshImportSummary}
+                    className="h-6 w-6 p-0"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                  </Button>
+                  <Badge className={(importSummary.success ? 'bg-success-10 text-success border-success-20' : 'bg-destructive-10 text-destructive border-destructive-20')}>
                 {importSummary.success ? 'Success' : 'Failed'}
               </Badge>
+              </div>
+              </>
+            ) : (
+              <>
+                <CheckCircle className="h-5 w-5 text-muted-foreground shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <AlertTitle>Last Import Summary</AlertTitle>
+                  <AlertDescription>
+                    No import has been performed yet. Use the "Import Aircraft" button to start importing aircraft from a CSV file.
+                  </AlertDescription>
+            </div>
+                <div className="flex items-center gap-2 ml-auto">
+              <Button
+                    variant="ghost"
+                size="sm"
+                    onClick={refreshImportSummary}
+                    className="h-6 w-6 p-0"
+              >
+                    <RefreshCw className="h-3 w-3" />
+              </Button>
+                  <Badge className="bg-muted text-muted-foreground border-gray-200 dark:border-gray-700">
+                    No Data
+                  </Badge>
+            </div>
+              </>
+            )}
+          </Alert>
+          
+          {/* Show detailed import errors if any */}
+          {importSummary && importSummary.errors > 0 && (
+            <div className="bg-destructive/10 border border-destructive rounded p-4 mb-4 max-h-64 overflow-y-auto">
+              <div className="font-semibold mb-2 text-destructive">Import Errors ({importSummary.errors}):</div>
+              {importSummary.errorDetails && Array.isArray(importSummary.errorDetails) && importSummary.errorDetails.length > 0 ? (
+                <ul className="list-disc pl-5 text-sm text-destructive">
+                  {importSummary.errorDetails.map((error: string, idx: number) => (
+                    <li key={idx}>{error}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-destructive">Error details not available</p>
+              )}
+          </div>
+          )}
+          
+          {error && (
+            <Alert variant="destructive" className="mb-4 w-full">
+              <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-
-          {/* Progress Bar */}
-          {isImporting && (
-            <div className="space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="font-medium">Importing aircraft data...</span>
-                <span className="text-muted-foreground">Please wait</span>
-              </div>
-              <Progress value={undefined} className="w-full" />
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Aircraft Data Table */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Plane className="h-5 w-5" />
-                Aircraft Database
-              </CardTitle>
-              <CardDescription>
-                Browse and filter ICAO aircraft data with inline search and filter controls ({filteredData.length} entries)
-              </CardDescription>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearFilters}
-                className="flex items-center gap-2"
-                disabled={Object.values(filters).every(v => !v)}
-              >
-                <Filter className="h-4 w-4" />
-                Clear All Filters
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
+          
           {/* Table with inline filters */}
-          <div className="border border-border rounded-lg overflow-x-auto">
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>
-                    <div className="space-y-2">
+                  <TableHead className="py-4 w-48">
+                    <div className="space-y-3">
                       <div className="font-medium">Manufacturer</div>
                       <div className="relative">
                         <Search className="absolute left-2 top-2.5 h-3 w-3 text-muted-foreground" />
                         <Input
                           placeholder="Search..."
-                          value={filters.manufacturer}
-                          onChange={(e) => handleFilterChange('manufacturer', e.target.value)}
+                          value={search}
+                          onChange={(e) => { setSearch(e.target.value); setPagination(p => ({ ...p, page: 1 })); }}
                           className="h-8 pl-6 text-xs"
                         />
                       </div>
-                      {filters.manufacturer && (
-                        <div className="text-xs text-muted-foreground">Searching</div>
-                      )}
                     </div>
                   </TableHead>
-                  <TableHead>
-                    <div className="space-y-2">
+                  <TableHead className="py-4 w-40">
+                    <div className="space-y-3">
                       <div className="font-medium">Model</div>
                       <Input
                         placeholder="Search..."
-                        value={filters.model}
-                        onChange={(e) => handleFilterChange('model', e.target.value)}
+                        value={modelFilter}
+                        onChange={(e) => { setModelFilter(e.target.value); setPagination(p => ({ ...p, page: 1 })); }}
                         className="h-8 text-xs"
                       />
-                      {filters.model && (
-                        <div className="text-xs text-muted-foreground">Searching</div>
-                      )}
                     </div>
                   </TableHead>
-                  <TableHead>
-                    <div className="space-y-2">
+                  <TableHead className="py-4 w-32">
+                    <div className="space-y-3">
                       <div className="font-medium">ICAO Code</div>
                       <Input
                         placeholder="Search..."
-                        value={filters.typeDesignator}
-                        onChange={(e) => handleFilterChange('typeDesignator', e.target.value)}
+                        value={icaoFilter}
+                        onChange={(e) => { setIcaoFilter(e.target.value); setPagination(p => ({ ...p, page: 1 })); }}
                         className="h-8 text-xs"
                       />
-                      {filters.typeDesignator && (
-                        <div className="text-xs text-muted-foreground">Searching</div>
-                      )}
                     </div>
                   </TableHead>
-                  <TableHead>
-                    <div className="space-y-2">
+                  <TableHead className="py-4 w-40">
+                    <div className="space-y-3">
                       <div className="font-medium">Description</div>
-                      <CompactCombobox
-                        options={uniqueValues.descriptions}
-                        value={filters.description}
-                        onValueChange={(value) => handleFilterChange('description', value)}
-                        placeholder="All descriptions..."
+                      <Input
+                        placeholder="Search..."
+                        value={search}
+                        onChange={(e) => { setSearch(e.target.value); setPagination(p => ({ ...p, page: 1 })); }}
+                        className="h-8 text-xs"
                       />
-                      {filters.description && (
-                        <div className="text-xs text-muted-foreground">Filtered</div>
-                      )}
                     </div>
                   </TableHead>
-                  <TableHead>
-                    <div className="space-y-2">
+                  <TableHead className="py-4 w-36">
+                    <div className="space-y-3">
                       <div className="font-medium">Engine Type</div>
                       <CompactCombobox
-                        options={uniqueValues.engineTypes}
-                        value={filters.engineType}
-                        onValueChange={(value) => handleFilterChange('engineType', value)}
+                        options={engineTypeOptions}
+                        value={engineTypeFilter}
+                        onValueChange={(value) => { setEngineTypeFilter(value); setPagination(p => ({ ...p, page: 1 })); }}
                         placeholder="All types..."
                       />
-                      {filters.engineType && (
-                        <div className="text-xs text-muted-foreground">Filtered</div>
-                      )}
                     </div>
                   </TableHead>
-                  <TableHead>
-                    <div className="space-y-2">
+                  <TableHead className="py-4 w-32">
+                    <div className="space-y-3">
                       <div className="font-medium">Engine Count</div>
                       <CompactCombobox
-                        options={uniqueValues.engineCounts}
-                        value={filters.engineCount}
-                        onValueChange={(value) => handleFilterChange('engineCount', value)}
+                        options={[
+                          { value: '', label: 'All counts' },
+                          { value: '1', label: '1' },
+                          { value: '2', label: '2' },
+                          { value: '3', label: '3' },
+                          { value: '4', label: '4' },
+                        ]}
+                        value={engineCountFilter}
+                        onValueChange={(value) => { setEngineCountFilter(value); setPagination(p => ({ ...p, page: 1 })); }}
                         placeholder="All counts..."
                       />
-                      {filters.engineCount && (
-                        <div className="text-xs text-muted-foreground">Filtered</div>
-                      )}
                     </div>
                   </TableHead>
-                  <TableHead>
-                    <div className="space-y-2">
+                  <TableHead className="py-4 w-24">
+                    <div className="space-y-3">
                       <div className="font-medium">WTC</div>
                       <CompactCombobox
-                        options={uniqueValues.wtcs}
-                        value={filters.wtc}
-                        onValueChange={(value) => handleFilterChange('wtc', value)}
+                        options={wtcOptions}
+                        value={wtcFilter}
+                        onValueChange={(value) => { setWtcFilter(value); setPagination(p => ({ ...p, page: 1 })); }}
                         placeholder="All WTCs..."
                       />
-                      {filters.wtc && (
-                        <div className="text-xs text-muted-foreground">Filtered</div>
-                      )}
                     </div>
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedData.map((aircraft, index) => (
-                  <TableRow key={aircraft.id}>
-                    <TableCell className="font-medium max-w-[200px] truncate" title={aircraft.manufacturer}>
-                      {aircraft.manufacturer}
-                    </TableCell>
-                    <TableCell className="max-w-[200px] truncate" title={aircraft.model}>
-                      {aircraft.model}
-                    </TableCell>
-                    <TableCell className="font-mono">{aircraft.typeDesignator}</TableCell>
-                    <TableCell className="max-w-[300px] truncate" title={aircraft.description}>
-                      {formatAircraftDescription(aircraft.description)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="text-xs">
-                        {aircraft.engineType}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{aircraft.engineCount}</TableCell>
-                    <TableCell>
-                      <Badge variant="secondary" className="text-xs">
-                        {aircraft.wtc}
-                      </Badge>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8">
+                      <div className="flex items-center justify-center space-x-2">
+                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                        <span>Loading type designators...</span>
+                      </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : aircraft.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8">
+                      <div className="flex flex-col items-center space-y-2">
+                        <Plane className="h-8 w-8 text-muted-foreground" />
+                        <span className="text-muted-foreground">No type designators found</span>
+                        {search || manufacturerFilter || modelFilter || icaoFilter || engineTypeFilter || engineCountFilter || wtcFilter ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSearch('');
+                              setManufacturerFilter('');
+                              setModelFilter('');
+                              setIcaoFilter('');
+                              setEngineTypeFilter('');
+                              setEngineCountFilter('');
+                              setWtcFilter('');
+                            }}
+                          >
+                            Clear filters
+                          </Button>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  aircraft.map((aircraft, idx) => (
+                    <TableRow key={aircraft.id || idx}>
+                      <TableCell className="w-48">{aircraft.manufacturer}</TableCell>
+                      <TableCell className="w-40">{aircraft.model}</TableCell>
+                      <TableCell className="w-32">{aircraft.typeDesignator}</TableCell>
+                      <TableCell className="w-40">{formatAircraftDescription(aircraft.description)}</TableCell>
+                      <TableCell className="w-36">{aircraft.engineType}</TableCell>
+                      <TableCell className="w-32">{aircraft.engineCount}</TableCell>
+                      <TableCell className="w-24">{aircraft.wtc}</TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
+          {/* Pagination Controls */}
+          {pagination.pages > 1 && (
             <div className="flex items-center justify-between mt-6">
               <div className="text-sm text-muted-foreground">
-                Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredData.length)} of {filteredData.length} entries
+                Showing {((pagination.page - 1) * pagination.limit) + 1} to{' '}
+                {Math.min(pagination.page * pagination.limit, pagination.total)} of{' '}
+                {pagination.total} type designators
               </div>
               <div className="flex items-center space-x-6">
                 <div className="flex items-center space-x-2">
                   <span className="text-sm text-muted-foreground">Show:</span>
                   <Select
-                    value={itemsPerPage.toString()}
-                    onValueChange={(value) => setItemsPerPage(parseInt(value))}
+                    value={pagination.limit.toString()}
+                    onValueChange={(value) => {
+                      setPagination(prev => ({
+                        ...prev,
+                        limit: parseInt(value),
+                        page: 1 // Reset to first page when changing limit
+                      }));
+                    }}
                   >
                     <SelectTrigger className="w-20">
                       <SelectValue />
@@ -675,29 +879,29 @@ export default function IcaoImportTab() {
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={pagination.page === 1 || loading}
+                    onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
                     className="h-8 px-3"
                   >
-                    Previous
+                    {loading ? 'Loading...' : 'Previous'}
                   </Button>
                   <div className="flex items-center space-x-2">
                     <span className="text-sm text-muted-foreground">Page</span>
-                    <span className="text-sm font-medium">{currentPage}</span>
+                    <span className="text-sm font-medium">{pagination.page}</span>
                     <span className="text-sm text-muted-foreground">of</span>
-                    <span className="text-sm font-medium">{totalPages}</span>
+                    <span className="text-sm font-medium">{pagination.pages}</span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="text-sm text-muted-foreground">Go to:</span>
                     <Input
                       type="number"
                       min={1}
-                      max={totalPages}
-                      value={currentPage}
+                      max={pagination.pages}
+                      value={pagination.page}
                       onChange={(e) => {
                         const page = parseInt(e.target.value);
-                        if (page >= 1 && page <= totalPages) {
-                          setCurrentPage(page);
+                        if (page >= 1 && page <= pagination.pages) {
+                          setPagination(prev => ({ ...prev, page }));
                         }
                       }}
                       className="w-16 h-8 text-center"
@@ -706,11 +910,11 @@ export default function IcaoImportTab() {
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={pagination.page === pagination.pages || loading}
+                    onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
                     className="h-8 px-3"
                   >
-                    Next
+                    {loading ? 'Loading...' : 'Next'}
                   </Button>
                 </div>
               </div>
@@ -718,6 +922,147 @@ export default function IcaoImportTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* Create Aircraft Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={(open) => {
+        setShowCreateDialog(open);
+        if (!open) {
+          setCreateForm({
+            manufacturer: '',
+            model: '',
+            typeDesignator: '',
+            description: 'LANDPLANE',
+            engineType: 'PISTON',
+            engineCount: 1,
+            wtc: 'LIGHT',
+          });
+          setError('');
+        }
+      }}>
+        <DialogContent className="!max-w-[90vw] max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="pb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-2xl">Create New ICAO Type Designator</DialogTitle>
+                <DialogDescription className="text-base">
+                  Add a new ICAO type designator to the reference database
+                </DialogDescription>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCreateAircraft} disabled={createLoading}>
+                  {createLoading ? 'Creating...' : 'Create Type Designator'}
+                </Button>
+              </div>
+            </div>
+          </DialogHeader>
+          
+          <div className="space-y-8">
+            {/* Basic Information */}
+            <div className="bg-muted rounded-lg p-6">
+              <h3 className="text-xl font-semibold text-card-foreground mb-6 flex items-center">
+                <Plane className="h-5 w-5 mr-2" />
+                Type Designator Information
+              </h3>
+              
+              {/* First Row - Basic Info */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Manufacturer *</Label>
+                    <Input
+                      value={createForm.manufacturer}
+                      onChange={(e) => handleCreateFormChange('manufacturer', e.target.value)}
+                      placeholder="e.g., Boeing, Airbus, Cessna"
+                      className="bg-background border-input h-10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Description *</Label>
+                    <Select value={createForm.description} onValueChange={(value) => handleCreateFormChange('description', value)}>
+                      <SelectTrigger className="bg-background border-input h-10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DESCRIPTION_TYPES.map((desc) => (
+                          <SelectItem key={desc.value} value={desc.value}>{desc.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Model *</Label>
+                    <Input
+                      value={createForm.model}
+                      onChange={(e) => handleCreateFormChange('model', e.target.value)}
+                      placeholder="e.g., 737, A320, 172"
+                      className="bg-background border-input h-10"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Engine Type *</Label>
+                      <Select value={createForm.engineType} onValueChange={(value) => handleCreateFormChange('engineType', value)}>
+                        <SelectTrigger className="bg-background border-input h-10">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ENGINE_TYPES.map((type) => (
+                            <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Engine Count *</Label>
+                      <Input
+                        value={createForm.engineCount}
+                        onChange={(e) => handleCreateFormChange('engineCount', parseInt(e.target.value) || 1)}
+                        type="number"
+                        min="1"
+                        max="10"
+                        placeholder="1"
+                        className="bg-background border-input h-10"
+                      />
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">ICAO Type Designator *</Label>
+                    <Input
+                      value={createForm.typeDesignator}
+                      onChange={(e) => handleCreateFormChange('typeDesignator', e.target.value.toUpperCase())}
+                      placeholder="e.g., B738, A320, C172"
+                      maxLength={4}
+                      className="bg-background border-input font-mono h-10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Wake Turbulence Category *</Label>
+                    <Select value={createForm.wtc} onValueChange={(value) => handleCreateFormChange('wtc', value)}>
+                      <SelectTrigger className="bg-background border-input h-10">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {WTC_TYPES.map((wtc) => (
+                          <SelectItem key={wtc.value} value={wtc.value}>{wtc.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 

@@ -34,7 +34,7 @@ interface User {
   firstName: string;
   lastName: string;
   userRoles: Array<{
-    role: {
+    roles: {
       id: string;
       name: string;
     };
@@ -80,7 +80,7 @@ function DashboardContent() {
 
         if (response.ok) {
           const userData = await response.json();
-          setUser(userData.user);
+          setUser(userData);
         } else {
           router.push('/login');
         }
@@ -191,7 +191,7 @@ function DashboardContent() {
   ];
 
   const hasRole = (roleName: string) => {
-    return user?.userRoles.some(userRole => userRole.role.name === roleName) || false;
+    return user?.userRoles.some(userRole => userRole.roles.name === roleName) || false;
   };
 
   const canAccessFleet = () => {
@@ -207,7 +207,7 @@ function DashboardContent() {
   };
 
   return (
-    <div className="flex h-screen bg-background">
+          <div className="flex h-screen bg-white dark:bg-gray-900">
       <NewSidebar 
         user={user}
         onLogout={handleLogout}
@@ -243,7 +243,7 @@ function DashboardContent() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-background">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-white dark:bg-gray-900">
           {activeTab === 'dashboard' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">

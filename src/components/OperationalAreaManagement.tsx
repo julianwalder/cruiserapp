@@ -455,7 +455,7 @@ export default function OperationalAreaManagement() {
         <CardContent>
           {/* Alerts */}
           {/* Operational Areas Table */}
-          <div className="border border-border rounded-lg">
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
             <Table>
               <TableHeader>
                 <TableRow>

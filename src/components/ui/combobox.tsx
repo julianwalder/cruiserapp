@@ -89,11 +89,6 @@ export function Combobox({
           aria-expanded={open}
           className={cn("w-full justify-between", className)}
           disabled={disabled}
-          onFocus={() => {
-            if (!open) {
-              setOpen(true)
-            }
-          }}
         >
           {value
             ? options.find((option) => option.value === value)?.label

@@ -30,7 +30,7 @@ interface User {
   firstName: string;
   lastName: string;
   userRoles: Array<{
-    role: {
+    roles: {
       id: string;
       name: string;
     };
@@ -158,7 +158,7 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
   };
 
   const hasRole = (roleName: string) => {
-    return user?.userRoles.some(userRole => userRole.role.name === roleName) || false;
+    return user?.userRoles.some(userRole => userRole.roles.name === roleName) || false;
   };
 
   const canAccessBaseManagement = () => {
@@ -329,9 +329,9 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
                   </div>
                   <div className="text-xs text-sidebar-foreground/60 truncate">{user.email}</div>
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {user.userRoles?.slice(0, 2).map((userRole) => (
-                      <Badge key={userRole.role.id} className={`text-xs border ${getRoleBadgeColor(userRole.role.name)}`}>
-                        {getRoleDisplayName(userRole.role.name)}
+                    {user.userRoles?.slice(0, 2).map((userRole, index) => (
+                      <Badge key={`${userRole.roles.name}-${index}`} className={`text-xs border ${getRoleBadgeColor(userRole.roles.name)}`}>
+                        {getRoleDisplayName(userRole.roles.name)}
                       </Badge>
                     ))}
                     {user.userRoles?.length > 2 && (
@@ -381,7 +381,7 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
               })}
               
               {/* Role Management for Super Admin */}
-              {user?.userRoles.some(userRole => userRole.role.name === 'SUPER_ADMIN') && (
+              {user?.userRoles.some(userRole => userRole.roles.name === 'SUPER_ADMIN') && (
                 <Button
                   variant="ghost"
                   className={`

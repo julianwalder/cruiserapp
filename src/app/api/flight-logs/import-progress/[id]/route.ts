@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { getSupabaseClient } from '@/lib/supabase';
 
 // Global storage for import progress (in production, use Redis or similar)
 (global as any).flightLogsImportProgress = (global as any).flightLogsImportProgress || {};
@@ -19,19 +19,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Fetch the full user with roles from database
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: {
-        userRoles: {
-          include: {
-            role: true,
-          },
-        },
-      },
-    });
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+    }
 
-    if (!user) {
+    // Fetch the full user with roles from database
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select(`
+        id,
+        userRoles (
+          role (
+            name
+          )
+        )
+      `)
+      .eq('id', decoded.userId)
+      .single();
+
+    if (userError || !user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 

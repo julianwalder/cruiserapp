@@ -32,7 +32,7 @@ export default function TestPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-8">
+    <div className="min-h-screen bg-white dark:bg-gray-900 p-8">
       {/* Basic Tailwind Test */}
       <div className="mb-8 p-4 bg-primary text-primary-foreground rounded-lg">
         <h1 className="text-2xl font-bold">Basic Tailwind Test</h1>

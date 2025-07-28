@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { getSupabaseClient } from '@/lib/supabase';
 import { parse } from 'csv-parse/sync';
 
 // Global storage for import progress (in production, use Redis or similar)
@@ -20,19 +20,26 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Get user with roles to check permissions
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: {
-        userRoles: {
-          include: {
-            role: true,
-          },
-        },
-      },
-    });
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+    }
 
-    if (!user) {
+    // Get user with roles to check permissions
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select(`
+        id,
+        userRoles (
+          role (
+            name
+          )
+        )
+      `)
+      .eq('id', decoded.userId)
+      .single();
+
+    if (userError || !user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -75,19 +82,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Get user with roles to check permissions
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: {
-        userRoles: {
-          include: {
-            role: true,
-          },
-        },
-      },
-    });
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+    }
 
-    if (!user) {
+    // Get user with roles to check permissions
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select(`
+        id,
+        userRoles (
+          role (
+            name
+          )
+        )
+      `)
+      .eq('id', decoded.userId)
+      .single();
+
+    if (userError || !user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -148,7 +162,7 @@ export async function POST(request: NextRequest) {
 
     // Process each row
     for (let i = 0; i < dataRows.length; i++) {
-      const rowData = dataRows[i];
+      const rowData = dataRows[i] as any;
       const rowNumber = i + 2; // +2 because we start from line 2 (after header)
       
       try {
@@ -160,32 +174,39 @@ export async function POST(request: NextRequest) {
         }
 
         // Find pilot by email
-        const pilot = await prisma.user.findFirst({
-          where: { email: rowData.pilot_email }
-        });
+        const { data: pilot, error: pilotError } = await supabase
+          .from('users')
+          .select('id, email')
+          .eq('email', rowData.pilot_email)
+          .single();
 
-        if (!pilot) {
+        if (pilotError || !pilot) {
           throw new Error(`Pilot with email ${rowData.pilot_email} not found`);
         }
 
         // Find aircraft by call sign
-        const aircraft = await prisma.aircraft.findFirst({
-          where: { callSign: rowData.aircraft_callsign }
-        });
+        const { data: aircraft, error: aircraftError } = await supabase
+          .from('aircraft')
+          .select('id, callSign')
+          .eq('callSign', rowData.aircraft_callsign)
+          .single();
 
-        if (!aircraft) {
+        if (aircraftError || !aircraft) {
           throw new Error(`Aircraft with call sign ${rowData.aircraft_callsign} not found`);
         }
 
         // Find departure airfield by code - create if not exists for historical data
-        let departureAirfield = await prisma.airfield.findFirst({
-          where: { code: rowData.departure_airfield_code }
-        });
+        let { data: departureAirfield, error: departureError } = await supabase
+          .from('airfield')
+          .select('id, code')
+          .eq('code', rowData.departure_airfield_code)
+          .single();
 
-        if (!departureAirfield) {
+        if (departureError || !departureAirfield) {
           // Create a temporary airfield for historical data
-          departureAirfield = await prisma.airfield.create({
-            data: {
+          const { data: newDepartureAirfield, error: createDepartureError } = await supabase
+            .from('airfield')
+            .insert({
               name: `Historical Airfield - ${rowData.departure_airfield_code}`,
               code: rowData.departure_airfield_code,
               type: 'AIRPORT', // Default type
@@ -194,19 +215,28 @@ export async function POST(request: NextRequest) {
               country: 'Unknown',
               isBase: false,
               createdById: user.id,
-            }
-          });
+            })
+            .select('id, code')
+            .single();
+
+          if (createDepartureError || !newDepartureAirfield) {
+            throw new Error(`Failed to create departure airfield ${rowData.departure_airfield_code}`);
+          }
+          departureAirfield = newDepartureAirfield;
         }
 
         // Find arrival airfield by code - create if not exists for historical data
-        let arrivalAirfield = await prisma.airfield.findFirst({
-          where: { code: rowData.arrival_airfield_code }
-        });
+        let { data: arrivalAirfield, error: arrivalError } = await supabase
+          .from('airfield')
+          .select('id, code')
+          .eq('code', rowData.arrival_airfield_code)
+          .single();
 
-        if (!arrivalAirfield) {
+        if (arrivalError || !arrivalAirfield) {
           // Create a temporary airfield for historical data
-          arrivalAirfield = await prisma.airfield.create({
-            data: {
+          const { data: newArrivalAirfield, error: createArrivalError } = await supabase
+            .from('airfield')
+            .insert({
               name: `Historical Airfield - ${rowData.arrival_airfield_code}`,
               code: rowData.arrival_airfield_code,
               type: 'AIRPORT', // Default type
@@ -215,21 +245,36 @@ export async function POST(request: NextRequest) {
               country: 'Unknown',
               isBase: false,
               createdById: user.id,
-            }
-          });
+            })
+            .select('id, code')
+            .single();
+
+          if (createArrivalError || !newArrivalAirfield) {
+            throw new Error(`Failed to create arrival airfield ${rowData.arrival_airfield_code}`);
+          }
+          arrivalAirfield = newArrivalAirfield;
         }
 
         // Find instructor by email (optional)
         let instructor = null;
         if (rowData.instructor_email) {
-          instructor = await prisma.user.findFirst({
-            where: { email: rowData.instructor_email },
-            include: { userRoles: { include: { role: true } } }
-          });
+          const { data: instructorData, error: instructorError } = await supabase
+            .from('users')
+            .select(`
+              id,
+              userRoles (
+                role (
+                  name
+                )
+              )
+            `)
+            .eq('email', rowData.instructor_email)
+            .single();
 
-          if (!instructor) {
+          if (instructorError || !instructorData) {
             throw new Error(`Instructor with email ${rowData.instructor_email} not found`);
           }
+          instructor = instructorData;
         }
 
         // Calculate total flight time
@@ -269,17 +314,17 @@ export async function POST(request: NextRequest) {
         }
 
         // Check for existing flight log to prevent duplicates
-        const existingFlightLog = await prisma.flightLog.findFirst({
-          where: {
-            date: new Date(rowData.date),
-            pilotId: pilot.id,
-            aircraftId: aircraft.id,
-            departureTime: rowData.departure_time,
-            arrivalTime: rowData.arrival_time,
-            departureAirfieldId: departureAirfield.id,
-            arrivalAirfieldId: arrivalAirfield.id,
-          }
-        });
+        const { data: existingFlightLog } = await supabase
+          .from('flight_logs')
+          .select('id')
+          .eq('date', new Date(rowData.date).toISOString())
+          .eq('pilotId', pilot.id)
+          .eq('aircraftId', aircraft.id)
+          .eq('departureTime', rowData.departure_time)
+          .eq('arrivalTime', rowData.arrival_time)
+          .eq('departureAirfieldId', departureAirfield.id)
+          .eq('arrivalAirfieldId', arrivalAirfield.id)
+          .single();
 
         if (existingFlightLog) {
           // Skip this row as it already exists
@@ -298,9 +343,10 @@ export async function POST(request: NextRequest) {
         }
 
         // Create flight log
-        const flightLog = await prisma.flightLog.create({
-          data: {
-            date: new Date(rowData.date),
+        const { data: flightLog, error: createError } = await supabase
+          .from('flight_logs')
+          .insert({
+            date: new Date(rowData.date).toISOString(),
             pilotId: pilot.id,
             instructorId: instructor?.id,
             aircraftId: aircraft.id,
@@ -331,8 +377,13 @@ export async function POST(request: NextRequest) {
             oilAdded: rowData.oil_added ? parseInt(rowData.oil_added) : 0,
             fuelAdded: rowData.fuel_added ? parseInt(rowData.fuel_added) : 0,
             createdById: user.id,
-          }
-        });
+          })
+          .select('id')
+          .single();
+
+        if (createError) {
+          throw new Error(`Failed to create flight log: ${createError.message}`);
+        }
 
         results.success++;
         results.details.push({

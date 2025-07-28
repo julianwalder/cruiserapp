@@ -26,7 +26,7 @@ export function TimePicker({
       placeholder={placeholder}
       disabled={disabled}
       step={step}
-      className="bg-background appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
+              className="bg-white dark:bg-gray-900 appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
     />
   )
 } 

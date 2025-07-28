@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { getSupabaseClient } from '@/lib/supabase';
 import { AuthService } from '@/lib/auth';
-
-const prisma = new PrismaClient();
 
 export async function PATCH(
   request: NextRequest,
@@ -14,29 +12,36 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = verifyToken(token);
+    const decoded = AuthService.verifyToken(token);
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Check if user has admin or super admin role
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: {
-        userRoles: {
-          include: {
-            role: true,
-          },
-        },
-      },
-    });
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+    }
 
-    if (!user) {
+    // Check if user has admin or super admin role
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select(`
+        id,
+        userRoles (
+          role (
+            name
+          )
+        )
+      `)
+      .eq('id', decoded.userId)
+      .single();
+
+    if (userError || !user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     const hasAccess = user.userRoles.some(
-      (userRole) => userRole.role.name === 'SUPER_ADMIN' || userRole.role.name === 'ADMIN'
+      (userRole: any) => userRole.role.name === 'SUPER_ADMIN' || userRole.role.name === 'ADMIN'
     );
 
     if (!hasAccess) {
@@ -48,11 +53,13 @@ export async function PATCH(
     const { status } = body;
 
     // Check if iCAOtype exists
-    const iCAOtype = await prisma.iCAOtype.findUnique({
-      where: { id: iCAOtypeId },
-    });
+    const { data: iCAOtype, error: iCAOtypeError } = await supabase
+      .from('iCAOtype')
+      .select('id')
+      .eq('id', iCAOtypeId)
+      .single();
 
-    if (!iCAOtype) {
+    if (iCAOtypeError || !iCAOtype) {
       return NextResponse.json({ error: 'iCAOtype not found' }, { status: 404 });
     }
 
@@ -63,31 +70,32 @@ export async function PATCH(
     }
 
     // Update iCAOtype status
-    const updatediCAOtype = await prisma.iCAOtype.update({
-      where: { id: iCAOtypeId },
-      data: { status },
-      include: {
-        baseAirfield: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-          },
-        },
-        fleetManagement: {
-          include: {
-            assignedPilot: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    const { data: updatediCAOtype, error: updateError } = await supabase
+      .from('iCAOtype')
+      .update({ status })
+      .eq('id', iCAOtypeId)
+      .select(`
+        *,
+        baseAirfield (
+          id,
+          name,
+          code
+        ),
+        fleetManagement (
+          assignedPilot (
+            id,
+            "firstName",
+            "lastName",
+            email
+          )
+        )
+      `)
+      .single();
+
+    if (updateError) {
+      console.error('Error updating iCAOtype status:', updateError);
+      return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    }
 
     return NextResponse.json({ iCAOtype: updatediCAOtype });
   } catch (error) {

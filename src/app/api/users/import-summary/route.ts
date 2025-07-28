@@ -1,95 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { AuthService } from '@/lib/auth';
+import { getSupabaseClient } from '@/lib/supabase';
 import fs from 'fs';
 import path from 'path';
 
-const prisma = new PrismaClient();
-
-// Helper function to verify super admin
-async function verifySuperAdmin(request: NextRequest) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return null;
-  }
-
-  const token = authHeader.substring(7);
-  
+// GET /api/users/import-summary - Get import summary
+export async function GET(request: NextRequest) {
   try {
-    const session = await prisma.session.findUnique({
-      where: { token },
-      include: {
-        user: {
-          include: {
-            userRoles: {
-              include: {
-                role: true
-              }
-            }
-          }
-        }
-      }
-    });
-
-    if (!session || session.expiresAt < new Date()) {
-      return null;
+    // Verify authentication
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const isSuperAdmin = session.user.userRoles.some(
-      userRole => userRole.role.name === 'SUPER_ADMIN'
-    );
+    const user = await AuthService.validateSession(token);
+    if (!user) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
 
-    return isSuperAdmin ? session.user : null;
-  } catch (error) {
-    console.error('Error verifying super admin:', error);
-    return null;
-  }
-}
-
-// GET: Retrieve last import summary
-export async function GET(request: NextRequest) {
-  const user = await verifySuperAdmin(request);
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized - Super Admin access required' }, { status: 401 });
-  }
-
-  try {
-    const summaryPath = path.join(process.cwd(), 'data', 'users-import-summary.json');
+    // Get user roles from JWT token
+    const payload = AuthService.verifyToken(token);
+    const userRoles = payload?.roles || [];
     
-    if (fs.existsSync(summaryPath)) {
-      const summaryData = fs.readFileSync(summaryPath, 'utf8');
+    // Check if user has appropriate permissions
+    if (!AuthService.hasPermission(userRoles, 'ADMIN')) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions' },
+        { status: 403 }
+      );
+    }
+
+    // Read the import summary from the JSON file
+    const summaryFilePath = path.join(process.cwd(), 'data', 'users-import-summary.json');
+    
+    try {
+      const summaryData = fs.readFileSync(summaryFilePath, 'utf8');
       const summary = JSON.parse(summaryData);
+      
       return NextResponse.json(summary);
-    } else {
+    } catch (fileError) {
+      // If file doesn't exist or is invalid, return null
+      console.log('No import summary file found or invalid JSON');
       return NextResponse.json(null);
     }
   } catch (error) {
-    console.error('Error reading import summary:', error);
-    return NextResponse.json(null);
-  }
-}
-
-// POST: Store import summary
-export async function POST(request: NextRequest) {
-  const user = await verifySuperAdmin(request);
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized - Super Admin access required' }, { status: 401 });
-  }
-
-  try {
-    const summary = await request.json();
-    
-    // Ensure data directory exists
-    const dataDir = path.join(process.cwd(), 'data');
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
-    
-    const summaryPath = path.join(dataDir, 'users-import-summary.json');
-    fs.writeFileSync(summaryPath, JSON.stringify(summary, null, 2));
-    
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Error storing import summary:', error);
-    return NextResponse.json({ error: 'Failed to store import summary' }, { status: 500 });
+    console.error('Error fetching import summary:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 } 

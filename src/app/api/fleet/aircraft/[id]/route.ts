@@ -1,208 +1,305 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-import { AuthService } from '@/lib/auth';
-import { writeFile, mkdir, readFile } from 'fs/promises';
-import { join } from 'path';
-import formidable from 'formidable';
+import { requireRole } from '@/lib/middleware';
+import { getSupabaseClient } from '@/lib/supabase';
 
-const prisma = new PrismaClient();
-
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// GET /api/fleet/aircraft/[id] - Get aircraft by ID
+async function getAircraft(request: NextRequest, currentUser: any) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const aircraftId = request.nextUrl.pathname.split('/').pop();
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'Database connection error' },
+        { status: 500 }
+      );
     }
 
-    const decoded = AuthService.verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    const { data: aircraft, error } = await supabase
+      .from('aircraft')
+      .select(`
+        id,
+        "registrationNumber",
+        "icaoType",
+        manufacturer,
+        model,
+        type,
+        status,
+        "yearOfManufacture",
+        "totalFlightHours",
+        "lastMaintenanceDate",
+        "nextMaintenanceDate",
+        "insuranceExpiryDate",
+        "registrationExpiryDate",
+        "imagePath",
+        "createdAt",
+        "updatedAt"
+      `)
+      .eq('id', aircraftId)
+      .single();
+
+    if (error || !aircraft) {
+      return NextResponse.json(
+        { error: 'Aircraft not found' },
+        { status: 404 }
+      );
     }
 
-    // Check if user has admin or super admin role
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: {
-        userRoles: {
-          include: {
-            role: true,
-          },
-        },
-      },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    const hasAccess = user.userRoles.some(
-      (userRole) => userRole.role.name === 'SUPER_ADMIN' || userRole.role.name === 'ADMIN'
-    );
-
-    if (!hasAccess) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-
-    const { id: aircraftId } = await params;
-
-    // Check if aircraft exists
-    const aircraft = await prisma.aircraft.findUnique({
-      where: { id: aircraftId },
-    });
-
-    if (!aircraft) {
-      return NextResponse.json({ error: 'Aircraft not found' }, { status: 404 });
-    }
-
-    // Delete aircraft
-    await prisma.aircraft.delete({
-      where: { id: aircraftId },
-    });
-
-    return NextResponse.json({ message: 'Aircraft deleted successfully' });
+    return NextResponse.json(aircraft);
   } catch (error) {
-    console.error('Error deleting aircraft:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error fetching aircraft:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// PUT /api/fleet/aircraft/[id] - Update aircraft
+async function updateAircraft(request: NextRequest, currentUser: any) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const aircraftId = request.nextUrl.pathname.split('/').pop();
+    
+    // Check if the request is FormData or JSON
+    const contentType = request.headers.get('content-type') || '';
+    
+    let body: any = {};
+    
+    if (contentType.includes('multipart/form-data')) {
+      // Handle FormData
+      const formData = await request.formData();
+      
+      // Convert FormData to object and handle file uploads
+      for (const [key, value] of formData.entries()) {
+        if (value instanceof File) {
+          // Handle file upload
+          console.log('File received:', key, value.name);
+          
+          // Upload to Vercel Blob
+          const { put } = await import('@vercel/blob');
+          
+          const timestamp = Date.now();
+          const extension = value.name.split('.').pop();
+          const filename = `aircraft-${timestamp}.${extension}`;
+          
+          const blob = await put(filename, value, {
+            access: 'public',
+            addRandomSuffix: false,
+          });
+          
+          body[key] = blob.url;
+        } else {
+          body[key] = value as string;
+        }
+      }
+      
+      console.log('FormData body:', body);
+    } else {
+      // Handle JSON
+      const rawBody = await request.text();
+      console.log('Raw JSON body:', rawBody);
+      
+      try {
+        body = JSON.parse(rawBody);
+      } catch (parseError) {
+        console.error('JSON parse error:', parseError);
+        console.error('Raw body that failed to parse:', rawBody);
+        return NextResponse.json(
+          { error: 'Invalid JSON in request body' },
+          { status: 400 }
+        );
+      }
     }
 
-    const decoded = AuthService.verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    // Map FormData fields to database fields
+    const updateData: any = {
+      callSign: body.callSign || body.registrationNumber,
+      serialNumber: body.serialNumber,
+      yearOfManufacture: body.yearOfManufacture ? parseInt(body.yearOfManufacture) : null,
+      status: body.status || 'ACTIVE',
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Add image path if a new image was uploaded
+    if (body.image) {
+      updateData.imagePath = body.image;
     }
 
-    // Check if user has admin or super admin role
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: {
-        userRoles: {
-          include: {
-            role: true,
-          },
-        },
-      },
-    });
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    // Validate required fields
+    if (!updateData.callSign || !body.manufacturer || !body.model) {
+      return NextResponse.json(
+        { error: 'Call sign, manufacturer, and model are required' },
+        { status: 400 }
+      );
     }
 
-    const hasAccess = user.userRoles.some(
-      (userRole) => userRole.role.name === 'SUPER_ADMIN' || userRole.role.name === 'ADMIN'
-    );
-
-    if (!hasAccess) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'Database connection error' },
+        { status: 500 }
+      );
     }
-
-    const { id } = await params;
 
     // Check if aircraft exists
-    const existingAircraft = await prisma.aircraft.findUnique({
-      where: { id },
-      include: { icaoReferenceType: true },
-    });
+    const { data: existingAircraft, error: existingError } = await supabase
+      .from('aircraft')
+      .select('id, "callSign"')
+      .eq('id', aircraftId)
+      .single();
 
-    if (!existingAircraft) {
-      return NextResponse.json({ error: 'Aircraft not found' }, { status: 404 });
+    if (existingError || !existingAircraft) {
+      return NextResponse.json(
+        { error: 'Aircraft not found' },
+        { status: 404 }
+      );
     }
 
-    // Convert NextRequest to Node.js request for formidable
-    const formData = await request.formData();
-    
-    const callSign = formData.get('callSign') as string;
-    const serialNumber = formData.get('serialNumber') as string;
-    const yearOfManufacture = parseInt(formData.get('yearOfManufacture') as string);
-    const icaoTypeDesignator = formData.get('icaoTypeDesignator') as string;
-    const model = formData.get('model') as string;
-    const manufacturer = formData.get('manufacturer') as string;
-    const status = formData.get('status') as string;
-    const imageFile = formData.get('image') as File | null;
+    // Check if call sign is already taken by another aircraft
+    const { data: duplicateAircraft, error: duplicateError } = await supabase
+      .from('aircraft')
+      .select('id')
+      .eq('callSign', updateData.callSign)
+      .neq('id', aircraftId)
+      .single();
 
-    console.log('Aircraft PUT formData:', { callSign, serialNumber, yearOfManufacture, icaoTypeDesignator, model, manufacturer, status });
-
-    if (!callSign || !serialNumber || !yearOfManufacture || !icaoTypeDesignator || !model || !manufacturer || !status) {
-      console.error('Missing required fields:', { callSign, serialNumber, yearOfManufacture, icaoTypeDesignator, model, manufacturer, status });
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (duplicateError && duplicateError.code !== 'PGRST116') {
+      console.error('Error checking duplicate aircraft:', duplicateError);
+      return NextResponse.json(
+        { error: 'Database error' },
+        { status: 500 }
+      );
     }
 
-    // Find the ICAOReferenceType
-    const icaoRef = await prisma.iCAOReferenceType.findFirst({
-      where: {
-        typeDesignator: icaoTypeDesignator,
-        model,
-        manufacturer,
-      },
-    });
-    console.log('ICAOReferenceType lookup result:', icaoRef);
-    if (!icaoRef) {
-      console.error('ICAO reference type not found for:', { icaoTypeDesignator, model, manufacturer });
-      return NextResponse.json({ error: 'ICAO reference type not found' }, { status: 400 });
-    }
-
-    // Check for duplicate callSign or serialNumber (excluding current aircraft)
-    const duplicateAircraft = await prisma.aircraft.findFirst({
-      where: {
-        OR: [
-          { callSign },
-          { serialNumber },
-        ],
-        NOT: {
-          id,
-        },
-      },
-    });
     if (duplicateAircraft) {
-      console.error('Aircraft with this call sign or serial number already exists:', { callSign, serialNumber });
-      return NextResponse.json({ error: 'Aircraft with this call sign or serial number already exists' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Aircraft with this call sign already exists' },
+        { status: 409 }
+      );
     }
 
-    // Handle image upload
-    let imagePath = existingAircraft.imagePath; // Keep existing image if no new one
-    if (imageFile && imageFile.size > 0) {
-      const bytes = await imageFile.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      const fileName = `${Date.now()}-${imageFile.name}`;
-      const uploadDir = join(process.cwd(), 'public', 'uploads');
-      await mkdir(uploadDir, { recursive: true });
-      const filePath = join(uploadDir, fileName);
-      await writeFile(filePath, buffer);
-      imagePath = `/uploads/${fileName}`;
+    // Find the ICAO reference type if provided
+    let icaoReferenceTypeId = null;
+    if (body.icaoTypeDesignator && body.manufacturer && body.model) {
+      const { data: icaoRef, error: icaoError } = await supabase
+        .from('icao_reference_type')
+        .select('id')
+        .eq('typeDesignator', body.icaoTypeDesignator)
+        .eq('manufacturer', body.manufacturer)
+        .eq('model', body.model)
+        .single();
+
+      if (!icaoError && icaoRef) {
+        icaoReferenceTypeId = icaoRef.id;
+      }
     }
 
-    const aircraft = await prisma.aircraft.update({
-      where: { id },
-      data: {
-        callSign,
-        serialNumber,
-        yearOfManufacture,
-        icaoReferenceType: {
-          connect: { id: icaoRef.id }
-        },
-        imagePath,
-        status,
-      },
-      include: {
-        icaoReferenceType: true,
+    // Update aircraft
+    const { data: aircraft, error: updateError } = await supabase
+      .from('aircraft')
+      .update({
+        callSign: updateData.callSign,
+        serialNumber: updateData.serialNumber,
+        yearOfManufacture: updateData.yearOfManufacture,
+        status: updateData.status,
+        icaoReferenceTypeId: icaoReferenceTypeId,
+        imagePath: updateData.imagePath, // Add the image path
+        updatedAt: updateData.updatedAt,
+      })
+      .eq('id', aircraftId)
+      .select(`
+        *,
+        icao_reference_type (
+          id,
+          "typeDesignator",
+          manufacturer,
+          model
+        )
+      `)
+      .single();
+
+    if (updateError) {
+      console.error('Error updating aircraft:', updateError);
+      return NextResponse.json(
+        { error: 'Failed to update aircraft' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      message: 'Aircraft updated successfully',
+      aircraft: {
+        ...aircraft,
+        icaoReferenceType: aircraft.icao_reference_type,
       },
     });
-    console.log('Aircraft updated:', aircraft);
-    return NextResponse.json({ aircraft }, { status: 200 });
   } catch (error) {
     console.error('Error updating aircraft:', error);
-    return NextResponse.json({ error: 'Internal server error', details: error?.message || error }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
-} 
+}
+
+// DELETE /api/fleet/aircraft/[id] - Delete aircraft
+async function deleteAircraft(request: NextRequest, currentUser: any) {
+  try {
+    const aircraftId = request.nextUrl.pathname.split('/').pop();
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'Database connection error' },
+        { status: 500 }
+      );
+    }
+
+    // Check if aircraft exists
+    const { data: existingAircraft, error: existingError } = await supabase
+      .from('aircraft')
+      .select('id, "registrationNumber"')
+      .eq('id', aircraftId)
+      .single();
+
+    if (existingError || !existingAircraft) {
+      return NextResponse.json(
+        { error: 'Aircraft not found' },
+        { status: 404 }
+      );
+    }
+
+    // Delete aircraft
+    const { error: deleteError } = await supabase
+      .from('aircraft')
+      .delete()
+      .eq('id', aircraftId);
+
+    if (deleteError) {
+      console.error('Error deleting aircraft:', deleteError);
+      return NextResponse.json(
+        { error: 'Failed to delete aircraft' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      message: 'Aircraft deleted successfully',
+      aircraft: {
+        id: existingAircraft.id,
+        registrationNumber: existingAircraft.registrationNumber,
+      },
+    });
+  } catch (error) {
+    console.error('Error deleting aircraft:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+// Export handlers with middleware
+export const GET = requireRole('ADMIN')(getAircraft);
+export const PUT = requireRole('ADMIN')(updateAircraft);
+export const DELETE = requireRole('ADMIN')(deleteAircraft); 

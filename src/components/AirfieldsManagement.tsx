@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Search, Trash2, MapPin, Plane, Phone, Globe, Eye, ChevronsUpDown, Check } from 'lucide-react';
-import { useFormattedDate } from '@/hooks/use-date-format';
+import { useDateFormatUtils } from '@/hooks/use-date-format';
 import { cn } from '@/lib/utils';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -152,7 +152,7 @@ const CompactCombobox = ({
 };
 
 export default function AirfieldsManagement() {
-  const formatDate = useFormattedDate;
+  const { formatDate } = useDateFormatUtils();
   const [airfields, setAirfields] = useState<Airfield[]>([]);
   const [allAirfields, setAllAirfields] = useState<Airfield[]>([]); // <-- NEW
   const [pagination, setPagination] = useState<Pagination>({
@@ -476,7 +476,7 @@ export default function AirfieldsManagement() {
       case 'AIRSTRIP':
         return 'bg-blue-10 text-blue border-blue-20';
       default:
-        return 'bg-muted text-muted-foreground border-border';
+        return 'bg-muted text-muted-foreground border-gray-200 dark:border-gray-700';
     }
   };
 
@@ -485,13 +485,13 @@ export default function AirfieldsManagement() {
       case 'ACTIVE':
         return 'bg-success-10 text-success border-success-20';
       case 'INACTIVE':
-        return 'bg-muted text-muted-foreground border-border';
+        return 'bg-muted text-muted-foreground border-gray-200 dark:border-gray-700';
       case 'MAINTENANCE':
         return 'bg-warning-10 text-warning border-warning-20';
       case 'CLOSED':
         return 'bg-destructive-10 text-destructive border-destructive-20';
       default:
-        return 'bg-muted text-muted-foreground border-border';
+        return 'bg-muted text-muted-foreground border-gray-200 dark:border-gray-700';
     }
   };
 

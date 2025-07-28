@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
-import { PrismaClient } from '@prisma/client';
+import { getSupabaseClient } from '@/lib/supabase';
 import fs from 'fs';
 import path from 'path';
-
-const prisma = new PrismaClient();
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,6 +17,11 @@ export async function POST(request: NextRequest) {
     }
     if (!decoded.roles.includes('SUPER_ADMIN')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
     }
 
     console.log('🚀 Starting ICAO database seeding...');
@@ -121,19 +124,25 @@ export async function POST(request: NextRequest) {
           }
 
           // Check if entry already exists using the unique constraint
-          const existing = await prisma.iCAOReferenceType.findFirst({
-            where: {
-              manufacturer: aircraftData.manufacturer,
-              model: aircraftData.model,
-              typeDesignator: aircraftData.typeDesignator,
-      },
-    });
+          const { data: existing } = await supabase
+            .from('icao_reference_type')
+            .select('id, description, engineType, engineCount, wtc')
+            .eq('manufacturer', aircraftData.manufacturer)
+            .eq('model', aircraftData.model)
+            .eq('typeDesignator', aircraftData.typeDesignator)
+            .single();
 
           if (!existing) {
-            await prisma.iCAOReferenceType.create({
-              data: aircraftData,
-            });
-            inserted++;
+            const { error: insertError } = await supabase
+              .from('icao_reference_type')
+              .insert(aircraftData);
+
+            if (insertError) {
+              errors++;
+              console.error(`Error inserting aircraft ${entry.icaoTypeDesignator || entry.typeDesignator}:`, insertError);
+            } else {
+              inserted++;
+            }
           } else {
             const needsUpdate = 
               existing.description !== aircraftData.description ||
@@ -142,16 +151,22 @@ export async function POST(request: NextRequest) {
               existing.wtc !== aircraftData.wtc;
 
             if (needsUpdate) {
-              await prisma.iCAOReferenceType.update({
-                where: { id: existing.id },
-                data: {
+              const { error: updateError } = await supabase
+                .from('icao_reference_type')
+                .update({
                   description: aircraftData.description,
                   engineType: aircraftData.engineType,
                   engineCount: aircraftData.engineCount,
                   wtc: aircraftData.wtc,
-                },
-              });
-              updated++;
+                })
+                .eq('id', existing.id);
+
+              if (updateError) {
+                errors++;
+                console.error(`Error updating aircraft ${entry.icaoTypeDesignator || entry.typeDesignator}:`, updateError);
+              } else {
+                updated++;
+              }
             } else {
               unchanged++;
             }
@@ -224,8 +239,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+    }
+
     // Get current database stats
-    const totalAircraft = await prisma.iCAOReferenceType.count();
+    const { count: totalAircraft } = await supabase
+      .from('icao_reference_type')
+      .select('*', { count: 'exact', head: true });
+
+    // Get manufacturer count
+    const { data: manufacturers } = await supabase
+      .from('icao_reference_type')
+      .select('manufacturer');
+
+    const manufacturerCount = manufacturers ? new Set(manufacturers.map(m => m.manufacturer)).size : 0;
 
     // Read import summary if it exists
     const summaryPath = path.join(process.cwd(), 'scripts', 'icao-seeding-summary.json');
@@ -241,11 +270,8 @@ export async function GET(request: NextRequest) {
         statsData = {
           LastUpdated: importSummary.timestamp ? new Date(importSummary.timestamp).toLocaleString() : 'Never',
           NextUpdate: 'Manual',
-          AircraftTypeCount: totalAircraft,
-          ManufacturerCount: await prisma.iCAOReferenceType.groupBy({
-            by: ['manufacturer'],
-            _count: { manufacturer: true }
-          }).then(result => result.length)
+          AircraftTypeCount: totalAircraft || 0,
+          ManufacturerCount: manufacturerCount
         };
       }
     } catch (error) {
@@ -257,11 +283,8 @@ export async function GET(request: NextRequest) {
       statsData = {
         LastUpdated: 'Never',
         NextUpdate: 'Manual',
-        AircraftTypeCount: totalAircraft,
-        ManufacturerCount: await prisma.iCAOReferenceType.groupBy({
-          by: ['manufacturer'],
-          _count: { manufacturer: true }
-        }).then(result => result.length)
+        AircraftTypeCount: totalAircraft || 0,
+        ManufacturerCount: manufacturerCount
       };
     }
 

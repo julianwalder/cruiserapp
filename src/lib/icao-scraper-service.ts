@@ -1,73 +1,112 @@
-import { prisma } from '@/lib/prisma';
-import fs from 'fs';
-import path from 'path';
+import { getSupabaseClient } from './supabase';
 
-export class IcaoScraperService {
-  static async scrapeAndImport(): Promise<{ inserted: number; updated: number; unchanged: number }> {
-    // Path to the output of the real ICAO scraper
-    const dataPath = path.join(process.cwd(), 'scripts', 'icao-aircraft-extracted-v8.json');
-    if (!fs.existsSync(dataPath)) {
-      throw new Error('icao-aircraft-extracted-v8.json not found. Please run the scraper script first: node scripts/scrape-icao-comprehensive-v8.js');
-    }
-    let aircraftData: any[];
+export interface ICAOReferenceType {
+  id: string;
+  icaoCode: string;
+  manufacturer: string;
+  model: string;
+  type: string;
+  category: string;
+  engineType: string;
+  engineCount: number;
+  maxTakeoffWeight: number;
+  maxSpeed: number;
+  maxRange: number;
+  maxAltitude: number;
+  length: number;
+  wingspan: number;
+  height: number;
+  description: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export class ICAOScraperService {
+  static async findOrCreateICAOReferenceType(icaoData: any): Promise<ICAOReferenceType | null> {
     try {
-      const raw = fs.readFileSync(dataPath, 'utf-8');
-      aircraftData = JSON.parse(raw);
-    } catch (e) {
-      throw new Error('Failed to read or parse icao-aircraft-extracted-v8.json. Please check the file.');
-    }
-
-    let inserted = 0, updated = 0, unchanged = 0;
-    for (const entry of aircraftData) {
-      try {
-        const existing = await prisma.iCAOReferenceType.findUnique({
-          where: {
-            manufacturer_model_typeDesignator: {
-              manufacturer: entry.manufacturer,
-              model: entry.model,
-              typeDesignator: entry.typeDesignator,
-            },
-          },
-        });
-        if (!existing) {
-          await prisma.iCAOReferenceType.create({
-            data: {
-              manufacturer: entry.manufacturer,
-              model: entry.model,
-              typeDesignator: entry.typeDesignator,
-              description: entry.description,
-              engineType: entry.engineType,
-              engineCount: parseInt(entry.engineCount) || 1,
-              wtc: entry.wtc,
-            },
-          });
-          inserted++;
-        } else {
-          const needsUpdate =
-            existing.description !== entry.description ||
-            existing.engineType !== entry.engineType ||
-            existing.engineCount !== (parseInt(entry.engineCount) || 1) ||
-            existing.wtc !== entry.wtc;
-          if (needsUpdate) {
-            await prisma.iCAOReferenceType.update({
-              where: { id: existing.id },
-              data: {
-                description: entry.description,
-                engineType: entry.engineType,
-                engineCount: parseInt(entry.engineCount) || 1,
-                wtc: entry.wtc,
-              },
-            });
-            updated++;
-          } else {
-            unchanged++;
-          }
-        }
-      } catch (error) {
-        // Optionally log error for this entry
-        // console.error('Error upserting ICAO entry:', entry, error);
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        console.error('Supabase client not initialized');
+        return null;
       }
+
+      // Check if ICAO reference type already exists
+      const { data: existing, error: findError } = await supabase
+        .from('icao_reference_type')
+        .select('*')
+        .eq('icaoCode', icaoData.icaoCode)
+        .single();
+
+      if (findError && findError.code !== 'PGRST116') {
+        console.error('Error finding ICAO reference type:', findError);
+        return null;
+      }
+
+      if (existing) {
+        // Update existing record
+        const { data: updated, error: updateError } = await supabase
+          .from('icao_reference_type')
+          .update({
+            manufacturer: icaoData.manufacturer,
+            model: icaoData.model,
+            type: icaoData.type,
+            category: icaoData.category,
+            engineType: icaoData.engineType,
+            engineCount: icaoData.engineCount,
+            maxTakeoffWeight: icaoData.maxTakeoffWeight,
+            maxSpeed: icaoData.maxSpeed,
+            maxRange: icaoData.maxRange,
+            maxAltitude: icaoData.maxAltitude,
+            length: icaoData.length,
+            wingspan: icaoData.wingspan,
+            height: icaoData.height,
+            description: icaoData.description,
+            updatedAt: new Date().toISOString(),
+          })
+          .eq('icaoCode', icaoData.icaoCode)
+          .select('*')
+          .single();
+
+        if (updateError) {
+          console.error('Error updating ICAO reference type:', updateError);
+          return null;
+        }
+
+        return updated as ICAOReferenceType;
+      } else {
+        // Create new record
+        const { data: created, error: createError } = await supabase
+          .from('icao_reference_type')
+          .insert({
+            icaoCode: icaoData.icaoCode,
+            manufacturer: icaoData.manufacturer,
+            model: icaoData.model,
+            type: icaoData.type,
+            category: icaoData.category,
+            engineType: icaoData.engineType,
+            engineCount: icaoData.engineCount,
+            maxTakeoffWeight: icaoData.maxTakeoffWeight,
+            maxSpeed: icaoData.maxSpeed,
+            maxRange: icaoData.maxRange,
+            maxAltitude: icaoData.maxAltitude,
+            length: icaoData.length,
+            wingspan: icaoData.wingspan,
+            height: icaoData.height,
+            description: icaoData.description,
+          })
+          .select('*')
+          .single();
+
+        if (createError) {
+          console.error('Error creating ICAO reference type:', createError);
+          return null;
+        }
+
+        return created as ICAOReferenceType;
+      }
+    } catch (error) {
+      console.error('Error in findOrCreateICAOReferenceType:', error);
+      return null;
     }
-    return { inserted, updated, unchanged };
   }
 } 

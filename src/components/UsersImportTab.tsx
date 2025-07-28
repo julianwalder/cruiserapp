@@ -458,7 +458,7 @@ export default function UsersImportTab() {
         zipCode: createForm.zipCode,
         country: createForm.country,
         status: createForm.status,
-        totalFlightHours: createForm.totalFlightHours,
+        totalFlightHours: typeof createForm.totalFlightHours === 'string' ? parseFloat(createForm.totalFlightHours) || 0 : createForm.totalFlightHours,
         licenseNumber: createForm.licenseNumber,
         medicalClass: createForm.medicalClass,
         instructorRating: createForm.instructorRating,
@@ -481,6 +481,13 @@ export default function UsersImportTab() {
       if (!response.ok) {
         const result = await response.json();
         console.error('API Error Response:', result); // Debug log
+        
+        // Handle validation errors
+        if (result.details && Array.isArray(result.details)) {
+          const validationErrors = result.details.map((err: any) => `${err.path.join('.')}: ${err.message}`).join(', ');
+          throw new Error(`Validation error: ${validationErrors}`);
+        }
+        
         throw new Error(result.error || 'Failed to create user');
       }
 
@@ -569,7 +576,7 @@ export default function UsersImportTab() {
       case 'PROSPECT':
         return 'bg-blue-10 text-blue border-blue-20';
       default:
-        return 'bg-muted text-muted-foreground border-border';
+        return 'bg-muted text-muted-foreground border-gray-200 dark:border-gray-700';
     }
   };
 
@@ -578,13 +585,13 @@ export default function UsersImportTab() {
       case 'ACTIVE':
         return 'bg-success-10 text-success border-success-20';
       case 'INACTIVE':
-        return 'bg-muted text-muted-foreground border-border';
+        return 'bg-muted text-muted-foreground border-gray-200 dark:border-gray-700';
       case 'SUSPENDED':
         return 'bg-destructive-10 text-destructive border-destructive-20';
       case 'PENDING_APPROVAL':
         return 'bg-warning-10 text-warning border-warning-20';
       default:
-        return 'bg-muted text-muted-foreground border-border';
+        return 'bg-muted text-muted-foreground border-gray-200 dark:border-gray-700';
     }
   };
 
@@ -734,7 +741,7 @@ export default function UsersImportTab() {
                   >
                     <RefreshCw className="h-3 w-3" />
                   </Button>
-                  <Badge className="bg-muted text-muted-foreground border-border">
+                  <Badge className="bg-muted text-muted-foreground border-gray-200 dark:border-gray-700">
                     No Data
                   </Badge>
                 </div>
@@ -761,7 +768,7 @@ export default function UsersImportTab() {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-          <div className="border border-border rounded-lg overflow-x-auto w-full">
+          <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-x-auto w-full">
             <Table className="w-full">
               <TableHeader>
                 <TableRow>
@@ -831,7 +838,7 @@ export default function UsersImportTab() {
                         <Badge className={getStatusBadgeColor(user.status)}>{user.status}</Badge>
                       </TableCell>
                       <TableCell>{user.totalFlightHours}</TableCell>
-                      <TableCell>{user.createdAt ? new Date(user.createdAt).toLocaleDateString() : ''}</TableCell>
+                      <TableCell>{user.createdAt ? formatDate(user.createdAt, dateFormat) : ''}</TableCell>
                     </TableRow>
                   ))
                 )}
@@ -981,7 +988,7 @@ export default function UsersImportTab() {
                     value={createForm.firstName}
                     onChange={(e) => handleCreateFormChange('firstName', e.target.value)}
                     placeholder="Enter first name"
-                    className="bg-white"
+                    className="bg-background border-input"
                   />
                 </div>
                 <div className="space-y-2">
@@ -990,7 +997,7 @@ export default function UsersImportTab() {
                     value={createForm.lastName}
                     onChange={(e) => handleCreateFormChange('lastName', e.target.value)}
                     placeholder="Enter last name"
-                    className="bg-white"
+                    className="bg-background border-input"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1000,7 +1007,7 @@ export default function UsersImportTab() {
                     onChange={(e) => handleCreateFormChange('email', e.target.value)}
                     placeholder="Enter email"
                     type="email"
-                    className="bg-white"
+                    className="bg-background border-input"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1011,7 +1018,7 @@ export default function UsersImportTab() {
                       onChange={(e) => handleCreateFormChange('password', e.target.value)}
                       type={showPassword ? 'text' : 'password'}
                       placeholder="Enter password"
-                      className="bg-white"
+                      className="bg-background border-input"
                     />
                     <Button
                       type="button"
@@ -1034,7 +1041,7 @@ export default function UsersImportTab() {
                     value={createForm.personalNumber}
                     onChange={(e) => handleCreateFormChange('personalNumber', e.target.value)}
                     placeholder="CNP (Romania), SSN (US), etc."
-                    className="bg-white"
+                    className="bg-background border-input"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1043,7 +1050,7 @@ export default function UsersImportTab() {
                     value={createForm.phone}
                     onChange={(e) => handleCreateFormChange('phone', e.target.value)}
                     placeholder="Enter phone number"
-                    className="bg-white"
+                    className="bg-background border-input"
                   />
                 </div>
               </div>
@@ -1062,7 +1069,7 @@ export default function UsersImportTab() {
                     value={createForm.address}
                     onChange={(e) => handleCreateFormChange('address', e.target.value)}
                     placeholder="Enter address"
-                    className="bg-white"
+                    className="bg-background border-input"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1071,7 +1078,7 @@ export default function UsersImportTab() {
                     value={createForm.city}
                     onChange={(e) => handleCreateFormChange('city', e.target.value)}
                     placeholder="Enter city"
-                    className="bg-white"
+                    className="bg-background border-input"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1080,7 +1087,7 @@ export default function UsersImportTab() {
                     value={createForm.state}
                     onChange={(e) => handleCreateFormChange('state', e.target.value)}
                     placeholder="Enter state"
-                    className="bg-white"
+                    className="bg-background border-input"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1089,7 +1096,7 @@ export default function UsersImportTab() {
                     value={createForm.zipCode}
                     onChange={(e) => handleCreateFormChange('zipCode', e.target.value)}
                     placeholder="Enter ZIP code"
-                    className="bg-white"
+                    className="bg-background border-input"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1098,7 +1105,7 @@ export default function UsersImportTab() {
                     value={createForm.country}
                     onChange={(e) => handleCreateFormChange('country', e.target.value)}
                     placeholder="Enter country"
-                    className="bg-white"
+                    className="bg-background border-input"
                   />
                 </div>
               </div>
@@ -1142,7 +1149,7 @@ export default function UsersImportTab() {
                 <div className="space-y-2">
                   <Label className="text-sm font-medium text-muted-foreground">Status</Label>
                   <Select value={createForm.status} onValueChange={(value) => handleCreateFormChange('status', value)}>
-                    <SelectTrigger className="bg-white">
+                    <SelectTrigger className="bg-background border-input">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1161,7 +1168,7 @@ export default function UsersImportTab() {
                     type="number"
                     step="0.1"
                     placeholder="Enter flight hours"
-                    className="bg-white"
+                    className="bg-background border-input"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1170,7 +1177,7 @@ export default function UsersImportTab() {
                     value={createForm.licenseNumber}
                     onChange={(e) => handleCreateFormChange('licenseNumber', e.target.value)}
                     placeholder="Enter license number"
-                    className="bg-white"
+                    className="bg-background border-input"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1179,7 +1186,7 @@ export default function UsersImportTab() {
                     value={createForm.medicalClass}
                     onChange={(e) => handleCreateFormChange('medicalClass', e.target.value)}
                     placeholder="Enter medical class"
-                    className="bg-white"
+                    className="bg-background border-input"
                   />
                 </div>
                 {selectedRoles.includes('INSTRUCTOR') && (
@@ -1189,7 +1196,7 @@ export default function UsersImportTab() {
                       value={createForm.instructorRating}
                       onChange={(e) => handleCreateFormChange('instructorRating', e.target.value)}
                       placeholder="Enter instructor rating"
-                      className="bg-white"
+                      className="bg-background border-input"
                     />
                   </div>
                 )}

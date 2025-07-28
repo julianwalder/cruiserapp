@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { getSupabaseClient } from '@/lib/supabase';
 import { AuthService } from '@/lib/auth';
-
-const prisma = new PrismaClient();
 
 export async function POST(
   request: NextRequest,
@@ -19,24 +17,31 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Check if user has admin or super admin role
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: {
-        userRoles: {
-          include: {
-            role: true,
-          },
-        },
-      },
-    });
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+    }
 
-    if (!user) {
+    // Check if user has admin or super admin role
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select(`
+        id,
+        userRoles (
+          role (
+            name
+          )
+        )
+      `)
+      .eq('id', decoded.userId)
+      .single();
+
+    if (userError || !user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     const hasAccess = user.userRoles.some(
-      (userRole) => userRole.role.name === 'SUPER_ADMIN' || userRole.role.name === 'ADMIN'
+      (userRole: any) => userRole.role.name === 'SUPER_ADMIN' || userRole.role.name === 'ADMIN'
     );
 
     if (!hasAccess) {
@@ -59,33 +64,37 @@ export async function POST(
     } = body;
 
     // Check if iCAOtype exists
-    const iCAOtype = await prisma.iCAOtype.findUnique({
-      where: { id: iCAOtypeId },
-    });
+    const { data: iCAOtype, error: iCAOtypeError } = await supabase
+      .from('iCAOtype')
+      .select('id')
+      .eq('id', iCAOtypeId)
+      .single();
 
-    if (!iCAOtype) {
+    if (iCAOtypeError || !iCAOtype) {
       return NextResponse.json({ error: 'iCAOtype not found' }, { status: 404 });
     }
 
     // Check if assigned pilot exists and has PILOT role
     if (assignedPilotId) {
-      const pilot = await prisma.user.findUnique({
-        where: { id: assignedPilotId },
-        include: {
-          userRoles: {
-            include: {
-              role: true,
-            },
-          },
-        },
-      });
+      const { data: pilot, error: pilotError } = await supabase
+        .from('users')
+        .select(`
+          id,
+          userRoles (
+            role (
+              name
+            )
+          )
+        `)
+        .eq('id', assignedPilotId)
+        .single();
 
-      if (!pilot) {
+      if (pilotError || !pilot) {
         return NextResponse.json({ error: 'Assigned pilot not found' }, { status: 404 });
       }
 
       const isPilot = pilot.userRoles.some(
-        (userRole) => userRole.role.name === 'PILOT' || userRole.role.name === 'INSTRUCTOR'
+        (userRole: any) => userRole.role.name === 'PILOT' || userRole.role.name === 'INSTRUCTOR'
       );
 
       if (!isPilot) {
@@ -93,45 +102,74 @@ export async function POST(
       }
     }
 
-    // Upsert fleet management (create or update)
-    const fleetManagement = await prisma.fleetManagement.upsert({
-      where: { iCAOtypeId },
-      update: {
-        assignedPilotId: assignedPilotId || null,
-        maintenanceSchedule: maintenanceSchedule || null,
-        operationalHours: operationalHours || null,
-        fuelType: fuelType || null,
-        fuelCapacity: fuelCapacity ? parseFloat(fuelCapacity) : null,
-        range: range ? parseFloat(range) : null,
-        maxPassengers: maxPassengers ? parseInt(maxPassengers) : null,
-        maxPayload: maxPayload ? parseFloat(maxPayload) : null,
-        specialEquipment: specialEquipment || [],
-        operationalNotes: operationalNotes || null,
-      },
-      create: {
-        iCAOtypeId,
-        assignedPilotId: assignedPilotId || null,
-        maintenanceSchedule: maintenanceSchedule || null,
-        operationalHours: operationalHours || null,
-        fuelType: fuelType || null,
-        fuelCapacity: fuelCapacity ? parseFloat(fuelCapacity) : null,
-        range: range ? parseFloat(range) : null,
-        maxPassengers: maxPassengers ? parseInt(maxPassengers) : null,
-        maxPayload: maxPayload ? parseFloat(maxPayload) : null,
-        specialEquipment: specialEquipment || [],
-        operationalNotes: operationalNotes || null,
-      },
-      include: {
-        assignedPilot: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-      },
-    });
+    // Check if fleet management record exists
+    const { data: existingManagement } = await supabase
+      .from('fleetManagement')
+      .select('id')
+      .eq('iCAOtypeId', iCAOtypeId)
+      .single();
+
+    const managementData = {
+      assignedPilotId: assignedPilotId || null,
+      maintenanceSchedule: maintenanceSchedule || null,
+      operationalHours: operationalHours || null,
+      fuelType: fuelType || null,
+      fuelCapacity: fuelCapacity ? parseFloat(fuelCapacity) : null,
+      range: range ? parseFloat(range) : null,
+      maxPassengers: maxPassengers ? parseInt(maxPassengers) : null,
+      maxPayload: maxPayload ? parseFloat(maxPayload) : null,
+      specialEquipment: specialEquipment || [],
+      operationalNotes: operationalNotes || null,
+    };
+
+    let fleetManagement;
+    if (existingManagement) {
+      // Update existing record
+      const { data: updatedManagement, error: updateError } = await supabase
+        .from('fleetManagement')
+        .update(managementData)
+        .eq('iCAOtypeId', iCAOtypeId)
+        .select(`
+          *,
+          assignedPilot (
+            id,
+            "firstName",
+            "lastName",
+            email
+          )
+        `)
+        .single();
+
+      if (updateError) {
+        console.error('Error updating fleet management:', updateError);
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+      }
+      fleetManagement = updatedManagement;
+    } else {
+      // Create new record
+      const { data: newManagement, error: createError } = await supabase
+        .from('fleetManagement')
+        .insert({
+          iCAOtypeId,
+          ...managementData,
+        })
+        .select(`
+          *,
+          assignedPilot (
+            id,
+            "firstName",
+            "lastName",
+            email
+          )
+        `)
+        .single();
+
+      if (createError) {
+        console.error('Error creating fleet management:', createError);
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+      }
+      fleetManagement = newManagement;
+    }
 
     return NextResponse.json({ fleetManagement });
   } catch (error) {

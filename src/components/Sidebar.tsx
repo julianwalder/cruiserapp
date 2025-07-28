@@ -170,7 +170,7 @@ export default function Sidebar({ user, onLogout, onSidebarStateChange }: Sideba
           variant="outline"
           size="sm"
           onClick={() => setIsMobileOpen(!isMobileOpen)}
-          className="bg-background shadow-md"
+          className="bg-white dark:bg-gray-900 shadow-md"
         >
           {isMobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
         </Button>
@@ -179,19 +179,19 @@ export default function Sidebar({ user, onLogout, onSidebarStateChange }: Sideba
       {/* Mobile overlay */}
       {isMobileOpen && (
         <div 
-          className="lg:hidden fixed inset-0 bg-background-80 z-40"
+          className="lg:hidden fixed inset-0 bg-white/80 dark:bg-gray-900/80 z-40"
           onClick={() => setIsMobileOpen(false)}
         />
       )}
 
       {/* Sidebar */}
       <div className={`
-        fixed top-0 left-0 h-full bg-background shadow-lg z-30 transition-all duration-300
+        fixed top-0 left-0 h-full bg-white dark:bg-gray-900 shadow-lg z-30 transition-all duration-300
         ${isCollapsed ? 'w-16' : 'w-64'}
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-border">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           {!isCollapsed && (
             <div className="flex items-center space-x-2">
                       <Plane className="h-8 w-8 text-primary" />
@@ -306,7 +306,7 @@ export default function Sidebar({ user, onLogout, onSidebarStateChange }: Sideba
       </div>
 
       {/* Mobile header */}
-              <div className="lg:hidden h-16 bg-background shadow-sm border-b border-gray-200 dark:border-gray-700 flex items-center px-4 fixed top-0 left-0 right-0 z-20">
+              <div className="lg:hidden h-16 bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-700 flex items-center px-4 fixed top-0 left-0 right-0 z-20">
         <div className="flex items-center space-x-2">
                   <Plane className="h-6 w-6 text-primary" />
         <h1 className="font-bold text-lg text-card-foreground">Cruiser Aviation</h1>

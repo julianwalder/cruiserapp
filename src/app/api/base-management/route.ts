@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+import { getSupabaseClient } from '@/lib/supabase';
 import { AuthService } from '@/lib/auth';
-
-const prisma = new PrismaClient();
 
 // GET /api/base-management - List base managements
 export async function GET(request: NextRequest) {
@@ -33,27 +31,41 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const baseManagements = await prisma.baseManagement.findMany({
-      include: {
-        airfield: true,
-        baseManager: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            userRoles: {
-              include: {
-                role: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+    }
 
-    return NextResponse.json(baseManagements);
+    const { data: baseManagements, error: baseError } = await supabase
+      .from('base_management')
+      .select(`
+        *,
+        airfield (
+          *
+        ),
+        baseManager (
+          id,
+          "firstName",
+          "lastName",
+          email,
+          userRoles (
+            role (
+              name
+            )
+          )
+        )
+      `)
+      .order('createdAt', { ascending: false });
+
+    if (baseError) {
+      console.error('Error fetching base managements:', baseError);
+      return NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(baseManagements || []);
   } catch (error) {
     console.error('Error fetching base managements:', error);
     return NextResponse.json(
@@ -89,6 +101,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+    }
+
     const body = await request.json();
 
     // Validate required fields
@@ -100,11 +117,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if airfield exists and is not already a base
-    const airfield = await prisma.airfield.findUnique({
-      where: { id: body.airfieldId },
-    });
+    const { data: airfield, error: airfieldError } = await supabase
+      .from('airfield')
+      .select('id, isBase')
+      .eq('id', body.airfieldId)
+      .single();
 
-    if (!airfield) {
+    if (airfieldError || !airfield) {
       return NextResponse.json(
         { error: 'Airfield not found' },
         { status: 404 }
@@ -119,9 +138,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if base management already exists for this airfield
-    const existingBaseManagement = await prisma.baseManagement.findUnique({
-      where: { airfieldId: body.airfieldId },
-    });
+    const { data: existingBaseManagement } = await supabase
+      .from('base_management')
+      .select('id')
+      .eq('airfieldId', body.airfieldId)
+      .single();
 
     if (existingBaseManagement) {
       return NextResponse.json(
@@ -131,8 +152,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Create base management
-    const baseManagement = await prisma.baseManagement.create({
-      data: {
+    const { data: baseManagement, error: createError } = await supabase
+      .from('base_management')
+      .insert({
         airfieldId: body.airfieldId,
         baseManagerId: body.baseManagerId || null,
         additionalInfo: body.additionalInfo || null,
@@ -140,25 +162,34 @@ export async function POST(request: NextRequest) {
         operatingHours: body.operatingHours || null,
         emergencyContact: body.emergencyContact || null,
         notes: body.notes || null,
-      },
-      include: {
-        airfield: true,
-        baseManager: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-      },
-    });
+      })
+      .select(`
+        *,
+        airfield (
+          *
+        ),
+        baseManager (
+          id,
+          "firstName",
+          "lastName",
+          email
+        )
+      `)
+      .single();
+
+    if (createError) {
+      console.error('Error creating base management:', createError);
+      return NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 }
+      );
+    }
 
     // Update airfield to mark it as a base
-    await prisma.airfield.update({
-      where: { id: body.airfieldId },
-      data: { isBase: true },
-    });
+    await supabase
+      .from('airfield')
+      .update({ isBase: true })
+      .eq('id', body.airfieldId);
 
     return NextResponse.json(baseManagement, { status: 201 });
   } catch (error) {

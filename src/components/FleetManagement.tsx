@@ -273,6 +273,7 @@ export default function FleetManagement() {
       }
 
       const data = await response.json();
+      console.log('Fetched aircraft data:', data.aircraft);
       setAircraft(data.aircraft);
       setPagination({
         ...pagination,
@@ -362,22 +363,22 @@ export default function FleetManagement() {
   // Populate edit form when selectedAircraft changes and we're in edit mode
   useEffect(() => {
     if (selectedAircraft && isEditMode) {
-      setEditValue('icaoTypeDesignator', selectedAircraft.icaoReferenceType.typeDesignator);
-      setEditValue('model', selectedAircraft.icaoReferenceType.model);
-      setEditValue('manufacturer', selectedAircraft.icaoReferenceType.manufacturer);
+              setEditValue('icaoTypeDesignator', selectedAircraft.icaoReferenceType?.typeDesignator || '');
+      setEditValue('model', selectedAircraft.icaoReferenceType?.model || '');
+      setEditValue('manufacturer', selectedAircraft.icaoReferenceType?.manufacturer || '');
       setEditValue('callSign', selectedAircraft.callSign);
       setEditValue('serialNumber', selectedAircraft.serialNumber);
       setEditValue('yearOfManufacture', selectedAircraft.yearOfManufacture);
       setEditValue('status', (selectedAircraft.status || 'ACTIVE') as 'ACTIVE' | 'MAINTENANCE' | 'OUT_OF_SERVICE' | 'RETIRED');
       
       // Set ICAO designator for combobox filtering
-      setSelectedIcaoDesignator(selectedAircraft.icaoReferenceType.typeDesignator);
-      setSelectedManufacturer(selectedAircraft.icaoReferenceType.manufacturer);
+              setSelectedIcaoDesignator(selectedAircraft.icaoReferenceType?.typeDesignator || '');
+      setSelectedManufacturer(selectedAircraft.icaoReferenceType?.manufacturer || '');
       
       // Set image preview if exists
-      if (selectedAircraft.imagePath) {
-        setImagePreview(selectedAircraft.imagePath);
-      }
+          if (selectedAircraft.imagePath) {
+      setImagePreview(getImageUrl(selectedAircraft.imagePath));
+    }
     }
   }, [selectedAircraft, isEditMode, setEditValue]);
 
@@ -690,6 +691,37 @@ export default function FleetManagement() {
     setShowFleetDialog(true);
   };
 
+  // Utility function to handle both old and new image paths
+  const getImageUrl = (imagePath?: string) => {
+    if (!imagePath) return '';
+    
+    console.log('getImageUrl called with:', imagePath);
+    
+    // If it's already a full URL (Vercel Blob), return as is
+    if (imagePath.startsWith('http')) {
+      console.log('Returning Vercel Blob URL:', imagePath);
+      return imagePath;
+    }
+    
+    // If it's using the old /uploads/ path, convert to new API route
+    if (imagePath.startsWith('/uploads/')) {
+      const filename = imagePath.replace('/uploads/', '');
+      const convertedUrl = `/api/uploads/${filename}`;
+      console.log('Converting old uploads path to:', convertedUrl);
+      return convertedUrl;
+    }
+    
+    // If it's using the old API route, return as is
+    if (imagePath.startsWith('/api/uploads/')) {
+      console.log('Returning API uploads URL:', imagePath);
+      return imagePath;
+    }
+    
+    // For any other format, return as is
+    console.log('Returning as-is:', imagePath);
+    return imagePath;
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -748,8 +780,8 @@ export default function FleetManagement() {
               <AspectRatio ratio={16 / 9} className="w-full">
                 {aircraft.imagePath ? (
                   <img
-                    src={aircraft.imagePath}
-                    alt={`${aircraft.icaoReferenceType.model} ${aircraft.callSign}`}
+                    src={getImageUrl(aircraft.imagePath)}
+                    alt={`${aircraft.icaoReferenceType?.model || 'Aircraft'} ${aircraft.callSign}`}
                     className="w-full h-full object-cover rounded-t-lg"
                   />
                 ) : (
@@ -793,17 +825,17 @@ export default function FleetManagement() {
             </div>
               <CardHeader className="pb-3">
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-1">
+                                    <div className="space-y-1">
                     <CardTitle className="text-lg leading-tight">{aircraft.callSign}</CardTitle>
-                    <Badge className={`text-xs ${getTypeBadgeColor(aircraft.icaoReferenceType.typeDesignator)}`}>
-                      {aircraft.icaoReferenceType.typeDesignator}
+                    <Badge className={`text-xs ${getTypeBadgeColor(aircraft.icaoReferenceType?.typeDesignator || 'UNKNOWN')}`}>
+                      {aircraft.icaoReferenceType?.typeDesignator || 'UNKNOWN'}
                     </Badge>
-            </div>
+                  </div>
                   
-                  <div className="space-y-1">
-                    <div className="font-medium text-sm">{aircraft.icaoReferenceType.model}</div>
-                    <div className="text-xs text-muted-foreground">{aircraft.icaoReferenceType.manufacturer}</div>
-          </div>
+                                    <div className="space-y-1">
+                    <div className="font-medium text-sm">{aircraft.icaoReferenceType?.model || 'Unknown Model'}</div>
+                    <div className="text-xs text-muted-foreground">{aircraft.icaoReferenceType?.manufacturer || 'Unknown Manufacturer'}</div>
+                  </div>
                   
                   <div className="space-y-1">
                     <div className="font-medium text-sm">Serial: {aircraft.serialNumber}</div>
@@ -838,7 +870,7 @@ export default function FleetManagement() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-2 border-t border-border">
+                <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
                   <Badge className={getStatusBadgeColor(aircraft.status)}>
                     {getStatusLabel(aircraft.status)}
                   </Badge>
@@ -869,15 +901,15 @@ export default function FleetManagement() {
                     <TableRow key={aircraft.id}>
                       <TableCell>
                     <div className="font-medium">{aircraft.callSign}</div>
-                    <div className="text-sm text-muted-foreground">{aircraft.icaoReferenceType.typeDesignator}</div>
+                    <div className="text-sm text-muted-foreground">{aircraft.icaoReferenceType?.typeDesignator || 'UNKNOWN'}</div>
                   </TableCell>
-                  <TableCell>
-                    <Badge className={`text-xs ${getTypeBadgeColor(aircraft.icaoReferenceType.typeDesignator)}`}>
-                      {aircraft.icaoReferenceType.typeDesignator}
-                        </Badge>
+                                        <TableCell>
+                                            <Badge className={`text-xs ${getTypeBadgeColor(aircraft.icaoReferenceType?.typeDesignator || 'UNKNOWN')}`}>
+                      {aircraft.icaoReferenceType?.typeDesignator || 'UNKNOWN'}
+                    </Badge>
                       </TableCell>
                       <TableCell>
-                    <div className="text-sm font-medium">{aircraft.icaoReferenceType.model}</div>
+                    <div className="text-sm font-medium">{aircraft.icaoReferenceType?.model || 'Unknown Model'}</div>
                       </TableCell>
                       <TableCell>
                         <Badge className={getStatusBadgeColor(aircraft.status)}>
@@ -1422,7 +1454,7 @@ export default function FleetManagement() {
                         <Label className="text-sm font-medium text-muted-foreground">Aircraft Image</Label>
                         {selectedAircraft.imagePath ? (
                           <img
-                            src={selectedAircraft.imagePath}
+                            src={getImageUrl(selectedAircraft.imagePath)}
                             alt={selectedAircraft.callSign}
                             className="w-32 h-32 object-cover rounded-lg"
                           />
@@ -1438,15 +1470,15 @@ export default function FleetManagement() {
                   </div>
                                       <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground">ICAO Type</Label>
-                        <Badge className={getTypeBadgeColor(selectedAircraft.icaoReferenceType.typeDesignator)}>
-                          {selectedAircraft.icaoReferenceType.typeDesignator}
-                      </Badge>
+                                                                    <Badge className={getTypeBadgeColor(selectedAircraft.icaoReferenceType?.typeDesignator || 'UNKNOWN')}>
+                          {selectedAircraft.icaoReferenceType?.typeDesignator || 'UNKNOWN'}
+                        </Badge>
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground">Engine</Label>
-                      <div className="text-sm">
-                          <span className="font-medium">{selectedAircraft.icaoReferenceType.typeDesignator}</span>
-                          <span className="text-muted-foreground ml-2">({selectedAircraft.icaoReferenceType.model})</span>
+                                            <div className="text-sm">
+                        <span className="font-medium">{selectedAircraft.icaoReferenceType?.typeDesignator || 'UNKNOWN'}</span>
+                        <span className="text-muted-foreground ml-2">({selectedAircraft.icaoReferenceType?.model || 'Unknown Model'})</span>
                       </div>
                     </div>
                   <div className="space-y-2">
@@ -1457,11 +1489,11 @@ export default function FleetManagement() {
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Model</Label>
-                        <p className="text-base text-card-foreground">{selectedAircraft.icaoReferenceType.model}</p>
+                        <p className="text-base text-card-foreground">{selectedAircraft.icaoReferenceType?.model || 'Unknown Model'}</p>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Manufacturer</Label>
-                        <p className="text-base text-card-foreground">{selectedAircraft.icaoReferenceType.manufacturer}</p>
+                        <p className="text-base text-card-foreground">{selectedAircraft.icaoReferenceType?.manufacturer || 'Unknown Manufacturer'}</p>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Year</Label>

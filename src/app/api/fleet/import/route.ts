@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
-import { PrismaClient } from '@prisma/client';
-import { AircraftStatus } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { getSupabaseClient } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -51,6 +48,11 @@ export async function POST(request: NextRequest) {
     }
     if (!decoded.roles.includes('SUPER_ADMIN')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
     }
 
     const formData = await request.formData();
@@ -123,36 +125,34 @@ export async function POST(request: NextRequest) {
         }
 
         // Validate status
-        if (!Object.values(AircraftStatus).includes(rowData.status as AircraftStatus)) {
+        const validStatuses = ['ACTIVE', 'MAINTENANCE', 'OUT_OF_SERVICE', 'RETIRED'];
+        if (!validStatuses.includes(rowData.status)) {
           errors++;
-          errorDetails.push(`Row ${i + 2}: Invalid status. Must be one of: ${Object.values(AircraftStatus).join(', ')}`);
+          errorDetails.push(`Row ${i + 2}: Invalid status. Must be one of: ${validStatuses.join(', ')}`);
           continue;
         }
 
         // Check if aircraft already exists
-        const existingAircraft = await prisma.aircraft.findFirst({
-          where: {
-            OR: [
-              { callSign: rowData.callSign },
-              { serialNumber: rowData.serialNumber }
-            ]
-          }
-        });
+        const { data: existingAircraft } = await supabase
+          .from('aircraft')
+          .select('id')
+          .or(`callSign.eq.${rowData.callSign},serialNumber.eq.${rowData.serialNumber}`)
+          .limit(1);
 
-        if (existingAircraft) {
+        if (existingAircraft && existingAircraft.length > 0) {
           errors++;
           errorDetails.push(`Row ${i + 2}: Aircraft with call sign ${rowData.callSign} or serial number ${rowData.serialNumber} already exists`);
           continue;
         }
 
         // Find ICAO reference type
-        const icaoRef = await prisma.iCAOReferenceType.findFirst({
-          where: {
-            typeDesignator: rowData.icaoTypeDesignator,
-            manufacturer: rowData.manufacturer,
-            model: rowData.model
-          }
-        });
+        const { data: icaoRef } = await supabase
+          .from('icao_reference_type')
+          .select('id')
+          .eq('typeDesignator', rowData.icaoTypeDesignator)
+          .eq('manufacturer', rowData.manufacturer)
+          .eq('model', rowData.model)
+          .single();
 
         if (!icaoRef) {
           errors++;
@@ -161,16 +161,22 @@ export async function POST(request: NextRequest) {
         }
 
         // Create aircraft
-        await prisma.aircraft.create({
-          data: {
+        const { error: createError } = await supabase
+          .from('aircraft')
+          .insert({
             callSign: rowData.callSign,
             serialNumber: rowData.serialNumber,
             yearOfManufacture: year,
             icaoReferenceTypeId: icaoRef.id,
-            status: rowData.status as AircraftStatus,
+            status: rowData.status,
             imagePath: rowData.imagePath || null,
-          }
-        });
+          });
+
+        if (createError) {
+          errors++;
+          errorDetails.push(`Row ${i + 2}: ${createError.message}`);
+          continue;
+        }
 
         imported++;
       } catch (error) {

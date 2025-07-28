@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import { AuthService } from '@/lib/auth';
-
-const prisma = new PrismaClient();
+import { getSupabaseClient } from '@/lib/supabase';
 
 // GET /api/operational-areas/base-count - Get count of base airfields
 export async function GET(request: NextRequest) {
@@ -19,21 +17,34 @@ export async function GET(request: NextRequest) {
     }
 
     // Check if user is super admin
-    if (user.role !== 'SUPER_ADMIN') {
+    const userRoles = user.userRoles?.map(ur => ur.role.name) || [];
+    if (!userRoles.includes('SUPER_ADMIN')) {
       return NextResponse.json(
         { error: 'Insufficient permissions' },
         { status: 403 }
       );
     }
 
-    // Count base airfields (airfields marked as base)
-    const baseCount = await prisma.airfield.count({
-      where: {
-        isBase: true,
-      },
-    });
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection error' }, { status: 500 });
+    }
 
-    return NextResponse.json({ count: baseCount });
+    // Count base airfields (airfields marked as base)
+    const { count, error } = await supabase
+      .from('airfields')
+      .select('id', { count: 'exact', head: true })
+      .eq('isBase', true);
+
+    if (error) {
+      console.error('Error fetching base airfield count:', error);
+      return NextResponse.json(
+        { error: 'Database error' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ count: count || 0 });
   } catch (error) {
     console.error('Error fetching base airfield count:', error);
     return NextResponse.json(

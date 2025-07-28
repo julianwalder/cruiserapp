@@ -78,15 +78,23 @@ export default function Settings() {
         });
         if (response.ok) {
           const data = await response.json();
-          setCurrentUser(data.user);
+          console.log('🔍 Settings - Current user data:', data);
+          console.log('🔍 Settings - User roles:', data.userRoles);
+          setCurrentUser(data);
+        } else {
+          console.error('🔍 Settings - Failed to fetch user data:', response.status);
         }
       } catch (error) {
-        // ignore
+        console.error('🔍 Settings - Error fetching user:', error);
       }
     };
     fetchCurrentUser();
   }, []);
-  const isSuperAdmin = currentUser?.userRoles?.some((userRole: any) => userRole.role.name === 'SUPER_ADMIN');
+  const isSuperAdmin = currentUser?.userRoles?.some((userRole: any) => {
+    console.log('🔍 Settings - userRole:', userRole);
+    return userRole?.roles?.name === 'SUPER_ADMIN';
+  });
+  console.log('🔍 Settings - isSuperAdmin:', isSuperAdmin, 'currentUser:', currentUser);
 
 
   const handleSaveSettings = async () => {
@@ -170,14 +178,15 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Row 1: Company Name - Contact Email */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="schoolName">School Name</Label>
+                  <Label htmlFor="schoolName">Company Name</Label>
                   <Input
                     id="schoolName"
                     value={systemSettings.schoolName}
                     onChange={(e) => setSystemSettings(prev => ({ ...prev, schoolName: e.target.value }))}
-                    placeholder="Enter school name"
+                    placeholder="Enter company name"
                   />
                 </div>
 
@@ -191,7 +200,10 @@ export default function Settings() {
                     placeholder="admin@example.com"
                   />
                 </div>
+              </div>
 
+              {/* Row 2: Contact Phone - Date Format */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="contactPhone">Contact Phone</Label>
                   <Input
@@ -200,48 +212,6 @@ export default function Settings() {
                     onChange={(e) => setSystemSettings(prev => ({ ...prev, contactPhone: e.target.value }))}
                     placeholder="+1 (555) 123-4567"
                   />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="timezone">Timezone</Label>
-                  <Select value={systemSettings.timezone} onValueChange={(value) => setSystemSettings(prev => ({ ...prev, timezone: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select timezone" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {timezones.map((tz) => (
-                        <SelectItem key={tz} value={tz}>{tz}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="currency">Currency</Label>
-                  <Select value={systemSettings.currency} onValueChange={(value) => setSystemSettings(prev => ({ ...prev, currency: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select currency" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {currencies.map((curr) => (
-                        <SelectItem key={curr} value={curr}>{curr}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="language">Language</Label>
-                  <Select value={systemSettings.language} onValueChange={(value) => setSystemSettings(prev => ({ ...prev, language: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select language" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {languages.map((lang) => (
-                        <SelectItem key={lang} value={lang}>{lang.toUpperCase()}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </div>
 
                 <div className="space-y-2">
@@ -270,15 +240,63 @@ export default function Settings() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="address">Address</Label>
-                <Textarea
-                  id="address"
-                  value={systemSettings.address}
-                  onChange={(e) => setSystemSettings(prev => ({ ...prev, address: e.target.value }))}
-                  placeholder="Enter full address"
-                  rows={3}
-                />
+              {/* Row 3: Timezone, Language, Currency (under Contact Phone) - Address (under Contact Email and Date Format) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="timezone">Timezone</Label>
+                      <Select value={systemSettings.timezone} onValueChange={(value) => setSystemSettings(prev => ({ ...prev, timezone: value }))}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select timezone" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {timezones.map((tz) => (
+                            <SelectItem key={tz} value={tz}>{tz}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="language">Language</Label>
+                      <Select value={systemSettings.language} onValueChange={(value) => setSystemSettings(prev => ({ ...prev, language: value }))}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select language" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {languages.map((lang) => (
+                            <SelectItem key={lang} value={lang}>{lang.toUpperCase()}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="currency">Currency</Label>
+                      <Select value={systemSettings.currency} onValueChange={(value) => setSystemSettings(prev => ({ ...prev, currency: value }))}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select currency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {currencies.map((curr) => (
+                            <SelectItem key={curr} value={curr}>{curr}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="address">Address</Label>
+                  <Input
+                    id="address"
+                    value={systemSettings.address}
+                    onChange={(e) => setSystemSettings(prev => ({ ...prev, address: e.target.value }))}
+                    placeholder="Enter full address"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end">

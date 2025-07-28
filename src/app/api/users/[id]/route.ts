@@ -1,62 +1,67 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import { requireAuth, requireRole } from '@/lib/middleware';
-import { userUpdateSchema, userStatusUpdateSchema, userRoleUpdateSchema } from '@/lib/validations';
-
-const prisma = new PrismaClient();
+import { userUpdateSchema } from '@/lib/validations';
+import { getSupabaseClient } from '@/lib/supabase';
+import crypto from 'crypto';
 
 // GET /api/users/[id] - Get user details
 async function getUser(request: NextRequest, currentUser: any) {
   try {
     const userId = request.nextUrl.pathname.split('/').pop();
     
-    // Users can view their own profile, or ADMIN+ can view any profile
-    if (currentUser.id !== userId && !requireRole('ADMIN')) {
+    // Check if user has admin role or is viewing their own profile
+    const hasAdminRole = currentUser.user_roles?.some((userRole: any) => 
+      userRole.roles.name === 'ADMIN' || userRole.roles.name === 'SUPER_ADMIN'
+    );
+    
+    if (currentUser.id !== userId && !hasAdminRole) {
       return NextResponse.json(
         { error: 'Insufficient permissions' },
         { status: 403 }
       );
     }
     
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        personalNumber: true,
-        phone: true,
-        dateOfBirth: true,
-        address: true,
-        city: true,
-        state: true,
-        zipCode: true,
-        country: true,
-        status: true,
-        totalFlightHours: true,
-        licenseNumber: true,
-        medicalClass: true,
-        instructorRating: true,
-        createdAt: true,
-        updatedAt: true,
-        lastLoginAt: true,
-        userRoles: {
-          include: {
-            role: true
-          }
-        },
-        createdBy: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-      },
-    });
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'Database connection error' },
+        { status: 500 }
+      );
+    }
     
-    if (!user) {
+    const { data: user, error } = await supabase
+      .from('users')
+      .select(`
+        id,
+        email,
+        "firstName",
+        "lastName",
+        "personalNumber",
+        phone,
+        "dateOfBirth",
+        address,
+        city,
+        state,
+        "zipCode",
+        country,
+        status,
+        "totalFlightHours",
+        "licenseNumber",
+        "medicalClass",
+        "instructorRating",
+        "createdAt",
+        "updatedAt",
+        "lastLoginAt",
+        user_roles!user_roles_userId_fkey (
+          roles (
+            name
+          )
+        )
+      `)
+      .eq('id', userId)
+      .single();
+    
+    if (error || !user) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
@@ -80,8 +85,12 @@ async function updateUser(request: NextRequest, currentUser: any) {
     const userId = request.nextUrl.pathname.split('/').pop();
     const body = await request.json();
 
-    // Users can update their own profile, or ADMIN+ can update any profile
-    if (currentUser.id !== userId && !requireRole('ADMIN')) {
+    // Check if user has admin role or is updating their own profile
+    const hasAdminRole = currentUser.user_roles?.some((userRole: any) => 
+      userRole.roles.name === 'ADMIN' || userRole.roles.name === 'SUPER_ADMIN'
+    );
+    
+    if (currentUser.id !== userId && !hasAdminRole) {
       return NextResponse.json(
         { error: 'Insufficient permissions' },
         { status: 403 }
@@ -91,8 +100,20 @@ async function updateUser(request: NextRequest, currentUser: any) {
     // Validate input
     const validatedData = userUpdateSchema.parse(body);
 
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'Database connection error' },
+        { status: 500 }
+      );
+    }
+
     // Prepare update data
     const updateData: any = { ...validatedData };
+    
+    // Remove roles from update data since they're handled separately
+    delete updateData.roles;
+    delete updateData.role;
 
     // Convert date string to Date object if provided, or null if empty
     if (validatedData.dateOfBirth && validatedData.dateOfBirth.trim() !== '' && validatedData.dateOfBirth !== 'null') {
@@ -101,7 +122,7 @@ async function updateUser(request: NextRequest, currentUser: any) {
         if (isNaN(date.getTime())) {
           updateData.dateOfBirth = null;
         } else {
-          updateData.dateOfBirth = date;
+          updateData.dateOfBirth = date.toISOString();
         }
       } catch (error) {
         updateData.dateOfBirth = null;
@@ -119,99 +140,166 @@ async function updateUser(request: NextRequest, currentUser: any) {
     });
 
     // Handle role updates if provided
-    let roleUpdateData = {};
     let rolesToAssign: any[] = [];
     if ((validatedData as any).roles || (validatedData as any).role) {
       const roleNames = Array.isArray((validatedData as any).roles) && (validatedData as any).roles.length > 0
         ? (validatedData as any).roles
         : [(validatedData as any).role];
 
-      console.log('Updating roles for user:', userId, 'New roles:', roleNames); // Debug log
-
       // Find role records
-      const roles = await prisma.role.findMany({
-        where: { name: { in: roleNames } },
-      });
+      const { data: roles, error: rolesError } = await supabase
+        .from('roles')
+        .select('id, name')
+        .in('name', roleNames);
 
-      console.log('Found roles in database:', roles.map(r => r.name)); // Debug log
-
-      if (roles.length === 0) {
+      if (rolesError || !roles || roles.length === 0) {
         return NextResponse.json(
           { error: 'No valid roles provided' },
           { status: 400 }
         );
       }
 
-      // Remove existing roles and assign new ones
-      roleUpdateData = {
-        userRoles: {
-          deleteMany: {},
-        },
-      };
-      
-      // Store roles to assign after user update
       rolesToAssign = roles;
     }
 
-    // Remove role fields from updateData since we handle them separately
-    delete updateData.role;
-    delete updateData.roles;
+    // Update user
+    const { data: updatedUser, error: updateError } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', userId)
+      .select(`
+        id,
+        email,
+        "firstName",
+        "lastName",
+        "personalNumber",
+        phone,
+        "dateOfBirth",
+        address,
+        city,
+        state,
+        "zipCode",
+        country,
+        status,
+        "totalFlightHours",
+        "licenseNumber",
+        "medicalClass",
+        "instructorRating",
+        "createdAt",
+        "updatedAt",
+        "lastLoginAt",
+        user_roles!user_roles_userId_fkey (
+          roles (
+            name
+          )
+        )
+      `)
+      .single();
 
-    // Use a transaction to ensure atomicity
-    const result = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.update({
-        where: { id: userId },
-        data: {
-          ...updateData,
-          ...roleUpdateData,
-        },
-        include: {
-          userRoles: { include: { role: true } },
-        },
-      });
+    if (updateError) {
+      console.error('Error updating user:', updateError);
+      return NextResponse.json(
+        { error: 'Failed to update user', details: updateError },
+        { status: 500 }
+      );
+    }
 
-      // Assign roles separately if needed
-      if (rolesToAssign.length > 0) {
-        await tx.userRole.createMany({
-          data: rolesToAssign.map((role: any) => ({
-            userId: user.id,
-            roleId: role.id,
-            assignedBy: currentUser.id || null,
-            assignedAt: new Date(),
-          })),
-        });
+    // Handle role updates if needed
+    if (rolesToAssign.length > 0) {
+      // Delete existing roles
+      const { error: deleteRolesError } = await supabase
+        .from('user_roles')
+        .delete()
+        .eq('userId', userId);
 
-        // Fetch updated user with roles
-        const updatedUser = await tx.user.findUnique({
-          where: { id: userId },
-          include: {
-            userRoles: { include: { role: true } },
-          },
-        });
-
-        // Map roles to array of strings
-        const userWithRoles = {
-          ...updatedUser,
-          roles: updatedUser!.userRoles.map((ur: any) => ur.role.name),
-        };
-
-        console.log('Returning updated user with roles:', userWithRoles.roles); // Debug log
-        return userWithRoles;
+      if (deleteRolesError) {
+        console.error('Error deleting existing roles:', deleteRolesError);
+        return NextResponse.json(
+          { error: 'Failed to update user roles' },
+          { status: 500 }
+        );
       }
 
-      // Map roles to array of strings
-      const userWithRoles = {
-        ...user,
-        roles: user.userRoles.map((ur: any) => ur.role.name),
+      // Create new role assignments
+      const roleAssignments = rolesToAssign.map((role) => ({
+        id: crypto.randomUUID(),
+        userId: userId,
+        roleId: role.id,
+      }));
+
+      const { error: createRolesError } = await supabase
+        .from('user_roles')
+        .insert(roleAssignments);
+
+      if (createRolesError) {
+        console.error('Error creating new roles:', createRolesError);
+        return NextResponse.json(
+          { error: 'Failed to assign new roles', details: createRolesError },
+          { status: 500 }
+        );
+      }
+
+      // Fetch updated user with roles
+      const { data: userWithRoles, error: fetchError } = await supabase
+        .from('users')
+        .select(`
+          id,
+          email,
+          "firstName",
+          "lastName",
+          "personalNumber",
+          phone,
+          "dateOfBirth",
+          address,
+          city,
+          state,
+          "zipCode",
+          country,
+          status,
+          "totalFlightHours",
+          "licenseNumber",
+          "medicalClass",
+          "instructorRating",
+          "createdAt",
+          "updatedAt",
+          "lastLoginAt",
+          user_roles!user_roles_userId_fkey (
+            roles (
+              name
+            )
+          )
+        `)
+        .eq('id', userId)
+        .single();
+
+      if (fetchError) {
+        console.error('Error fetching user with roles:', fetchError);
+        return NextResponse.json(
+          { error: 'Failed to fetch updated user' },
+          { status: 500 }
+        );
+      }
+
+      const result = {
+        ...userWithRoles,
+        roles: userWithRoles.user_roles.map((ur: any) => ur.roles.name),
       };
 
-      console.log('Returning user without role changes:', userWithRoles.roles); // Debug log
-      return userWithRoles;
-    });
+      return NextResponse.json({
+        message: 'User updated successfully',
+        user: result,
+      });
+    }
+
+    // Map roles to array of strings
+    const userWithRoles = {
+      ...updatedUser,
+      roles: updatedUser.user_roles.map((ur: any) => ur.roles.name),
+    };
 
     return NextResponse.json({
       message: 'User updated successfully',
-      user: result,
+      user: userWithRoles,
     });
 
   } catch (error: any) {
@@ -224,33 +312,13 @@ async function updateUser(request: NextRequest, currentUser: any) {
       );
     }
 
-    if (error.code === 'P2025') {
+    // Return the specific error message if available
+    if (error.message) {
       return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
+        { error: error.message },
+        { status: 500 }
       );
     }
-
-    if (error.code === 'P2002') {
-      return NextResponse.json(
-        { error: 'Email already exists' },
-        { status: 400 }
-      );
-    }
-
-    if (error.code === 'P2003') {
-      return NextResponse.json(
-        { error: 'Invalid role reference' },
-        { status: 400 }
-      );
-    }
-
-    console.error('Full error details:', {
-      message: error.message,
-      code: error.code,
-      meta: error.meta,
-      stack: error.stack
-    });
 
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -272,15 +340,50 @@ async function deleteUser(request: NextRequest, currentUser: any) {
       );
     }
     
-    const user = await prisma.user.delete({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-      },
-    });
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { error: 'Database connection error' },
+        { status: 500 }
+      );
+    }
+    
+    const { data: user, error } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', userId)
+      .select('id, email, "firstName", "lastName"')
+      .single();
+    
+    if (error) {
+      console.error('Error deleting user:', error);
+      
+      // Handle foreign key constraint violations
+      if (error.code === '23503') {
+        // Check which table is causing the constraint violation
+        if (error.message.includes('flight_logs')) {
+          return NextResponse.json(
+            { error: 'Cannot delete user because they have associated flight logs. Please delete the flight logs first or reassign them to another user.' },
+            { status: 400 }
+          );
+        } else if (error.message.includes('user_roles')) {
+          return NextResponse.json(
+            { error: 'Cannot delete user because they have role assignments. Please remove their roles first.' },
+            { status: 400 }
+          );
+        } else {
+          return NextResponse.json(
+            { error: 'Cannot delete user because they have associated data in the system. Please remove all related records first.' },
+            { status: 400 }
+          );
+        }
+      }
+      
+      return NextResponse.json(
+        { error: 'Failed to delete user', details: error.message },
+        { status: 500 }
+      );
+    }
     
     return NextResponse.json({
       message: 'User deleted successfully',
@@ -290,157 +393,35 @@ async function deleteUser(request: NextRequest, currentUser: any) {
   } catch (error: any) {
     console.error('Delete user error:', error);
     
-    if (error.code === 'P2025') {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
+    // Handle specific error types
+    if (error.code === '23503') {
+      // Foreign key constraint violation
+      if (error.message.includes('flight_logs')) {
+        return NextResponse.json(
+          { error: 'Cannot delete user because they have associated flight logs. Please delete the flight logs first or reassign them to another user.' },
+          { status: 400 }
+        );
+      } else if (error.message.includes('user_roles')) {
+        return NextResponse.json(
+          { error: 'Cannot delete user because they have role assignments. Please remove their roles first.' },
+          { status: 400 }
+        );
+      } else {
+        return NextResponse.json(
+          { error: 'Cannot delete user because they have associated data in the system. Please remove all related records first.' },
+          { status: 400 }
+        );
+      }
     }
     
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error.message || 'Unknown error occurred' },
       { status: 500 }
     );
   }
 }
 
-// PATCH /api/users/[id]/status - Update user status (ADMIN+ only)
-async function updateUserStatus(request: NextRequest, currentUser: any) {
-  try {
-    const userId = request.nextUrl.pathname.split('/').pop();
-    const body = await request.json();
-    
-    // Validate input
-    const validatedData = userStatusUpdateSchema.parse(body);
-    
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: { status: validatedData.status },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        status: true,
-        updatedAt: true,
-      },
-    });
-    
-    return NextResponse.json({
-      message: 'User status updated successfully',
-      user,
-    });
-    
-  } catch (error: any) {
-    console.error('Update user status error:', error);
-    
-    if (error.name === 'ZodError') {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      );
-    }
-    
-    if (error.code === 'P2025') {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
-    }
-    
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
-
-// PATCH /api/users/[id]/role - Update user role (ADMIN+ only)
-async function updateUserRole(request: NextRequest, currentUser: any) {
-  try {
-    const userId = request.nextUrl.pathname.split('/').pop();
-    const body = await request.json();
-    
-    // Validate input
-    const validatedData = userRoleUpdateSchema.parse(body);
-    
-    // Find role records
-    const roles = await prisma.role.findMany({
-      where: { name: { in: validatedData.roles } },
-    });
-
-    if (roles.length === 0) {
-      return NextResponse.json(
-        { error: 'No valid roles provided' },
-        { status: 400 }
-      );
-    }
-
-    // First, delete existing roles
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        userRoles: {
-          deleteMany: {},
-        },
-      },
-    });
-
-    // Then create new roles
-    await prisma.userRole.createMany({
-      data: roles.map((role: any) => ({
-        userId: userId!,
-        roleId: role.id,
-        assignedBy: currentUser.id,
-        assignedAt: new Date(),
-      })),
-    });
-
-    // Fetch updated user with roles
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        userRoles: { include: { role: true } },
-      },
-    });
-    
-    // Map roles to array of strings
-    const userWithRoles = {
-      ...user,
-      roles: user!.userRoles.map((ur: any) => ur.role.name),
-    };
-    
-    return NextResponse.json({
-      message: 'User role updated successfully',
-      user: userWithRoles,
-    });
-    
-  } catch (error: any) {
-    console.error('Update user role error:', error);
-    
-    if (error.name === 'ZodError') {
-      return NextResponse.json(
-        { error: 'Validation error', details: error.errors },
-        { status: 400 }
-      );
-    }
-    
-    if (error.code === 'P2025') {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
-    }
-    
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
-  }
-}
-
-// Export handlers with appropriate protection
+// Export handlers with middleware
 export const GET = requireAuth(getUser);
 export const PUT = requireAuth(updateUser);
-export const DELETE = requireRole('ADMIN')(deleteUser);
-export const PATCH = requireRole('ADMIN')(updateUserStatus); 
+export const DELETE = requireRole('ADMIN')(deleteUser); 

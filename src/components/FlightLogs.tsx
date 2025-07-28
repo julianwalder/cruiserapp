@@ -13,6 +13,7 @@ import { Combobox } from "@/components/ui/combobox";
 import { Calendar } from "@/components/ui/calendar";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -29,11 +30,13 @@ import {
   FileText,
   Filter,
   Download,
+  Upload,
   MoreVertical,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  AlertTriangle
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -121,6 +124,11 @@ interface Aircraft {
     manufacturer: string;
     typeDesignator: string;
   };
+  icao_reference_type?: {
+    model: string;
+    manufacturer: string;
+    type_designator: string;
+  };
   status: string;
 }
 
@@ -196,6 +204,11 @@ interface FlightLog {
   departureAirfield: Airfield;
   arrivalAirfield: Airfield;
   createdBy: User;
+  
+  // Handle both camelCase and snake_case relationship names
+  departure_airfield?: Airfield;
+  arrival_airfield?: Airfield;
+  created_by?: User;
 }
 
 interface Pagination {
@@ -356,7 +369,7 @@ function HobbsInput({ value, onChange, name, className, ...props }: any) {
 }
 
 export default function FlightLogs() {
-  console.log('FlightLogs component rendering');
+  console.log('🔍 FlightLogs component rendering');
   
   // State management
   const [loading, setLoading] = useState(true);
@@ -369,10 +382,21 @@ export default function FlightLogs() {
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedFlightLog, setSelectedFlightLog] = useState<FlightLog | null>(null);
   const [showPPLView, setShowPPLView] = useState(true);
-  const [activeTab, setActiveTab] = useState("all");
   const [viewMode, setViewMode] = useState<"personal" | "company">("company");
-  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [pagination, setPagination] = useState<Pagination>({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 1,
+  });
+
+  console.log('🔍 Component state initialized');
+  
+  // State management
+  const [error, setError] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [flightLogToDelete, setFlightLogToDelete] = useState<FlightLog | null>(null);
   
@@ -380,14 +404,16 @@ export default function FlightLogs() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [flightLogToEdit, setFlightLogToEdit] = useState<FlightLog | null>(null);
 
-  // Pagination state
-  const [pagination, setPagination] = useState<Pagination>({
-    page: 1,
-    limit: 10,
-    total: 0,
-    pages: 1,
-  });
-  const [searchTerm, setSearchTerm] = useState("");
+  // New state for import functionality
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importProgress, setImportProgress] = useState<{
+    current: number;
+    total: number;
+    percentage: number;
+    status: string;
+  } | null>(null);
+  const [importResults, setImportResults] = useState<any>(null);
 
   // Form management
   const form = useForm<CreateFlightLogForm>({
@@ -499,27 +525,36 @@ export default function FlightLogs() {
   // Fetch current user function
   const fetchCurrentUser = async () => {
     try {
+      console.log('🔍 fetchCurrentUser called');
       const token = localStorage.getItem('token');
       if (!token) {
         console.error('No authentication token found');
         return;
       }
 
+      console.log('🔍 Calling /api/auth/me...');
       const response = await fetch('/api/auth/me', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
+      
+      console.log('🔍 /api/auth/me response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
-        setCurrentUser(data.user);
+        console.log('🔍 /api/auth/me response data:', data);
+        console.log('🔍 Setting currentUser to:', data);
+        setCurrentUser(data);
         
         // If user should not show pilot selection, automatically set them as the pilot
         if (!shouldShowPilotSelection()) {
-          form.setValue('pilotId', data.user.id);
+          form.setValue('pilotId', data.id);
         }
       } else {
         console.error('Error fetching current user:', response.status);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
       }
     } catch (error) {
       console.error('Error fetching current user:', error);
@@ -552,12 +587,22 @@ export default function FlightLogs() {
     }
   }, [form.formState.errors]);
 
+  // Fetch data when component mounts or currentUser changes
   useEffect(() => {
+    console.log('🔍 useEffect triggered - currentUser:', currentUser);
+    console.log('🔍 useEffect dependencies:', { 
+      currentUser: !!currentUser, 
+      page: pagination.page, 
+      limit: pagination.limit, 
+      searchTerm, 
+      viewMode 
+    });
+    
     const fetchData = async () => {
       console.log('🔄 Fetching flight logs data...');
       console.log('👤 Current user:', currentUser);
       if (currentUser) {
-        console.log('👤 Current user roles:', currentUser.userRoles.map(ur => ur.role.name));
+        console.log('👤 Current user roles:', currentUser.userRoles?.map(ur => ur.role?.name) || []);
       }
       setLoading(true);
       try {
@@ -576,7 +621,10 @@ export default function FlightLogs() {
     };
 
     if (currentUser) {
+      console.log('🔍 Current user exists, calling fetchData');
       fetchData();
+    } else {
+      console.log('🔍 No current user, skipping fetchData');
     }
   }, [currentUser, pagination.page, pagination.limit, searchTerm, viewMode]);
 
@@ -594,6 +642,7 @@ export default function FlightLogs() {
 
   const fetchFlightLogs = async () => {
     try {
+      console.log('🔍 fetchFlightLogs called');
       const token = localStorage.getItem('token');
       if (!token) {
         console.error('No authentication token found');
@@ -601,6 +650,7 @@ export default function FlightLogs() {
         return;
       }
 
+      console.log('🔍 Building query parameters...');
       // Build query parameters
       const params = new URLSearchParams({
         page: pagination.page.toString(),
@@ -619,13 +669,23 @@ export default function FlightLogs() {
       // Add view mode filter
       params.append('viewMode', viewMode);
 
-      const response = await fetch(`/api/flight-logs?${params}`, {
+      const url = `/api/flight-logs?${params}`;
+      console.log('🔍 Making API call to:', url);
+      console.log('🔍 View mode:', viewMode);
+      console.log('🔍 Active tab:', activeTab);
+
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
+      
+      console.log('🔍 Response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('🔍 Flight logs data received:', data);
+        console.log('🔍 Number of flight logs:', data.flightLogs?.length || 0);
         setFlightLogs(data.flightLogs || []);
         setPagination({
           ...pagination,
@@ -634,6 +694,8 @@ export default function FlightLogs() {
         });
       } else {
         console.error('Error fetching flight logs:', response.status);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
         setFlightLogs([]);
       }
     } catch (error) {
@@ -984,75 +1046,97 @@ export default function FlightLogs() {
   const startRecord = (pagination.page - 1) * pagination.limit + 1;
   const endRecord = Math.min(pagination.page * pagination.limit, pagination.total);
 
+  // Check if user is pilot only (no other roles)
   const isPilotOnly = () => {
     if (!currentUser) return false;
-    const isPilot = currentUser.userRoles.some((ur: any) => ur.role.name === 'PILOT');
-    const isInstructor = currentUser.userRoles.some((ur: any) => ur.role.name === 'INSTRUCTOR');
-    const isAdmin = currentUser.userRoles.some((ur: any) => ur.role.name === 'ADMIN' || ur.role.name === 'SUPER_ADMIN');
-    return isPilot && !isInstructor && !isAdmin;
+    const isPilot = currentUser.userRoles?.some((ur: any) => (ur.role?.name || ur.roles?.name) === 'PILOT');
+    const isInstructor = currentUser.userRoles?.some((ur: any) => (ur.role?.name || ur.roles?.name) === 'INSTRUCTOR');
+    const isAdmin = currentUser.userRoles?.some((ur: any) => (ur.role?.name || ur.roles?.name) === 'ADMIN' || (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN');
+    const isBaseManager = currentUser.userRoles?.some((ur: any) => (ur.role?.name || ur.roles?.name) === 'BASE_MANAGER');
+    return isPilot && !isInstructor && !isAdmin && !isBaseManager;
   };
 
+  // Check if user should see pilot selection (instructors, admins, base managers)
   const shouldShowPilotSelection = () => {
-    // If user can toggle view mode and is in company view, show pilot selection
-    if (canToggleViewMode() && viewMode === 'company') {
-      return true;
-    }
-    // Otherwise, only show if user is not pilot-only
-    return !isPilotOnly();
+    if (!currentUser) return true;
+    
+    const isInstructor = currentUser.userRoles?.some((ur: any) => (ur.role?.name || ur.roles?.name) === 'INSTRUCTOR');
+    const isAdmin = currentUser.userRoles?.some((ur: any) => (ur.role?.name || ur.roles?.name) === 'ADMIN' || (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN');
+    const isBaseManager = currentUser.userRoles?.some((ur: any) => (ur.role?.name || ur.roles?.name) === 'BASE_MANAGER');
+    
+    // Always show pilot selection for instructors, admins, and super admins
+    if (isInstructor || isAdmin) return true;
+    
+    // For BASE_MANAGER, show pilot selection only in company view
+    if (isBaseManager && viewMode === 'company') return true;
+    
+    return false;
   };
 
+  // Check if user can delete flight logs
   const canDeleteFlightLogs = () => {
     if (!currentUser) return false;
-    const isAdmin = currentUser.userRoles.some((ur: any) => ur.role.name === 'ADMIN');
-    const isSuperAdmin = currentUser.userRoles.some((ur: any) => ur.role.name === 'SUPER_ADMIN');
-    return isAdmin || isSuperAdmin;
+    return currentUser.userRoles?.some((ur: any) => 
+      (ur.role?.name || ur.roles?.name) === 'ADMIN' || (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN' || (ur.role?.name || ur.roles?.name) === 'BASE_MANAGER'
+    );
   };
 
+  // Check if user can toggle view mode
   const canToggleViewMode = () => {
     if (!currentUser) return false;
-    const userRoles = currentUser.userRoles.map(ur => ur.role.name);
-    return userRoles.includes('BASE_MANAGER') || 
-           userRoles.includes('INSTRUCTOR') || 
-           userRoles.includes('ADMIN') || 
-           userRoles.includes('SUPER_ADMIN');
+    
+    console.log('🔍 canToggleViewMode - currentUser.userRoles:', JSON.stringify(currentUser.userRoles, null, 2));
+    
+    const canToggle = currentUser.userRoles?.some((ur: any) => {
+      const roleName = ur.role?.name || ur.roles?.name;
+      console.log('🔍 Checking role:', roleName, 'from ur:', ur);
+      return roleName === 'PILOT' || roleName === 'STUDENT' || roleName === 'INSTRUCTOR' || roleName === 'ADMIN' || roleName === 'SUPER_ADMIN' || roleName === 'BASE_MANAGER';
+    });
+    
+    console.log('🔍 canToggleViewMode check:', {
+      currentUser: currentUser?.email,
+      userRoles: currentUser?.userRoles?.map((ur: any) => ur.role?.name || ur.roles?.name),
+      canToggle
+    });
+    return canToggle;
   };
 
+  // Check if user can edit flight logs
   const canEditFlightLogs = () => {
     if (!currentUser) return false;
-    const userRoles = currentUser.userRoles.map(ur => ur.role.name);
-    console.log('🔍 canEditFlightLogs check - User roles:', userRoles);
-    const canEdit = userRoles.includes('BASE_MANAGER') ||
-                   userRoles.includes('INSTRUCTOR') ||
-                   userRoles.includes('ADMIN') ||
-                   userRoles.includes('SUPER_ADMIN');
-    console.log('🔍 canEditFlightLogs result:', canEdit);
-    return canEdit;
+    return currentUser.userRoles?.some((ur: any) => 
+      (ur.role?.name || ur.roles?.name) === 'ADMIN' || (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN' || (ur.role?.name || ur.roles?.name) === 'BASE_MANAGER' || (ur.role?.name || ur.roles?.name) === 'INSTRUCTOR'
+    );
   };
 
   // Function to determine what to display in the PIC column based on user role and view mode
   const getPICDisplayName = (log: FlightLog) => {
-    if (!currentUser) return `${log.pilot.firstName} ${log.pilot.lastName}`;
+    if (!currentUser) return log.pilot?.firstName && log.pilot?.lastName ? 
+      `${log.pilot.firstName} ${log.pilot.lastName}` : 
+      log.pilotId || 'Unknown';
     
-    const isPilot = currentUser.userRoles.some((ur: any) => ur.role.name === 'PILOT');
-    const isStudent = currentUser.userRoles.some((ur: any) => ur.role.name === 'STUDENT');
-    const isInstructor = currentUser.userRoles.some((ur: any) => ur.role.name === 'INSTRUCTOR');
-    const isAdmin = currentUser.userRoles.some((ur: any) => ur.role.name === 'ADMIN' || ur.role.name === 'SUPER_ADMIN');
-    const isBaseManager = currentUser.userRoles.some((ur: any) => ur.role.name === 'BASE_MANAGER');
+    const isPilot = currentUser.userRoles?.some((ur: any) => (ur.role?.name || ur.roles?.name) === 'PILOT');
+    const isStudent = currentUser.userRoles?.some((ur: any) => (ur.role?.name || ur.roles?.name) === 'STUDENT');
+    const isInstructor = currentUser.userRoles?.some((ur: any) => (ur.role?.name || ur.roles?.name) === 'INSTRUCTOR');
+    const isAdmin = currentUser.userRoles?.some((ur: any) => (ur.role?.name || ur.roles?.name) === 'ADMIN' || (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN');
+    const isBaseManager = currentUser.userRoles?.some((ur: any) => (ur.role?.name || ur.roles?.name) === 'BASE_MANAGER');
     
     // In company view, always show the actual pilot name
     if (viewMode === 'company') {
       // If there's an instructor, the instructor is the PIC
-      if (log.instructor) {
+      if (log.instructor?.firstName && log.instructor?.lastName) {
         return `${log.instructor.firstName} ${log.instructor.lastName}`;
       }
       // If no instructor, show the pilot name
-      return `${log.pilot.firstName} ${log.pilot.lastName}`;
+      return log.pilot?.firstName && log.pilot?.lastName ? 
+        `${log.pilot.firstName} ${log.pilot.lastName}` : 
+        log.pilotId || 'Unknown';
     }
     
     // In personal view, show "SELF" for own logs
-    if ((isPilot || isStudent || isBaseManager || isAdmin) && log.pilot.id === currentUser.id) {
+    if ((isPilot || isStudent || isBaseManager || isAdmin) && log.pilotId === currentUser.id) {
       // If there's an instructor, the instructor is the PIC
-      if (log.instructor) {
+      if (log.instructor?.firstName && log.instructor?.lastName) {
         return `${log.instructor.firstName} ${log.instructor.lastName}`;
       }
       // If no instructor, the pilot/student/base manager/admin is the PIC
@@ -1060,7 +1144,9 @@ export default function FlightLogs() {
     }
     
     // For all other cases, show the actual PIC name
-    return `${log.pilot.firstName} ${log.pilot.lastName}`;
+    return log.pilot?.firstName && log.pilot?.lastName ? 
+      `${log.pilot.firstName} ${log.pilot.lastName}` : 
+      log.pilotId || 'Unknown';
   };
 
   // Track blurred state for each of the four fields
@@ -1118,6 +1204,133 @@ export default function FlightLogs() {
   // Only show calculation/warning if all four fields are filled/valid and all four have been blurred
   const calculationReady = allTimeFieldsFilled() && blurred.departureTime && blurred.arrivalTime && blurred.departureHobbs && blurred.arrivalHobbs;
 
+  // Import functionality
+  const handleDownloadTemplate = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/flight-logs/import', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to download template');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'flight_logs_import_template.csv';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success('Template downloaded successfully!');
+    } catch (error) {
+      console.error('Error downloading template:', error);
+      toast.error('Failed to download template');
+    }
+  };
+
+  const handleImportFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setImportFile(file);
+      setImportResults(null);
+    }
+  };
+
+  const handleImportFlightLogs = async () => {
+    if (!importFile) return;
+
+    try {
+      setImportProgress({ current: 0, total: 0, percentage: 0, status: 'Starting import...' });
+      setImportResults(null);
+      
+      const token = localStorage.getItem('token');
+      const formData = new FormData();
+      formData.append('file', importFile);
+
+      const response = await fetch('/api/flight-logs/import', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Import failed');
+      }
+
+      // Check if we have an import ID for progress tracking
+      if (result.importId) {
+        // Start polling for progress
+        const pollProgress = async () => {
+          try {
+            const progressResponse = await fetch(`/api/flight-logs/import-progress/${result.importId}`, {
+              headers: { 'Authorization': `Bearer ${token}` },
+            });
+            
+            if (progressResponse.ok) {
+              const progressData = await progressResponse.json();
+              setImportProgress(progressData);
+              
+              if (!progressData.completed) {
+                // Continue polling
+                setTimeout(pollProgress, 1000);
+              } else {
+                // Import completed
+                setImportResults(progressData.results);
+                setImportProgress(null);
+                setImportFile(null);
+                
+                // Refresh flight logs
+                fetchFlightLogs();
+                
+                // Show success message
+                if (progressData.results && progressData.results.success > 0) {
+                  toast.success(`Successfully imported ${progressData.results.success} flight logs`);
+                } else {
+                  toast.error('Import failed');
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error polling progress:', error);
+            setImportProgress(null);
+          }
+        };
+        
+        pollProgress();
+      } else {
+        // Direct response without progress tracking
+        setImportResults(result);
+        setImportProgress(null);
+        setImportFile(null);
+        
+        // Refresh flight logs
+        fetchFlightLogs();
+        
+        if (result.results && result.results.success > 0) {
+          toast.success(`Successfully imported ${result.results.success} flight logs`);
+        } else {
+          toast.error('Import failed');
+        }
+      }
+
+    } catch (error: any) {
+      console.error('Error importing flight logs:', error);
+      setImportProgress(null);
+      toast.error('Import failed: ' + error.message);
+    }
+  };
+
   try {
     return (
       <div className="space-y-6">
@@ -1146,6 +1359,12 @@ export default function FlightLogs() {
               <Download className="h-4 w-4 mr-2" />
               Export
             </Button>
+            {canToggleViewMode() && (
+              <Button variant="outline" size="sm" onClick={() => setShowImportDialog(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Import
+              </Button>
+            )}
             <Button onClick={() => setShowCreateDialog(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Log Flight
@@ -1210,7 +1429,7 @@ export default function FlightLogs() {
                       <Table>
                         <TableHeader>
                           {/* Column Numbers Row */}
-                          <TableRow className="border-b-2 border-border">
+                          <TableRow className="border-b-2 border-gray-200 dark:border-gray-700">
                             <TableHead className="text-center font-bold text-xs bg-muted/70" rowSpan={1}>1</TableHead>
                             <TableHead className="text-center font-bold text-xs bg-muted/70" colSpan={2}>2</TableHead>
                             <TableHead className="text-center font-bold text-xs bg-muted/70" colSpan={2}>3</TableHead>
@@ -1226,7 +1445,7 @@ export default function FlightLogs() {
                             <TableHead className="text-center font-bold text-xs bg-muted/70" rowSpan={3}>&nbsp;</TableHead>
                           </TableRow>
                           {/* Main Header Row */}
-                          <TableRow className="border-b border-border">
+                          <TableRow className="border-b border-gray-200 dark:border-gray-700">
                             <TableHead className="text-center font-bold text-sm bg-muted/50" rowSpan={2}>
                               DATE<br />(dd/mm/yy)
                             </TableHead>
@@ -1271,7 +1490,7 @@ export default function FlightLogs() {
                             </TableHead>
                           </TableRow>
                           {/* Sub-header Row */}
-                          <TableRow className="border-b border-border">
+                          <TableRow className="border-b border-gray-200 dark:border-gray-700">
                             <TableHead className="text-center text-xs bg-muted/30 font-medium">
                               PLACE
                             </TableHead>
@@ -1371,26 +1590,38 @@ export default function FlightLogs() {
                             const totalMinutes = Math.round((log.totalHours - totalHours) * 60);
                             
                             // Determine if aircraft is single or multi-engine based on ICAO designator
-                            const isSingleEngine = log.aircraft.icaoReferenceType.typeDesignator?.includes('SE') || 
-                                                  log.aircraft.icaoReferenceType.typeDesignator?.includes('172') ||
-                                                  log.aircraft.icaoReferenceType.typeDesignator?.includes('152') ||
-                                                  log.aircraft.icaoReferenceType.typeDesignator?.includes('PA28') ||
-                                                  log.aircraft.icaoReferenceType.typeDesignator?.includes('C152') ||
-                                                  log.aircraft.icaoReferenceType.typeDesignator?.includes('C172') ||
-                                                  log.aircraft.icaoReferenceType.typeDesignator?.includes('CRUZ');
-                            const isMultiEngine = log.aircraft.icaoReferenceType.typeDesignator?.includes('ME') ||
-                                                 log.aircraft.icaoReferenceType.typeDesignator?.includes('PA34') ||
-                                                 log.aircraft.icaoReferenceType.typeDesignator?.includes('BE76');
+                            // Since we're using simple query without relationships, we'll show basic info
+                            const hasAircraftData = log.aircraft && (log.aircraft.icaoReferenceType || log.aircraft.icao_reference_type);
+                            const icaoType = hasAircraftData ? (log.aircraft.icaoReferenceType || log.aircraft.icao_reference_type) : null;
+                            const typeDesignator = icaoType?.typeDesignator || 'N/A';
                             
-                            // Determine if aircraft requires multi-pilot operation (certified for 2+ pilots)
-                            // This is different from single/multi-engine - some multi-engine aircraft can be single-pilot
-                            const isMultiPilotAircraft = log.aircraft.icaoReferenceType.typeDesignator?.includes('ME') ||
-                                                        log.aircraft.icaoReferenceType.typeDesignator?.includes('BE76') ||
-                                                        log.aircraft.icaoReferenceType.typeDesignator?.includes('PA34') ||
-                                                        log.aircraft.icaoReferenceType.typeDesignator?.includes('B737') ||
-                                                        log.aircraft.icaoReferenceType.typeDesignator?.includes('A320') ||
-                                                        log.aircraft.icaoReferenceType.typeDesignator?.includes('CRJ') ||
-                                                        log.aircraft.icaoReferenceType.typeDesignator?.includes('ATR');
+                            // For now, assume single engine if we don't have aircraft data
+                            const isSingleEngine = hasAircraftData ? (
+                              typeDesignator?.includes('SE') || 
+                              typeDesignator?.includes('172') ||
+                              typeDesignator?.includes('152') ||
+                              typeDesignator?.includes('PA28') ||
+                              typeDesignator?.includes('C152') ||
+                              typeDesignator?.includes('C172') ||
+                              typeDesignator?.includes('CRUZ')
+                            ) : true;
+                            
+                            const isMultiEngine = hasAircraftData ? (
+                              typeDesignator?.includes('ME') ||
+                              typeDesignator?.includes('PA34') ||
+                              typeDesignator?.includes('BE76')
+                            ) : false;
+                            
+                            // Determine if this is a multi-pilot aircraft
+                            const isMultiPilotAircraft = hasAircraftData ? (
+                              typeDesignator?.includes('ME') ||
+                              typeDesignator?.includes('BE76') ||
+                              typeDesignator?.includes('PA34') ||
+                              typeDesignator?.includes('B737') ||
+                              typeDesignator?.includes('A320') ||
+                              typeDesignator?.includes('CRJ') ||
+                              typeDesignator?.includes('ATR')
+                            ) : false;
                             
                             // Determine pilot function times (placeholder logic based on instructor presence)
                             const hasInstructor = !!log.instructor;
@@ -1409,129 +1640,129 @@ export default function FlightLogs() {
                                 }}
                               >
                                 {/* Column 1: Date */}
-                                <TableCell className="text-center text-sm font-mono border-r border-border">
+                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
                                   {formatDateWithCurrentFormat(log.date)}
                                 </TableCell>
                                 
                                 {/* Column 2: Departure */}
-                                <TableCell className="text-center text-sm font-mono border-r border-border">
-                                  {log.departureAirfield.code}
+                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
+                                  {log.departureAirfield?.code || log.departureAirfieldId || 'N/A'}
                                 </TableCell>
-                                <TableCell className="text-center text-sm font-mono border-r border-border">
+                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
                                   {log.departureTime}
                                 </TableCell>
                                 
                                 {/* Column 3: Arrival */}
-                                <TableCell className="text-center text-sm font-mono border-r border-border">
-                                  {log.arrivalAirfield.code}
+                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
+                                  {log.arrivalAirfield?.code || log.arrivalAirfieldId || 'N/A'}
                                 </TableCell>
-                                <TableCell className="text-center text-sm font-mono border-r border-border">
+                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
                                   {log.arrivalTime}
                                 </TableCell>
                                 
                                 {/* Column 4: Aircraft */}
-                                <TableCell className="text-center text-sm font-mono border-r border-border">
-                                  {log.aircraft.icaoReferenceType.typeDesignator}
+                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
+                                  {log.aircraft?.callSign || log.aircraftId || 'N/A'}
                                 </TableCell>
-                                <TableCell className="text-center text-sm font-mono border-r border-border">
-                                  {log.aircraft.callSign}
+                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
+                                  {log.aircraft?.callSign || log.aircraftId || 'N/A'}
                                 </TableCell>
                                 
                                 {/* Column 5: Single Pilot Time */}
-                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-border" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
+                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
                                   {isSingleEngine ? `${Math.floor(log.totalHours).toString().padStart(2, '0')}:${Math.round((log.totalHours - Math.floor(log.totalHours)) * 60).toString().padStart(2, '0')}` : ""}
                                 </TableCell>}
-                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-border" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
+                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
                                   {isMultiEngine ? `${Math.floor(log.totalHours).toString().padStart(2, '0')}:${Math.round((log.totalHours - Math.floor(log.totalHours)) * 60).toString().padStart(2, '0')}` : ""}
                                 </TableCell>}
-                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-border" style={{ width: '30px', minWidth: '30px', maxWidth: '30px' }}>
+                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700" style={{ width: '30px', minWidth: '30px', maxWidth: '30px' }}>
                                   {/* Blank cell for extra single pilot time category */}
                                 </TableCell>}
-                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-border" style={{ width: '30px', minWidth: '30px', maxWidth: '30px' }}>
+                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700" style={{ width: '30px', minWidth: '30px', maxWidth: '30px' }}>
                                   {/* Blank cell for extra single pilot time category */}
                                 </TableCell>}
                                 
                                 {/* Column 5: Multi-Pilot Time */}
-                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-border" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
+                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
                                   {isSingleEngine && isMultiPilotAircraft ? `${Math.floor(copilotTime).toString().padStart(2, '0')}:${Math.round((copilotTime - Math.floor(copilotTime)) * 60).toString().padStart(2, '0')}` : ""}
                                 </TableCell>}
-                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-border" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
+                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
                                   {isMultiEngine && isMultiPilotAircraft ? `${Math.floor(copilotTime).toString().padStart(2, '0')}:${Math.round((copilotTime - Math.floor(copilotTime)) * 60).toString().padStart(2, '0')}` : ""}
                                 </TableCell>}
                                 
                                 {/* Column 6: Total Time of Flight */}
-                                <TableCell className="text-center text-sm font-mono border-r border-border">
+                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
                                   {totalHours.toString().padStart(2, '0')}
                                 </TableCell>
-                                <TableCell className="text-center text-sm font-mono border-r border-border">
+                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
                                   {totalMinutes.toString().padStart(2, '0')}
                                 </TableCell>
                                 
                                 {/* Column 7: Name PIC */}
-                                <TableCell className="text-center text-sm font-mono border-r border-border">
+                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
                                   {getPICDisplayName(log)}
                                 </TableCell>
                                 
                                 {/* Column 8: Takeoffs */}
-                                <TableCell className="text-center text-sm font-mono border-r border-border">
+                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
                                   {log.dayLandings}
                                 </TableCell>
-                                <TableCell className="text-center text-sm font-mono border-r border-border">
+                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
                                   {log.nightLandings}
                                 </TableCell>
                                 
                                 {/* Column 8: Landings */}
-                                <TableCell className="text-center text-sm font-mono border-r border-border">
+                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
                                   {log.dayLandings}
                                 </TableCell>
-                                <TableCell className="text-center text-sm font-mono border-r border-border">
+                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
                                   {log.nightLandings}
                                 </TableCell>
                                 
                                 {/* Column 9: Operational Condition Time */}
-                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-border" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
+                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
                                   {log.night > 0 ? Math.floor(log.night).toString().padStart(2, '0') : ""}
                                 </TableCell>}
-                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-border" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
+                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
                                   {log.night > 0 ? Math.round((log.night - Math.floor(log.night)) * 60).toString().padStart(2, '0') : ""}
                                 </TableCell>}
-                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-border" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
+                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
                                   {log.instrument > 0 ? Math.floor(log.instrument).toString().padStart(2, '0') : ""}
                                 </TableCell>}
-                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-border" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
+                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
                                   {log.instrument > 0 ? Math.round((log.instrument - Math.floor(log.instrument)) * 60).toString().padStart(2, '0') : ""}
                                 </TableCell>}
                                 
                                 {/* Column 10: Pilot Function Time */}
-                                <TableCell className="text-center text-sm font-mono border-r border-border" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
+                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
                                   {picTime > 0 ? `${Math.floor(picTime).toString().padStart(2, '0')}:${Math.round((picTime - Math.floor(picTime)) * 60).toString().padStart(2, '0')}` : ""}
                                 </TableCell>
-                                <TableCell className="text-center text-sm font-mono border-r border-border" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
+                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
                                   {copilotTime > 0 ? `${Math.floor(copilotTime).toString().padStart(2, '0')}:${Math.round((copilotTime - Math.floor(copilotTime)) * 60).toString().padStart(2, '0')}` : ""}
                                 </TableCell>
-                                <TableCell className="text-center text-sm font-mono border-r border-border" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
+                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
                                   {dualTime > 0 ? `${Math.floor(dualTime).toString().padStart(2, '0')}:${Math.round((dualTime - Math.floor(dualTime)) * 60).toString().padStart(2, '0')}` : ""}
                                 </TableCell>
-                                <TableCell className="text-center text-sm font-mono border-r border-border" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
+                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
                                   {instructorTime > 0 ? `${Math.floor(instructorTime).toString().padStart(2, '0')}:${Math.round((instructorTime - Math.floor(instructorTime)) * 60).toString().padStart(2, '0')}` : ""}
                                 </TableCell>
                                 
                                 {/* Column 11: Synthetic Training Device Session */}
-                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-border">
+                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
                                   {/* No data available */}
                                 </TableCell>}
-                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-border">
+                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
                                   {/* No data available */}
                                 </TableCell>}
-                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-border" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
+                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
                                   {/* No data available */}
                                 </TableCell>}
-                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-border" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
+                                {!showPPLView && <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700" style={{ width: '60px', minWidth: '60px', maxWidth: '60px' }}>
                                   {/* No data available */}
                                 </TableCell>}
                                 
                                 {/* Column 12: Remarks and Endorsements */}
-                                <TableCell className="text-sm border-r border-border p-2">
+                                <TableCell className="text-sm border-r border-gray-200 dark:border-gray-700 p-2">
                                   <div className="text-xs">
                                     {log.remarks && <div>Remarks: {log.remarks}</div>}
                                     {log.purpose && <div>Purpose: {log.purpose}</div>}
@@ -1539,13 +1770,15 @@ export default function FlightLogs() {
                                       <div>Hobbs: {log.departureHobbs.toFixed(1)} → {log.arrivalHobbs.toFixed(1)}</div>
                                     )}
                                     {log.instructor && (
-                                      <div>Student: {log.pilot.firstName} {log.pilot.lastName}</div>
+                                      <div>Student: {log.pilot?.firstName && log.pilot?.lastName ? 
+                                        `${log.pilot.firstName} ${log.pilot.lastName}` : 
+                                        log.pilotId || 'Unknown'}</div>
                                     )}
                                   </div>
                                 </TableCell>
                                 
                                 {/* Actions */}
-                                <TableCell className="text-center border-r border-border" onClick={(e) => e.stopPropagation()}>
+                                <TableCell className="text-center border-r border-gray-200 dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                       <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -1847,7 +2080,7 @@ export default function FlightLogs() {
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("departureTime", e.target.value)}
                             onBlur={() => handleTimeHobbsBlur("departureTime")}
                             className={cn(
-                              "border-gray-200 dark:border-gray-700 w-full bg-white",
+                              "border-gray-200 dark:border-gray-700 w-full bg-background",
                               form.formState.errors.departureTime ? "border-red-500 focus-visible:ring-red-500" : ""
                             )}
                           />
@@ -1866,7 +2099,7 @@ export default function FlightLogs() {
                           onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("departureHobbs", parseFloat(e.target.value) || 0)}
                           onBlur={() => handleTimeHobbsBlur("departureHobbs")}
                           className={cn(
-                            "border-gray-200 dark:border-gray-700 bg-white",
+                            "border-gray-200 dark:border-gray-700 bg-background",
                             form.formState.errors.departureHobbs ? "border-red-500 focus-visible:ring-red-500" : ""
                           )}
                         />
@@ -1893,7 +2126,7 @@ export default function FlightLogs() {
                               if (!/^[0-9]$/.test(e.key)) e.preventDefault();
                             }}
                             {...form.register("oilAdded", { valueAsNumber: true })}
-                            className="border-gray-200 dark:border-gray-700 bg-white"
+                            className="border-gray-200 dark:border-gray-700 bg-background"
                           />
                           {form.formState.errors.oilAdded && (
                             <p className="text-sm text-destructive">{form.formState.errors.oilAdded.message}</p>
@@ -1916,7 +2149,7 @@ export default function FlightLogs() {
                               if (!/^[0-9]$/.test(e.key)) e.preventDefault();
                             }}
                             {...form.register("fuelAdded", { valueAsNumber: true })}
-                            className="border-gray-200 dark:border-gray-700 bg-white"
+                            className="border-gray-200 dark:border-gray-700 bg-background"
                           />
                           {form.formState.errors.fuelAdded && (
                             <p className="text-sm text-destructive">{form.formState.errors.fuelAdded.message}</p>
@@ -1961,7 +2194,7 @@ export default function FlightLogs() {
                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("arrivalTime", e.target.value)}
                             onBlur={() => handleTimeHobbsBlur("arrivalTime")}
                             className={cn(
-                              "border-gray-200 dark:border-gray-700 w-full bg-white",
+                              "border-gray-200 dark:border-gray-700 w-full bg-background",
                               form.formState.errors.arrivalTime ? "border-red-500 focus-visible:ring-red-500" : ""
                             )}
                           />
@@ -1980,7 +2213,7 @@ export default function FlightLogs() {
                           onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("arrivalHobbs", parseFloat(e.target.value) || 0)}
                           onBlur={() => handleTimeHobbsBlur("arrivalHobbs")}
                           className={cn(
-                            "border-gray-200 dark:border-gray-700 bg-white",
+                            "border-gray-200 dark:border-gray-700 bg-background",
                             form.formState.errors.arrivalHobbs ? "border-red-500 focus-visible:ring-red-500" : ""
                           )}
                         />
@@ -2007,7 +2240,7 @@ export default function FlightLogs() {
                               if (!/^[0-9]$/.test(e.key)) e.preventDefault();
                             }}
                             {...form.register("dayLandings", { valueAsNumber: true })}
-                            className="border-gray-200 dark:border-gray-700 bg-white"
+                            className="border-gray-200 dark:border-gray-700 bg-background"
                           />
                           {form.formState.errors.dayLandings && (
                             <p className="text-sm text-destructive">{form.formState.errors.dayLandings.message}</p>
@@ -2030,7 +2263,7 @@ export default function FlightLogs() {
                               if (!/^[0-9]$/.test(e.key)) e.preventDefault();
                             }}
                             {...form.register("nightLandings", { valueAsNumber: true })}
-                            className="border-gray-200 dark:border-gray-700 bg-white"
+                            className="border-gray-200 dark:border-gray-700 bg-background"
                           />
                           {form.formState.errors.nightLandings && (
                             <p className="text-sm text-destructive">{form.formState.errors.nightLandings.message}</p>
@@ -2052,7 +2285,7 @@ export default function FlightLogs() {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Calculated Time</Label>
-                          <div className="bg-white rounded-md px-3 py-2 text-center text-sm font-mono border border-gray-200 dark:border-gray-700">
+                          <div className="bg-background rounded-md px-3 py-2 text-center text-sm font-mono border border-gray-200 dark:border-gray-700">
                             {/* Calculate and display time difference */}
                             {(() => {
                               const dep = form.watch("departureTime");
@@ -2072,7 +2305,7 @@ export default function FlightLogs() {
                         </div>
                         <div className="space-y-2">
                           <Label>Hobbs Time</Label>
-                          <div className="bg-white rounded-md px-3 py-2 text-center text-sm font-mono border border-gray-200 dark:border-gray-700">
+                          <div className="bg-background rounded-md px-3 py-2 text-center text-sm font-mono border border-gray-200 dark:border-gray-700">
                             {/* Calculate and display hobbs difference */}
                             {(() => {
                               const dep = form.watch("departureHobbs");
@@ -2121,7 +2354,7 @@ export default function FlightLogs() {
                         id="remarks"
                         {...form.register("remarks")}
                         placeholder="Additional notes about the flight"
-                        className="border-gray-200 dark:border-gray-700 bg-white flex-1"
+                        className="border-gray-200 dark:border-gray-700 bg-background flex-1"
                       />
                     </div>
                   </div>
@@ -2185,7 +2418,7 @@ export default function FlightLogs() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Aircraft</Label>
-                    <p className="text-sm">{selectedFlightLog.aircraft.callSign} - {selectedFlightLog.aircraft.icaoReferenceType.model}</p>
+                    <p className="text-sm">{selectedFlightLog.aircraft.callSign} - {selectedFlightLog.aircraft.icaoReferenceType?.typeDesignator || selectedFlightLog.aircraft.icao_reference_type?.type_designator}</p>
                   </div>
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Total Hours</Label>
@@ -2196,7 +2429,9 @@ export default function FlightLogs() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Pilot</Label>
-                    <p className="text-sm">{selectedFlightLog.pilot.firstName} {selectedFlightLog.pilot.lastName}</p>
+                    <p className="text-sm">{selectedFlightLog.pilot?.firstName && selectedFlightLog.pilot?.lastName ? 
+                      `${selectedFlightLog.pilot.firstName} ${selectedFlightLog.pilot.lastName}` : 
+                      selectedFlightLog.pilotId || 'Unknown'}</p>
                   </div>
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Instructor</Label>
@@ -2253,6 +2488,101 @@ export default function FlightLogs() {
           </DialogContent>
         </Dialog>
 
+        {/* Import Dialog */}
+        <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Import Flight Logs</DialogTitle>
+              <DialogDescription>
+                Import flight logs from a CSV file. Download the template first to see the required format.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Button
+                  onClick={handleDownloadTemplate}
+                  variant="outline"
+                  size="sm"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Template
+                </Button>
+                <Button
+                  onClick={() => document.getElementById('import-file-input')?.click()}
+                  variant="outline"
+                  size="sm"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Select File
+                </Button>
+              </div>
+              
+              <input
+                id="import-file-input"
+                type="file"
+                accept=".csv"
+                onChange={handleImportFileChange}
+                className="hidden"
+              />
+              
+              {importFile && (
+                <div className="p-3 bg-muted rounded-md">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <FileText className="h-4 w-4" />
+                      <span className="text-sm font-medium">{importFile.name}</span>
+                    </div>
+                    <Button
+                      onClick={handleImportFlightLogs}
+                      disabled={importProgress !== null}
+                      size="sm"
+                    >
+                      {importProgress ? 'Importing...' : 'Start Import'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              {importProgress && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Importing flight logs...</span>
+                    <span>{importProgress.current} / {importProgress.total} ({importProgress.percentage}%)</span>
+                  </div>
+                  <Progress value={importProgress.percentage} className="w-full" />
+                  <p className="text-xs text-muted-foreground">{importProgress.status}</p>
+                </div>
+              )}
+              
+              {importResults && (
+                <div className="space-y-2">
+                  <Alert>
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      {importResults.message}
+                    </AlertDescription>
+                  </Alert>
+                  
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div className="text-center p-2 bg-green-50 dark:bg-green-950/20 rounded">
+                      <div className="font-bold text-green-600">{importResults.results?.success || 0}</div>
+                      <div className="text-muted-foreground">Success</div>
+                    </div>
+                    <div className="text-center p-2 bg-yellow-50 dark:bg-yellow-950/20 rounded">
+                      <div className="font-bold text-yellow-600">{importResults.results?.skipped || 0}</div>
+                      <div className="text-muted-foreground">Skipped</div>
+                    </div>
+                    <div className="text-center p-2 bg-red-50 dark:bg-red-950/20 rounded">
+                      <div className="font-bold text-red-600">{importResults.results?.errors?.length || 0}</div>
+                      <div className="text-muted-foreground">Errors</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Delete Confirmation Dialog */}
         <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
           <AlertDialogContent>
@@ -2266,7 +2596,7 @@ export default function FlightLogs() {
               <div className="px-6 py-2">
                 <div className="p-3 bg-muted rounded-md">
                   <div className="text-sm font-medium">
-                    Flight: {flightLogToDelete.aircraft.callSign} - {flightLogToDelete.aircraft.icaoReferenceType.typeDesignator}
+                    Flight: {flightLogToDelete.aircraft.callSign} - {flightLogToDelete.aircraft.icaoReferenceType?.typeDesignator || flightLogToDelete.aircraft.icao_reference_type?.type_designator}
                   </div>
                   <div className="text-sm text-muted-foreground">
                     {formatDateWithCurrentFormat(flightLogToDelete.date)} | {flightLogToDelete.departureAirfield.code} → {flightLogToDelete.arrivalAirfield.code}

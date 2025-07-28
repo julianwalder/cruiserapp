@@ -18,7 +18,7 @@ export default function TestDatePickerPage() {
   const [date, setDate] = React.useState<Date | undefined>(undefined)
 
   return (
-    <div className="min-h-screen bg-background p-8">
+    <div className="min-h-screen bg-white dark:bg-gray-900 p-8">
       <div className="max-w-md mx-auto">
         <h1 className="text-2xl font-bold mb-8">Date Picker Test</h1>
         

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { getSupabaseClient } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,24 +15,42 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Get user data with roles
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: {
-        userRoles: {
-          include: {
-            role: true,
-          },
-        },
-      },
-    });
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection error' }, { status: 500 });
+    }
 
-    if (!user) {
+    // Get user data with roles
+    const { data: user, error } = await supabase
+      .from('users')
+      .select(`
+        id,
+        email,
+        "firstName",
+        "lastName",
+        status,
+        "totalFlightHours",
+        "licenseNumber",
+        "medicalClass",
+        "instructorRating",
+        "lastLoginAt",
+        "createdAt",
+        "updatedAt",
+        user_roles!user_roles_userId_fkey (
+          roles (
+            name
+          )
+        )
+      `)
+      .eq('id', decoded.userId)
+      .single();
+
+    if (error || !user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Extract roles from userRoles
-    const roles = user.userRoles.map((ur: any) => ur.role.name);
+    // Extract roles from user_roles
+    const roles = user.user_roles.map((ur: any) => ur.roles.name);
 
     // Return user data with roles array
     const userData = {
@@ -40,17 +58,21 @@ export async function GET(request: NextRequest) {
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
-      userRoles: user.userRoles,
+      userRoles: user.user_roles, // Keep userRoles for frontend compatibility
       roles: roles,
       status: user.status,
-      createdAt: user.createdAt,
+      totalFlightHours: user.totalFlightHours || 0,
+      licenseNumber: user.licenseNumber,
+      medicalClass: user.medicalClass,
+      instructorRating: user.instructorRating,
       lastLoginAt: user.lastLoginAt,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
     };
 
-    return NextResponse.json({ user: userData });
-
+    return NextResponse.json(userData);
   } catch (error) {
-    console.error('Get user error:', error);
+    console.error('Error fetching user data:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

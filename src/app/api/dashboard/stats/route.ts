@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { getSupabaseClient } from '@/lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,77 +15,91 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Get user to check permissions
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: {
-        userRoles: {
-          include: {
-            role: true,
-          },
-        },
-      },
-    });
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection error' }, { status: 500 });
+    }
 
-    if (!user) {
+    // Get user to check permissions
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select(`
+        id,
+        user_roles!user_roles_userId_fkey (
+          roles (
+            name
+          )
+        )
+      `)
+      .eq('id', decoded.userId)
+      .single();
+
+    if (userError || !user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Fetch dashboard statistics
+    // Fetch dashboard statistics using Supabase
     const [
-      totalUsers,
-      activeUsers,
-      pendingApprovals,
-      totalAirfields,
-      activeAirfields,
-      todayFlights,
-      scheduledFlights,
-      totalAircraft
+      totalUsersResult,
+      activeUsersResult,
+      pendingApprovalsResult,
+      totalAirfieldsResult,
+      activeAirfieldsResult,
+      totalAircraftResult
     ] = await Promise.all([
       // Total users
-      prisma.user.count(),
+      supabase.from('users').select('id', { count: 'exact', head: true }),
       
       // Active users
-      prisma.user.count({
-        where: { status: 'ACTIVE' }
-      }),
+      supabase.from('users').select('id', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
       
       // Pending approvals
-      prisma.user.count({
-        where: { status: 'PENDING_APPROVAL' }
-      }),
+      supabase.from('users').select('id', { count: 'exact', head: true }).eq('status', 'PENDING_APPROVAL'),
       
       // Total airfields
-      prisma.airfield.count(),
+      supabase.from('airfields').select('id', { count: 'exact', head: true }),
       
       // Active airfields
-      prisma.airfield.count({
-        where: { status: 'ACTIVE' }
-      }),
+      supabase.from('airfields').select('id', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
       
-      // Today's flights (placeholder - will be implemented with flight scheduling)
-      Promise.resolve(0),
-      
-      // Scheduled flights (placeholder - will be implemented with flight scheduling)
-      Promise.resolve(0),
-      
-      // Total aircraft (placeholder - will be implemented with aircraft management)
-      Promise.resolve(0)
+      // Total aircraft
+      supabase.from('aircraft').select('id', { count: 'exact', head: true })
     ]);
 
-    return NextResponse.json({
-      totalUsers,
-      activeUsers,
-      pendingApprovals,
-      totalAirfields,
-      activeAirfields,
-      todayFlights,
-      scheduledFlights,
-      totalAircraft
-    });
+    // Extract counts from results
+    const totalUsers = totalUsersResult.count || 0;
+    const activeUsers = activeUsersResult.count || 0;
+    const pendingApprovals = pendingApprovalsResult.count || 0;
+    const totalAirfields = totalAirfieldsResult.count || 0;
+    const activeAirfields = activeAirfieldsResult.count || 0;
+    const totalAircraft = totalAircraftResult.count || 0;
 
+    // Placeholder values for flight statistics (will be implemented with flight scheduling)
+    const todayFlights = 0;
+    const scheduledFlights = 0;
+
+    const stats = {
+      users: {
+        total: totalUsers,
+        active: activeUsers,
+        pendingApprovals: pendingApprovals,
+      },
+      airfields: {
+        total: totalAirfields,
+        active: activeAirfields,
+      },
+      flights: {
+        today: todayFlights,
+        scheduled: scheduledFlights,
+      },
+      aircraft: {
+        total: totalAircraft,
+      },
+    };
+
+    return NextResponse.json(stats);
   } catch (error) {
-    console.error('Dashboard stats error:', error);
+    console.error('Error fetching dashboard stats:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

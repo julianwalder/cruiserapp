@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import { AuthService } from '@/lib/auth';
-
-const prisma = new PrismaClient();
+import { getSupabaseClient } from '@/lib/supabase';
 
 // GET /api/airfields/imported - Get imported airfields (base airfields)
 export async function GET(request: NextRequest) {
@@ -18,17 +16,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Get base airfields (airfields marked as base)
-    const baseAirfields = await prisma.airfield.findMany({
-      where: {
-        isBase: true,
-      },
-      orderBy: {
-        name: 'asc',
-      },
-    });
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection error' }, { status: 500 });
+    }
 
-    return NextResponse.json({ airfields: baseAirfields });
+    // Get base airfields (airfields marked as base)
+    const { data: baseAirfields, error } = await supabase
+      .from('airfields')
+      .select('*')
+      .eq('isBase', true)
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching imported airfields:', error);
+      return NextResponse.json(
+        { error: 'Database error' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ airfields: baseAirfields || [] });
   } catch (error) {
     console.error('Error fetching imported airfields:', error);
     return NextResponse.json(

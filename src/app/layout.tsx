@@ -35,7 +35,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <DateFormatProvider>
-            <div className="bg-background text-foreground min-h-screen">
+            <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen">
               {children}
               <Toaster />
             </div>

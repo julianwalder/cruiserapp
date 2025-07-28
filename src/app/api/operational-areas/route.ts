@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
 import { AuthService } from '@/lib/auth';
-
-const prisma = new PrismaClient();
+import { getSupabaseClient } from '@/lib/supabase';
+import crypto from 'crypto';
 
 // GET /api/operational-areas - List operational areas
 export async function GET(request: NextRequest) {
@@ -30,20 +29,31 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const operationalAreas = await prisma.operationalArea.findMany({
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection error' }, { status: 500 });
+    }
 
-    return NextResponse.json(operationalAreas);
+    const { data: operationalAreas, error } = await supabase
+      .from('operational_areas')
+      .select(`
+        id,
+        continent,
+        countries,
+        "createdAt",
+        "updatedAt"
+      `)
+      .order('createdAt', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching operational areas:', error);
+      return NextResponse.json(
+        { error: 'Database error' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(operationalAreas || []);
   } catch (error) {
     console.error('Error fetching operational areas:', error);
     return NextResponse.json(
@@ -89,16 +99,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection error' }, { status: 500 });
+    }
+
     // Check if operational area already exists for this user
     // We need to check for exact array match, so we'll get all areas and filter in code
-    const existingOperationalAreas = await prisma.operationalArea.findMany({
-      where: {
-        continent: body.continent,
-        createdById: user.id,
-      },
-    });
+    const { data: existingOperationalAreas, error: existingError } = await supabase
+      .from('operational_areas')
+      .select('id, continent, countries')
+      .eq('continent', body.continent);
 
-    const existingOperationalArea = existingOperationalAreas.find((area: any) => 
+    if (existingError) {
+      console.error('Error checking existing operational areas:', existingError);
+      return NextResponse.json(
+        { error: 'Database error' },
+        { status: 500 }
+      );
+    }
+
+    const existingOperationalArea = existingOperationalAreas?.find((area: any) => 
       JSON.stringify(area.countries.sort()) === JSON.stringify(body.countries.sort())
     );
 
@@ -110,22 +131,33 @@ export async function POST(request: NextRequest) {
     }
 
     // Create operational area
-    const operationalArea = await prisma.operationalArea.create({
-      data: {
+    const now = new Date().toISOString();
+    const { data: operationalArea, error: createError } = await supabase
+      .from('operational_areas')
+      .insert({
+        id: crypto.randomUUID(),
         continent: body.continent,
         countries: body.countries,
         createdById: user.id,
-      },
-      include: {
-        createdBy: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-      },
-    });
+        createdAt: now,
+        updatedAt: now,
+      })
+      .select(`
+        id,
+        continent,
+        countries,
+        "createdAt",
+        "updatedAt"
+      `)
+      .single();
+
+    if (createError) {
+      console.error('Error creating operational area:', createError);
+      return NextResponse.json(
+        { error: 'Failed to create operational area' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json(operationalArea, { status: 201 });
   } catch (error) {
@@ -173,15 +205,20 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Check if operational area exists and belongs to the user
-    const operationalArea = await prisma.operationalArea.findFirst({
-      where: {
-        id: id,
-        createdById: user.id,
-      },
-    });
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection error' }, { status: 500 });
+    }
 
-    if (!operationalArea) {
+    // Check if operational area exists and belongs to the user
+    const { data: operationalArea, error: checkError } = await supabase
+      .from('operational_areas')
+      .select('id')
+      .eq('id', id)
+      .eq('createdById', user.id)
+      .single();
+
+    if (checkError || !operationalArea) {
       return NextResponse.json(
         { error: 'Operational area not found' },
         { status: 404 }
@@ -189,16 +226,20 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Delete the operational area
-    await prisma.operationalArea.delete({
-      where: {
-        id: id,
-      },
-    });
+    const { error: deleteError } = await supabase
+      .from('operational_areas')
+      .delete()
+      .eq('id', id);
 
-    return NextResponse.json(
-      { message: 'Operational area deleted successfully' },
-      { status: 200 }
-    );
+    if (deleteError) {
+      console.error('Error deleting operational area:', deleteError);
+      return NextResponse.json(
+        { error: 'Failed to delete operational area' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ message: 'Operational area deleted successfully' });
   } catch (error) {
     console.error('Error deleting operational area:', error);
     return NextResponse.json(

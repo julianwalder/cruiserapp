@@ -466,7 +466,7 @@ export default function FlightLogsImportTab() {
                 </ul>
               </div>
             </div>
-            <div className="pt-2 border-t border-border">
+            <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
               <ul className="text-sm text-muted-foreground space-y-1">
                 <li>• Only Super Admins can import flight logs</li>
                 <li>• Date format must be YYYY-MM-DD</li>
@@ -479,7 +479,7 @@ export default function FlightLogsImportTab() {
                 <li className="font-medium text-green-600">• No need to delete previous imports - duplicates are handled automatically</li>
               </ul>
             </div>
-            <div className="pt-2 border-t border-border">
+            <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
               <h4 className="font-medium text-sm mb-2">Automatic Time Calculations:</h4>
               <ul className="text-sm text-muted-foreground space-y-1">
                 <li>• <strong>Dual Received:</strong> Full flight time when instructor is present</li>

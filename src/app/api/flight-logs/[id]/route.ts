@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { getSupabaseClient } from '@/lib/supabase';
 import { AuthService } from '@/lib/auth';
 
 export async function PUT(
@@ -26,28 +26,36 @@ export async function PUT(
     const { id } = await params;
     console.log('📝 Flight log ID to update:', id);
 
-    // Check if user has permission to update flight logs
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: {
-        userRoles: {
-          include: {
-            role: true,
-          },
-        },
-      },
-    });
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+    }
 
-    if (!user) {
+    // Check if user has permission to update flight logs
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select(`
+        id,
+        email,
+        userRoles (
+          role (
+            name
+          )
+        )
+      `)
+      .eq('id', decoded.userId)
+      .single();
+
+    if (userError || !user) {
       console.log('❌ User not found');
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     console.log('👤 User found:', user.email);
-    console.log('🔑 User roles:', user.userRoles.map(ur => ur.role.name));
+    console.log('🔑 User roles:', user.userRoles.map((ur: any) => ur.role.name));
 
     const hasPermission = user.userRoles.some(
-      (userRole) =>
+      (userRole: any) =>
         userRole.role.name === 'SUPER_ADMIN' ||
         userRole.role.name === 'ADMIN' ||
         userRole.role.name === 'BASE_MANAGER' ||
@@ -65,14 +73,19 @@ export async function PUT(
     }
 
     // Check if flight log exists
-    const existingFlightLog = await prisma.flightLog.findUnique({
-      where: { id },
-      include: {
-        pilot: true,
-      },
-    });
+    const { data: existingFlightLog, error: existingError } = await supabase
+      .from('flight_logs')
+      .select(`
+        *,
+        pilot (
+          id,
+          totalFlightHours
+        )
+      `)
+      .eq('id', id)
+      .single();
 
-    if (!existingFlightLog) {
+    if (existingError || !existingFlightLog) {
       return NextResponse.json(
         { error: 'Flight log not found' },
         { status: 404 }
@@ -119,11 +132,13 @@ export async function PUT(
     }
 
     // Validate aircraft exists
-    const aircraft = await prisma.aircraft.findUnique({
-      where: { id: aircraftId },
-    });
+    const { data: aircraft, error: aircraftError } = await supabase
+      .from('aircraft')
+      .select('id')
+      .eq('id', aircraftId)
+      .single();
 
-    if (!aircraft) {
+    if (aircraftError || !aircraft) {
       return NextResponse.json(
         { error: 'Aircraft not found' },
         { status: 404 }
@@ -131,11 +146,13 @@ export async function PUT(
     }
 
     // Validate pilot exists
-    const pilot = await prisma.user.findUnique({
-      where: { id: pilotId },
-    });
+    const { data: pilot, error: pilotError } = await supabase
+      .from('users')
+      .select('id, totalFlightHours')
+      .eq('id', pilotId)
+      .single();
 
-    if (!pilot) {
+    if (pilotError || !pilot) {
       return NextResponse.json(
         { error: 'Pilot not found' },
         { status: 404 }
@@ -144,11 +161,13 @@ export async function PUT(
 
     // Validate instructor if provided
     if (instructorId) {
-      const instructor = await prisma.user.findUnique({
-        where: { id: instructorId },
-      });
+      const { data: instructor, error: instructorError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', instructorId)
+        .single();
 
-      if (!instructor) {
+      if (instructorError || !instructor) {
         return NextResponse.json(
           { error: 'Instructor not found' },
           { status: 404 }
@@ -157,22 +176,26 @@ export async function PUT(
     }
 
     // Validate airfields exist
-    const departureAirfield = await prisma.airfield.findUnique({
-      where: { id: departureAirfieldId },
-    });
+    const { data: departureAirfield, error: departureError } = await supabase
+      .from('airfield')
+      .select('id')
+      .eq('id', departureAirfieldId)
+      .single();
 
-    if (!departureAirfield) {
+    if (departureError || !departureAirfield) {
       return NextResponse.json(
         { error: 'Departure airfield not found' },
         { status: 404 }
       );
     }
 
-    const arrivalAirfield = await prisma.airfield.findUnique({
-      where: { id: arrivalAirfieldId },
-    });
+    const { data: arrivalAirfield, error: arrivalError } = await supabase
+      .from('airfield')
+      .select('id')
+      .eq('id', arrivalAirfieldId)
+      .single();
 
-    if (!arrivalAirfield) {
+    if (arrivalError || !arrivalAirfield) {
       return NextResponse.json(
         { error: 'Arrival airfield not found' },
         { status: 404 }
@@ -192,13 +215,13 @@ export async function PUT(
     const hoursDifference = newTotalHours - existingFlightLog.totalHours;
 
     // Update flight log
-    const flightLog = await prisma.flightLog.update({
-      where: { id },
-      data: {
+    const { data: flightLog, error: updateError } = await supabase
+      .from('flight_logs')
+      .update({
         aircraftId,
         pilotId,
         instructorId,
-        date: new Date(date),
+        date: new Date(date).toISOString(),
         departureTime,
         arrivalTime,
         departureAirfieldId,
@@ -221,52 +244,67 @@ export async function PUT(
         nightLandings,
         oilAdded,
         fuelAdded,
-      },
-      include: {
-        aircraft: {
-          include: {
-            icaoReferenceType: true,
-          },
-        },
-        pilot: true,
-        instructor: true,
-        departureAirfield: true,
-        arrivalAirfield: true,
-        createdBy: true,
-      },
-    });
+      })
+      .eq('id', id)
+      .select(`
+        *,
+        aircraft (
+          *,
+          icaoReferenceType (
+            *
+          )
+        ),
+        pilot (
+          *
+        ),
+        instructor (
+          *
+        ),
+        departureAirfield (
+          *
+        ),
+        arrivalAirfield (
+          *
+        ),
+        createdBy (
+          *
+        )
+      `)
+      .single();
+
+    if (updateError) {
+      console.error('Error updating flight log:', updateError);
+      return NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 }
+      );
+    }
 
     // Update pilot's total flight hours if pilot changed or hours changed
     if (pilotId !== existingFlightLog.pilotId) {
       // Remove hours from old pilot
-      await prisma.user.update({
-        where: { id: existingFlightLog.pilotId },
-        data: {
-          totalFlightHours: {
-            decrement: existingFlightLog.totalHours,
-          },
-        },
-      });
+      await supabase
+        .from('users')
+        .update({
+          totalFlightHours: existingFlightLog.pilot.totalFlightHours - existingFlightLog.totalHours,
+        })
+        .eq('id', existingFlightLog.pilotId);
 
       // Add hours to new pilot
-      await prisma.user.update({
-        where: { id: pilotId },
-        data: {
-          totalFlightHours: {
-            increment: newTotalHours,
-          },
-        },
-      });
+      await supabase
+        .from('users')
+        .update({
+          totalFlightHours: pilot.totalFlightHours + newTotalHours,
+        })
+        .eq('id', pilotId);
     } else if (hoursDifference !== 0) {
       // Update hours for same pilot
-      await prisma.user.update({
-        where: { id: pilotId },
-        data: {
-          totalFlightHours: {
-            increment: hoursDifference,
-          },
-        },
-      });
+      await supabase
+        .from('users')
+        .update({
+          totalFlightHours: pilot.totalFlightHours + hoursDifference,
+        })
+        .eq('id', pilotId);
     }
 
     return NextResponse.json({ flightLog });
@@ -284,38 +322,51 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    console.log('🗑️ DELETE request received for flight log');
+    
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     if (!token) {
+      console.log('❌ No token provided');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const decoded = await AuthService.verifyToken(token);
     if (!decoded) {
+      console.log('❌ Invalid token');
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
     const { id } = await params;
+    console.log('🗑️ Flight log ID to delete:', id);
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+    }
 
     // Check if user has permission to delete flight logs
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      include: {
-        userRoles: {
-          include: {
-            role: true,
-          },
-        },
-      },
-    });
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select(`
+        id,
+        user_roles!user_roles_userId_fkey (
+          roles (
+            name
+          )
+        )
+      `)
+      .eq('id', decoded.userId)
+      .single();
 
-    if (!user) {
+    if (userError || !user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const hasPermission = user.userRoles.some(
-      (userRole) =>
-        userRole.role.name === 'SUPER_ADMIN' ||
-        userRole.role.name === 'ADMIN'
+    const hasPermission = user.user_roles.some(
+      (userRole: any) =>
+        userRole.roles.name === 'SUPER_ADMIN' ||
+        userRole.roles.name === 'ADMIN' ||
+        userRole.roles.name === 'BASE_MANAGER'
     );
 
     if (!hasPermission) {
@@ -326,34 +377,61 @@ export async function DELETE(
     }
 
     // Check if flight log exists
-    const existingFlightLog = await prisma.flightLog.findUnique({
-      where: { id },
-      include: {
-        pilot: true,
-      },
-    });
+    console.log('🔍 Looking for flight log with ID:', id);
+    const { data: existingFlightLog, error: existingError } = await supabase
+      .from('flight_logs')
+      .select('*')
+      .eq('id', id)
+      .single();
 
-    if (!existingFlightLog) {
+    if (existingError) {
+      console.log('❌ Error finding flight log:', existingError);
       return NextResponse.json(
         { error: 'Flight log not found' },
         { status: 404 }
       );
     }
 
-    // Remove flight hours from pilot's total
-    await prisma.user.update({
-      where: { id: existingFlightLog.pilotId },
-      data: {
-        totalFlightHours: {
-          decrement: existingFlightLog.totalHours,
-        },
-      },
-    });
+    if (!existingFlightLog) {
+      console.log('❌ Flight log not found with ID:', id);
+      return NextResponse.json(
+        { error: 'Flight log not found' },
+        { status: 404 }
+      );
+    }
+
+    console.log('✅ Flight log found:', existingFlightLog.id);
+
+    // Get pilot's current total flight hours
+    const { data: pilot, error: pilotError } = await supabase
+      .from('users')
+      .select('totalFlightHours')
+      .eq('id', existingFlightLog.pilotId)
+      .single();
+
+    if (!pilotError && pilot) {
+      // Remove flight hours from pilot's total
+      await supabase
+        .from('users')
+        .update({
+          totalFlightHours: pilot.totalFlightHours - existingFlightLog.totalHours,
+        })
+        .eq('id', existingFlightLog.pilotId);
+    }
 
     // Delete flight log
-    await prisma.flightLog.delete({
-      where: { id },
-    });
+    const { error: deleteError } = await supabase
+      .from('flight_logs')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      console.error('Error deleting flight log:', deleteError);
+      return NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ message: 'Flight log deleted successfully' });
   } catch (error) {
