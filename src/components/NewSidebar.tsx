@@ -166,7 +166,7 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
   };
 
   const canAccessFleet = () => {
-    return hasRole('SUPER_ADMIN') || hasRole('ADMIN');
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT') || hasRole('PROSPECT') || hasRole('INSTRUCTOR');
   };
 
   const canAccessUsers = () => {

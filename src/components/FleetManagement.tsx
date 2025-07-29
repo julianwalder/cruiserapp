@@ -155,7 +155,11 @@ interface ICAOReferenceTypeOption {
   manufacturer: string;
 }
 
-export default function FleetManagement() {
+interface FleetManagementProps {
+  canEdit?: boolean;
+}
+
+export default function FleetManagement({ canEdit = true }: FleetManagementProps) {
   const { formatDate } = useDateFormatUtils();
   const [aircraft, setAircraft] = useState<Aircraft[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
@@ -767,10 +771,12 @@ export default function FleetManagement() {
               <List className="h-4 w-4" />
             </Button>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Aircraft
-        </Button>
+        {canEdit && (
+          <Button onClick={() => setShowCreateDialog(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Aircraft
+          </Button>
+        )}
         </div>
       </div>
 
@@ -828,14 +834,18 @@ export default function FleetManagement() {
                       <Settings className="mr-2 h-4 w-4" />
                       Fleet Management
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleEditClick(aircraft)}>
-                      <Edit className="mr-2 h-4 w-4" />
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleDeleteAircraft(aircraft.id)} className="text-destructive">
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Delete
-                    </DropdownMenuItem>
+                    {canEdit && (
+                      <>
+                        <DropdownMenuItem onClick={() => handleEditClick(aircraft)}>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDeleteAircraft(aircraft.id)} className="text-destructive">
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
             </div>
@@ -961,14 +971,18 @@ export default function FleetManagement() {
                           <Settings className="mr-2 h-4 w-4" />
                           Fleet Management
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleEditClick(aircraft)}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDeleteAircraft(aircraft.id)} className="text-destructive">
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
+                        {canEdit && (
+                          <>
+                            <DropdownMenuItem onClick={() => handleEditClick(aircraft)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDeleteAircraft(aircraft.id)} className="text-destructive">
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                       </TableCell>

@@ -195,7 +195,11 @@ function DashboardContent() {
   };
 
   const canAccessFleet = () => {
-    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER');
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT') || hasRole('PROSPECT') || hasRole('INSTRUCTOR');
+  };
+
+  const canEditFleet = () => {
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN');
   };
 
   const canAccessBaseManagement = () => {
@@ -382,7 +386,7 @@ function DashboardContent() {
               </div>
             </div>
           )}
-          {activeTab === 'fleet' && canAccessFleet() && <FleetManagement />}
+          {activeTab === 'fleet' && canAccessFleet() && <FleetManagement canEdit={canEditFleet()} />}
           {activeTab === 'fleet' && !canAccessFleet() && (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">

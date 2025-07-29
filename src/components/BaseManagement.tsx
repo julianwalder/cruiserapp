@@ -316,14 +316,49 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
 
   const getTypeBadgeColor = (type: string) => {
     switch (type) {
-      case 'AIRPORT':
-        return 'bg-primary-10 text-primary border-primary-20';
-      case 'HELIPORT':
+      case 'large_airport':
+        return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800';
+      case 'medium_airport':
+        return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800';
+      case 'small_airport':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800';
+      case 'heliport':
+        return 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800';
+      case 'seaplane_base':
+        return 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-900/20 dark:text-cyan-400 dark:border-cyan-800';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700';
+    }
+  };
+
+  const getStatusBadgeColor = (status: string) => {
+    switch (status) {
+      case 'ACTIVE':
         return 'bg-success-10 text-success border-success-20';
-      case 'ULTRALIGHT_FIELD':
-        return 'bg-accent-10 text-accent-foreground border-accent-20';
+      case 'INACTIVE':
+        return 'bg-muted text-muted-foreground border-gray-200 dark:border-gray-700';
+      case 'MAINTENANCE':
+        return 'bg-warning-10 text-warning border-warning-20';
+      case 'CLOSED':
+        return 'bg-destructive-10 text-destructive border-destructive-20';
       default:
         return 'bg-muted text-muted-foreground border-gray-200 dark:border-gray-700';
+    }
+  };
+
+  // Helper function to format status display
+  const formatStatusDisplay = (status: string) => {
+    switch (status) {
+      case 'ACTIVE':
+        return 'Active';
+      case 'INACTIVE':
+        return 'Inactive';
+      case 'MAINTENANCE':
+        return 'Maintenance';
+      case 'CLOSED':
+        return 'Closed';
+      default:
+        return 'Unknown';
     }
   };
 
@@ -382,136 +417,136 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
   return (
     <div className="space-y-6">
       {canEdit && (
-      <div className="flex items-center justify-between">
-        <div>
-
-
-        </div>
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogTrigger asChild>
-            <Button onClick={() => resetForm()}>
-              <Plus className="h-4 w-4 mr-2" />
-              Designate Base
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Designate New Base</DialogTitle>
-              <DialogDescription>
-                Select an airfield to designate as a base and assign a base manager
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="airfieldId">Select Airfield</Label>
-                <Combobox
-                  options={airfields
-                    .filter(af => !af.isBase)
-                    .map(airfield => ({
-                      value: airfield.id,
-                      label: `${airfield.name} (${airfield.code}) • ${airfield.city}, ${airfield.country}`
-                    }))}
-                  value={formData.airfieldId}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, airfieldId: value }))}
-                    placeholder="Search airfields by name, code, or city..."
-                  searchPlaceholder="Search airfields..."
-                  emptyText="No airfields found."
-                />
-              </div>
-              <div>
-                <Label htmlFor="baseManagerId">Assign Base Manager</Label>
-                <Select value={formData.baseManagerId} onValueChange={(value) => setFormData(prev => ({ ...prev, baseManagerId: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={baseManagersLoading ? "Loading base managers..." : "Choose a base manager (optional)"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {baseManagersLoading ? (
-                      <SelectItem value="" disabled>
-                        Loading base managers...
-                      </SelectItem>
-                    ) : baseManagers.length === 0 ? (
-                      <SelectItem value="" disabled>
-                        No base managers available
-                      </SelectItem>
-                    ) : (
-                      baseManagers.map((manager) => (
-                        <SelectItem key={manager.id} value={manager.id}>
-                          {manager.firstName} {manager.lastName}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="operatingHours">Operating Hours</Label>
-                <Input
-                  id="operatingHours"
-                  value={formData.operatingHours}
-                  onChange={(e) => setFormData(prev => ({ ...prev, operatingHours: e.target.value }))}
-                  placeholder="e.g., Mon-Fri 8:00-18:00"
-                />
-              </div>
-              <div>
-                <Label htmlFor="emergencyContact">Emergency Contact</Label>
-                <Input
-                  id="emergencyContact"
-                  value={formData.emergencyContact}
-                  onChange={(e) => setFormData(prev => ({ ...prev, emergencyContact: e.target.value }))}
-                  placeholder="Emergency contact information"
-                />
-              </div>
-              <div>
-                <Label htmlFor="additionalInfo">Base Information</Label>
-                <Textarea
-                  id="additionalInfo"
-                  value={formData.additionalInfo}
-                  onChange={(e) => setFormData(prev => ({ ...prev, additionalInfo: e.target.value }))}
-                  placeholder="Additional information about this base"
-                />
-              </div>
-              <div>
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea
-                  id="notes"
-                  value={formData.notes}
-                  onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Additional notes"
-                />
-              </div>
-              <div>
-                <Label htmlFor="image">Base Image</Label>
-                <div className="space-y-2">
-                  <Input
-                    id="image"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="cursor-pointer"
-                  />
-                  {imagePreview && (
-                    <div className="relative w-full h-32 rounded-lg overflow-hidden border">
-                      <img
-                        src={imagePreview}
-                        alt="Preview"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleCreateBase}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">Base Management</h2>
+            <p className="text-muted-foreground">Manage airfield bases and assignments</p>
+          </div>
+          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <DialogTrigger asChild>
+              <Button onClick={() => resetForm()}>
+                <Plus className="h-4 w-4 mr-2" />
                 Designate Base
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
+            </DialogTrigger>
+            <DialogContent className="!max-w-[90vw] max-h-[90vh] flex flex-col">
+              <DialogHeader className="flex-shrink-0 pb-4 border-b">
+                <DialogTitle className="text-2xl">Designate New Base</DialogTitle>
+                <DialogDescription className="text-base">
+                  Select an airfield to designate as a base and assign a base manager
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex-1 overflow-y-auto space-y-4 pt-4">
+                <div>
+                  <Label htmlFor="airfieldId">Select Airfield</Label>
+                  <Combobox
+                    options={airfields
+                      .filter(af => !af.isBase)
+                      .map(airfield => ({
+                        value: airfield.id,
+                        label: `${airfield.name} (${airfield.code}) • ${airfield.city}, ${airfield.country}`
+                      }))}
+                    value={formData.airfieldId}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, airfieldId: value }))}
+                      placeholder="Search airfields by name, code, or city..."
+                    searchPlaceholder="Search airfields..."
+                    emptyText="No airfields found."
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="baseManagerId">Assign Base Manager</Label>
+                  <Select value={formData.baseManagerId} onValueChange={(value) => setFormData(prev => ({ ...prev, baseManagerId: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={baseManagersLoading ? "Loading base managers..." : "Choose a base manager (optional)"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {baseManagersLoading ? (
+                        <SelectItem value="" disabled>
+                          Loading base managers...
+                        </SelectItem>
+                      ) : baseManagers.length === 0 ? (
+                        <SelectItem value="" disabled>
+                          No base managers available
+                        </SelectItem>
+                      ) : (
+                        baseManagers.map((manager) => (
+                          <SelectItem key={manager.id} value={manager.id}>
+                            {manager.firstName} {manager.lastName}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="operatingHours">Operating Hours</Label>
+                  <Input
+                    id="operatingHours"
+                    value={formData.operatingHours}
+                    onChange={(e) => setFormData(prev => ({ ...prev, operatingHours: e.target.value }))}
+                    placeholder="e.g., Mon-Fri 8:00-18:00"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="emergencyContact">Emergency Contact</Label>
+                  <Input
+                    id="emergencyContact"
+                    value={formData.emergencyContact}
+                    onChange={(e) => setFormData(prev => ({ ...prev, emergencyContact: e.target.value }))}
+                    placeholder="Emergency contact information"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="additionalInfo">Base Information</Label>
+                  <Textarea
+                    id="additionalInfo"
+                    value={formData.additionalInfo}
+                    onChange={(e) => setFormData(prev => ({ ...prev, additionalInfo: e.target.value }))}
+                    placeholder="Additional information about this base"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="notes">Notes</Label>
+                  <Textarea
+                    id="notes"
+                    value={formData.notes}
+                    onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Additional notes"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="image">Base Image</Label>
+                  <div className="space-y-2">
+                    <Input
+                      id="image"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageChange}
+                      className="cursor-pointer"
+                    />
+                    {imagePreview && (
+                      <div className="relative w-full h-32 rounded-lg overflow-hidden border">
+                        <img
+                          src={imagePreview}
+                          alt="Preview"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCreateBase}>
+                  Designate Base
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       )}
 
       {loading ? (
@@ -526,7 +561,14 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {baseManagements.map((base) => (
-            <Card key={base.id} className="hover:shadow-lg transition-shadow h-full flex flex-col p-0 relative">
+            <Card 
+              key={base.id} 
+              className="hover:shadow-lg transition-shadow h-full flex flex-col p-0 relative cursor-pointer group"
+              onClick={() => {
+                setSelectedBase(base);
+                setShowBaseDetailsDialog(true);
+              }}
+            >
               {/* Base Image */}
               <OptimizedImage
                 src={base.imagepath}
@@ -536,35 +578,30 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
                 placeholder={<Plane className="h-8 w-8 text-muted-foreground" />}
               />
 
-              {/* Action Menu - Top Right Corner */}
-              <div className="absolute top-2 right-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="h-8 w-8 p-0 bg-white/30 dark:bg-black/30 backdrop-blur-md hover:bg-white/50 dark:hover:bg-black/50 text-black dark:text-white border border-white/30 dark:border-white/30 shadow-lg">
-                      <span className="sr-only">Open menu</span>
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => {
-                      setSelectedBase(base);
-                      setShowBaseDetailsDialog(true);
-                    }}>
-                      <Eye className="h-4 w-4 mr-2" /> View Details
-                    </DropdownMenuItem>
-                    {canEdit && (
-                      <>
-                        <DropdownMenuItem onClick={() => openEditDialog(base)}>
-                          <Edit className="h-4 w-4 mr-2" /> Edit Base
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDeleteBase(base)} className="text-destructive">
-                          <Trash2 className="h-4 w-4 mr-2" /> Delete Base
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+              {/* Three-dot menu - only for users with edit permissions */}
+              {canEdit && (
+                <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="h-8 w-8 p-0 bg-white/30 dark:bg-black/30 backdrop-blur-md hover:bg-white/50 dark:hover:bg-black/50 text-black dark:text-white border border-white/30 dark:border-white/30 shadow-lg">
+                        <span className="sr-only">Open menu</span>
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => openEditDialog(base)}>
+                        <Edit className="h-4 w-4 mr-2" /> Edit Base
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDeleteBase(base)} className="text-destructive">
+                        <Trash2 className="h-4 w-4 mr-2" /> Delete Base
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              )}
+
+              {/* Click indicator overlay */}
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors rounded-lg pointer-events-none" />
 
               <CardHeader className="pb-0 px-6 pt-4">
                 <div className="space-y-1">
@@ -658,13 +695,9 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
                 {/* Footer */}
                 <div className="flex items-center justify-between pt-3 mt-3 border-t border-border">
                   <Badge 
-                    variant={base.isActive ? "default" : "secondary"}
-                    className={base.isActive 
-                      ? "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800" 
-                      : "bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700"
-                    }
+                    className={`${getStatusBadgeColor(getAirfieldData(base).status || 'UNKNOWN')} text-xs`}
                   >
-                    {base.isActive ? 'Active' : 'Inactive'}
+                    {formatStatusDisplay(getAirfieldData(base).status || 'UNKNOWN')}
                   </Badge>
                   <div className="text-xs text-muted-foreground">
                     Created {formatDateWithCurrentFormat(base.createdAt)}
@@ -678,18 +711,14 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
 
       {/* Edit Base Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="!max-w-[90vw] max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="pb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle className="text-2xl">Edit Base</DialogTitle>
-                <DialogDescription className="text-base">
-                  Update base information and management details
-                </DialogDescription>
-              </div>
-            </div>
+        <DialogContent className="!max-w-[90vw] max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0 pb-4 border-b">
+            <DialogTitle className="text-2xl">Edit Base</DialogTitle>
+            <DialogDescription className="text-base">
+              Update base information and management details
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-8">
+          <div className="flex-1 overflow-y-auto space-y-8 pt-4">
             {/* Base Management Information */}
             <div className="bg-muted rounded-lg p-6">
               <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
@@ -821,208 +850,207 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
 
       {/* Base Details Dialog */}
       <Dialog open={showBaseDetailsDialog} onOpenChange={setShowBaseDetailsDialog}>
-        <DialogContent className="!max-w-[90vw] max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="pb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle className="text-2xl">Base Details</DialogTitle>
-                <DialogDescription className="text-base">
-                  Complete base information and management details
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-          {selectedBase ? (
-            <div key={selectedBase.id + selectedBase.updatedAt} className="space-y-8">
-              {/* Airfield Information */}
-              <div className="bg-muted rounded-lg p-6">
-                <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
-                  <MapPin className="h-5 w-5 mr-2" />
-                  Airfield Information
-                </h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Airfield Name</Label>
-                    <p className="text-base font-medium text-card-foreground">{getAirfieldData(selectedBase).name}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">ICAO Code</Label>
-                    <p className="text-base text-card-foreground">{getAirfieldData(selectedBase).code}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Type</Label>
-                    <Badge className={getTypeBadgeColor(getAirfieldData(selectedBase).type)}>
-                      {getAirfieldData(selectedBase).type.replace('_', ' ')}
-                    </Badge>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">City</Label>
-                    <p className="text-base text-card-foreground">{getAirfieldData(selectedBase).city}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">State/Province</Label>
-                    <p className="text-base text-card-foreground">{getAirfieldData(selectedBase).state || '-'}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Country</Label>
-                    <p className="text-base text-card-foreground">{getAirfieldData(selectedBase).country}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Status</Label>
-                    <Badge variant={getAirfieldData(selectedBase).status === 'ACTIVE' ? 'default' : 'secondary'}>
-                      {getAirfieldData(selectedBase).status || 'Unknown'}
-                    </Badge>
+        <DialogContent className="!max-w-[90vw] max-h-[90vh] flex flex-col" showCloseButton={false}>
+          <div className="flex-shrink-0 pb-2 flex justify-between">
+            <DialogTitle className="text-2xl">Base Details</DialogTitle>
+              <Button variant="outline" onClick={() => setShowBaseDetailsDialog(false)}>
+                Close
+              </Button>
+          </div>
+          <div className="flex-1 overflow-y-auto pt-4 scrollbar-hide">
+            {selectedBase ? (
+              <div key={selectedBase.id + selectedBase.updatedAt} className="space-y-8">
+                {/* Airfield Information */}
+                <div className="bg-muted rounded-lg p-6">
+                  <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
+                    <MapPin className="h-5 w-5 mr-2" />
+                    Airfield Information
+                  </h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Airfield Name</Label>
+                      <p className="text-base font-medium text-card-foreground">{getAirfieldData(selectedBase).name}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">ICAO Code</Label>
+                      <p className="text-base text-card-foreground">{getAirfieldData(selectedBase).code}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Type</Label>
+                      <Badge className={getTypeBadgeColor(getAirfieldData(selectedBase).type)}>
+                        {getAirfieldData(selectedBase).type.replace('_', ' ')}
+                      </Badge>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">City</Label>
+                      <p className="text-base text-card-foreground">{getAirfieldData(selectedBase).city}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">State/Province</Label>
+                      <p className="text-base text-card-foreground">{getAirfieldData(selectedBase).state || '-'}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Country</Label>
+                      <p className="text-base text-card-foreground">{getAirfieldData(selectedBase).country}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Status</Label>
+                      <Badge className={`${getStatusBadgeColor(getAirfieldData(selectedBase).status || 'UNKNOWN')} text-xs`}>
+                        {formatStatusDisplay(getAirfieldData(selectedBase).status || 'UNKNOWN')}
+                      </Badge>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* GPS Coordinates & Elevation */}
-              <div className="bg-muted rounded-lg p-6">
-                <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
-                  <MapPin className="h-5 w-5 mr-2" />
-                  Location & Elevation
-                </h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Latitude</Label>
-                    <p className="text-base text-card-foreground">
-                      {getAirfieldData(selectedBase).latitude ? `${getAirfieldData(selectedBase).latitude}°` : '-'}
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Longitude</Label>
-                    <p className="text-base text-card-foreground">
-                      {getAirfieldData(selectedBase).longitude ? `${getAirfieldData(selectedBase).longitude}°` : '-'}
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Elevation</Label>
-                    <p className="text-base text-card-foreground">
-                      {getAirfieldData(selectedBase).elevation ? `${getAirfieldData(selectedBase).elevation} ft` : '-'}
-                    </p>
+                {/* GPS Coordinates & Elevation */}
+                <div className="bg-muted rounded-lg p-6">
+                  <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
+                    <MapPin className="h-5 w-5 mr-2" />
+                    Location & Elevation
+                  </h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Latitude</Label>
+                      <p className="text-base text-card-foreground">
+                        {getAirfieldData(selectedBase).latitude ? `${getAirfieldData(selectedBase).latitude}°` : '-'}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Longitude</Label>
+                      <p className="text-base text-card-foreground">
+                        {getAirfieldData(selectedBase).longitude ? `${getAirfieldData(selectedBase).longitude}°` : '-'}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Elevation</Label>
+                      <p className="text-base text-card-foreground">
+                        {getAirfieldData(selectedBase).elevation ? `${getAirfieldData(selectedBase).elevation} ft` : '-'}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Airfield Contact Information */}
-              <div className="bg-muted rounded-lg p-6">
-                <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
-                  <Phone className="h-5 w-5 mr-2" />
-                  Airfield Contact Information
-                </h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Phone</Label>
-                    <p className="text-base text-card-foreground">{getAirfieldData(selectedBase).phone || '-'}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Email</Label>
-                    <p className="text-base text-card-foreground">{getAirfieldData(selectedBase).email || '-'}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Website</Label>
-                    <p className="text-base text-card-foreground">
+                {/* Contact Information */}
+                <div className="bg-muted rounded-lg p-6">
+                  <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
+                    <Phone className="h-5 w-5 mr-2" />
+                    Contact Information
+                  </h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Phone</Label>
+                      <p className="text-base text-card-foreground">{getAirfieldData(selectedBase).phone || '-'}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Email</Label>
+                      <p className="text-base text-card-foreground">{getAirfieldData(selectedBase).email || '-'}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Website</Label>
                       {getAirfieldData(selectedBase).website ? (
                         <a 
                           href={getAirfieldData(selectedBase).website} 
                           target="_blank" 
                           rel="noopener noreferrer"
-                          className="text-blue-600 hover:text-blue-800 underline"
+                          className="text-base text-blue-600 hover:text-blue-800 underline"
+                          title={getAirfieldData(selectedBase).website}
                         >
-                          {getAirfieldData(selectedBase).website}
+                          {(() => {
+                            const url = getAirfieldData(selectedBase).website;
+                            if (!url) return '-';
+                            try {
+                              const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
+                              return urlObj.hostname + (urlObj.pathname !== '/' ? urlObj.pathname.substring(0, 20) + (urlObj.pathname.length > 20 ? '...' : '') : '');
+                            } catch {
+                              return url.length > 30 ? url.substring(0, 30) + '...' : url;
+                            }
+                          })()}
                         </a>
-                      ) : '-'}
-                    </p>
+                      ) : (
+                        <p className="text-base text-card-foreground">-</p>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Base Management Information */}
-              <div className="bg-muted rounded-lg p-6">
-                <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
-                  <User className="h-5 w-5 mr-2" />
-                  Base Management Information
-                </h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Base Manager</Label>
-                    <p className="text-base text-card-foreground">
-                      {selectedBase.baseManager ? 
-                        `${selectedBase.baseManager.firstName} ${selectedBase.baseManager.lastName}` : 
-                        'No manager assigned'
-                      }
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Operating Hours</Label>
-                    <p className="text-base text-card-foreground">{selectedBase.operatingHours || '-'}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Emergency Contact</Label>
-                    <p className="text-base text-card-foreground">{selectedBase.emergencyContact || '-'}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Status</Label>
-                    <Badge variant={selectedBase.isActive ? "default" : "secondary"}>
-                      {selectedBase.isActive ? 'Active' : 'Inactive'}
-                    </Badge>
+                {/* Base Management Information */}
+                <div className="bg-muted rounded-lg p-6">
+                  <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
+                    <User className="h-5 w-5 mr-2" />
+                    Base Management Information
+                  </h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Base Manager</Label>
+                      <p className="text-base text-card-foreground">
+                        {selectedBase.baseManager ? `${selectedBase.baseManager.firstName} ${selectedBase.baseManager.lastName}` : 'Not assigned'}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Operating Hours</Label>
+                      <p className="text-base text-card-foreground">{selectedBase.operatingHours || '-'}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Emergency Contact</Label>
+                      <p className="text-base text-card-foreground">{selectedBase.emergencyContact || '-'}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Additional Information */}
-              {(selectedBase.additionalInfo || selectedBase.notes) && (
+                {/* Additional Information */}
                 <div className="bg-muted rounded-lg p-6">
                   <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
                     <Shield className="h-5 w-5 mr-2" />
                     Additional Information
                   </h3>
                   <div className="space-y-6">
-                    {selectedBase.additionalInfo && (
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium text-muted-foreground">Base Information</Label>
-                        <p className="text-base text-card-foreground">{selectedBase.additionalInfo}</p>
-                      </div>
-                    )}
-                    {selectedBase.notes && (
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium text-muted-foreground">Notes</Label>
-                        <p className="text-base text-card-foreground">{selectedBase.notes}</p>
-                      </div>
-                    )}
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Base Information</Label>
+                      <p className="text-base text-card-foreground">{selectedBase.additionalInfo || '-'}</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Notes</Label>
+                      <p className="text-base text-card-foreground">{selectedBase.notes || '-'}</p>
+                    </div>
                   </div>
                 </div>
-              )}
 
-              {/* System Information */}
-              <div className="bg-muted rounded-lg p-6">
-                <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
-                  <Settings className="h-5 w-5 mr-2" />
-                  System Information
-                </h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Base ID</Label>
-                    <p className="text-base text-card-foreground">{selectedBase.id}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Airfield ID</Label>
-                    <p className="text-base text-card-foreground">{selectedBase.airfieldId}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Created</Label>
-                    <p className="text-base text-card-foreground">{formatDateWithCurrentFormat(selectedBase.createdAt)}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Last Updated</Label>
-                    <p className="text-base text-card-foreground">{formatDateWithCurrentFormat(selectedBase.updatedAt)}</p>
+                {/* System Information */}
+                <div className="bg-muted rounded-lg p-6">
+                  <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
+                    <Settings className="h-5 w-5 mr-2" />
+                    System Information
+                  </h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Status</Label>
+                      <Badge variant={selectedBase.isActive ? 'default' : 'secondary'}>
+                        {selectedBase.isActive ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Created</Label>
+                      <p className="text-base text-card-foreground">
+                        {new Date(selectedBase.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Last Updated</Label>
+                      <p className="text-base text-card-foreground">
+                        {new Date(selectedBase.updatedAt).toLocaleDateString()}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ) : null}
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">No base selected</p>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
   );
-} 
+}

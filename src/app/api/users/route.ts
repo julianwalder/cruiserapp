@@ -55,8 +55,8 @@ async function getUsers(request: NextRequest, currentUser: any) {
     
     // Apply pagination only if not filtering by role (since we need to check all users for role filtering)
     if (!role) {
-      const from = (page - 1) * limit;
-      const to = from + limit - 1;
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
       query = query.range(from, to);
     }
     
