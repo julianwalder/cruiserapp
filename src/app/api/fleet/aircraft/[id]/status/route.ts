@@ -41,7 +41,7 @@ export async function PATCH(
     }
 
     const hasAccess = user.userRoles.some(
-      (userRole: any) => userRole.role.name === 'SUPER_ADMIN' || userRole.role.name === 'ADMIN'
+      (userRole: any) => userRole.role.name === 'SUPER_ADMIN' || userRole.role.name === 'ADMIN' || userRole.role.name === 'BASE_MANAGER'
     );
 
     if (!hasAccess) {

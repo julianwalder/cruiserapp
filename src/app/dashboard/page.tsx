@@ -195,15 +195,15 @@ function DashboardContent() {
   };
 
   const canAccessFleet = () => {
-    return hasRole('SUPER_ADMIN') || hasRole('ADMIN');
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER');
   };
 
   const canAccessBaseManagement = () => {
-    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT');
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT') || hasRole('PROSPECT') || hasRole('INSTRUCTOR');
   };
 
   const canEditBaseManagement = () => {
-    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER');
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN');
   };
 
   return (

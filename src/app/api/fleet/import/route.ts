@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
-    if (!decoded.roles.includes('SUPER_ADMIN')) {
+    if (!decoded.roles.includes('ADMIN') && !decoded.roles.includes('BASE_MANAGER')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
-    if (!decoded.roles.includes('SUPER_ADMIN')) {
+    if (!decoded.roles.includes('ADMIN') && !decoded.roles.includes('BASE_MANAGER')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 

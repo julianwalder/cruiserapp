@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
       (userRole: any) => 
         userRole.roles.name === 'SUPER_ADMIN' || 
         userRole.roles.name === 'ADMIN' ||
+        userRole.roles.name === 'BASE_MANAGER' ||
         userRole.roles.name === 'INSTRUCTOR' ||
         userRole.roles.name === 'PILOT'
     );
@@ -160,7 +161,7 @@ export async function POST(request: NextRequest) {
     }
 
     const hasAccess = user.user_roles.some(
-      (userRole: any) => userRole.roles.name === 'SUPER_ADMIN' || userRole.roles.name === 'ADMIN'
+      (userRole: any) => userRole.roles.name === 'SUPER_ADMIN' || userRole.roles.name === 'ADMIN' || userRole.roles.name === 'BASE_MANAGER'
     );
 
     if (!hasAccess) {

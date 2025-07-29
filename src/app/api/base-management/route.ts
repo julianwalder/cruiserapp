@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseClient } from '@/lib/supabase';
 import { AuthService } from '@/lib/auth';
+import { getSupabaseClient } from '@/lib/supabase';
+import crypto from 'crypto';
 
 // GET /api/base-management - List base managements
 export async function GET(request: NextRequest) {
@@ -40,16 +41,16 @@ export async function GET(request: NextRequest) {
       .from('base_management')
       .select(`
         *,
-        airfield (
+        airfields!base_management_airfieldId_fkey (
           *
         ),
-        baseManager (
+        baseManager:users!base_management_baseManagerId_fkey (
           id,
           "firstName",
           "lastName",
           email,
-          userRoles (
-            role (
+          user_roles!user_roles_userId_fkey (
+            roles (
               name
             )
           )
@@ -93,10 +94,11 @@ export async function POST(request: NextRequest) {
     const payload = AuthService.verifyToken(token);
     const userRoles = payload?.roles || [];
     
-    // Only SUPER_ADMIN can create base managements
-    if (!AuthService.hasRole(userRoles, 'SUPER_ADMIN')) {
+    // Only SUPER_ADMIN and ADMIN can create base managements
+    if (!AuthService.hasRole(userRoles, 'SUPER_ADMIN') && 
+        !AuthService.hasRole(userRoles, 'ADMIN')) {
       return NextResponse.json(
-        { error: 'Insufficient permissions' },
+        { error: 'Insufficient permissions. Only administrators can create base assignments.' },
         { status: 403 }
       );
     }
@@ -106,21 +108,52 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
     }
 
-    const body = await request.json();
+    // Parse FormData
+    const formData = await request.formData();
+    const airfieldId = formData.get('airfieldId') as string;
+    const baseManagerId = formData.get('baseManagerId') as string;
+    const additionalInfo = formData.get('additionalInfo') as string;
+    const operatingHours = formData.get('operatingHours') as string;
+    const emergencyContact = formData.get('emergencyContact') as string;
+    const notes = formData.get('notes') as string;
+    const image = formData.get('image') as File | null;
 
     // Validate required fields
-    if (!body.airfieldId) {
+    if (!airfieldId) {
       return NextResponse.json(
         { error: 'Airfield ID is required' },
         { status: 400 }
       );
     }
 
+    // Handle image upload to Vercel Blob
+    let imagePath: string | null = null;
+    if (image) {
+      try {
+        const { put } = await import('@vercel/blob');
+        const bytes = await image.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        
+        const blob = await put(`base-images/${Date.now()}-${image.name}`, buffer, {
+          access: 'public',
+          addRandomSuffix: true,
+        });
+        
+        imagePath = blob.url;
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        return NextResponse.json(
+          { error: 'Failed to upload image' },
+          { status: 500 }
+        );
+      }
+    }
+
     // Check if airfield exists and is not already a base
     const { data: airfield, error: airfieldError } = await supabase
-      .from('airfield')
+      .from('airfields')
       .select('id, isBase')
-      .eq('id', body.airfieldId)
+      .eq('id', airfieldId)
       .single();
 
     if (airfieldError || !airfield) {
@@ -141,7 +174,7 @@ export async function POST(request: NextRequest) {
     const { data: existingBaseManagement } = await supabase
       .from('base_management')
       .select('id')
-      .eq('airfieldId', body.airfieldId)
+      .eq('airfieldId', airfieldId)
       .single();
 
     if (existingBaseManagement) {
@@ -155,20 +188,22 @@ export async function POST(request: NextRequest) {
     const { data: baseManagement, error: createError } = await supabase
       .from('base_management')
       .insert({
-        airfieldId: body.airfieldId,
-        baseManagerId: body.baseManagerId || null,
-        additionalInfo: body.additionalInfo || null,
-        facilities: body.facilities || [],
-        operatingHours: body.operatingHours || null,
-        emergencyContact: body.emergencyContact || null,
-        notes: body.notes || null,
+        id: crypto.randomUUID(),
+        airfieldId: airfieldId,
+        baseManagerId: baseManagerId || null,
+        additionalInfo: additionalInfo || null,
+        facilities: [],
+        operatingHours: operatingHours || null,
+        emergencyContact: emergencyContact || null,
+        notes: notes || null,
+        imagepath: imagePath,
       })
       .select(`
         *,
-        airfield (
+        airfields!base_management_airfieldId_fkey (
           *
         ),
-        baseManager (
+        baseManager:users!base_management_baseManagerId_fkey (
           id,
           "firstName",
           "lastName",
@@ -187,9 +222,9 @@ export async function POST(request: NextRequest) {
 
     // Update airfield to mark it as a base
     await supabase
-      .from('airfield')
+      .from('airfields')
       .update({ isBase: true })
-      .eq('id', body.airfieldId);
+      .eq('id', airfieldId);
 
     return NextResponse.json(baseManagement, { status: 201 });
   } catch (error) {

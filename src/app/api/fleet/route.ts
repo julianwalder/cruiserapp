@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireRole } from '@/lib/middleware';
+import { requireAnyRole } from '@/lib/middleware';
 import { getSupabaseClient } from '@/lib/supabase';
 
 // GET /api/fleet - List aircraft
@@ -195,5 +195,5 @@ async function createAircraft(request: NextRequest, currentUser: any) {
 }
 
 // Export handlers with middleware
-export const GET = requireRole('ADMIN')(getAircraft);
-export const POST = requireRole('ADMIN')(createAircraft); 
+export const GET = requireAnyRole(['ADMIN', 'BASE_MANAGER'])(getAircraft);
+export const POST = requireAnyRole(['ADMIN', 'BASE_MANAGER'])(createAircraft); 

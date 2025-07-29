@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
+import crypto from 'crypto';
 
 // PUT /api/base-management/[id] - Assign base manager
 export async function PUT(
@@ -23,10 +24,11 @@ export async function PUT(
     const payload = AuthService.verifyToken(token);
     const userRoles = payload?.roles || [];
     
-    // Check if user is super admin
-    if (!AuthService.hasRole(userRoles, 'SUPER_ADMIN')) {
+    // Check if user has appropriate permissions (SUPER_ADMIN or ADMIN only)
+    if (!AuthService.hasRole(userRoles, 'SUPER_ADMIN') && 
+        !AuthService.hasRole(userRoles, 'ADMIN')) {
       return NextResponse.json(
-        { error: 'Insufficient permissions' },
+        { error: 'Insufficient permissions. Only administrators can edit base assignments.' },
         { status: 403 }
       );
     }
@@ -37,14 +39,37 @@ export async function PUT(
     }
 
     const { id } = await params;
-    const body = await request.json();
+    
+    // Parse FormData
+    const formData = await request.formData();
+    const managerId = formData.get('managerId') as string;
+    const additionalInfo = formData.get('additionalInfo') as string;
+    const operatingHours = formData.get('operatingHours') as string;
+    const emergencyContact = formData.get('emergencyContact') as string;
+    const notes = formData.get('notes') as string;
+    const image = formData.get('image') as File | null;
 
-    // Validate required fields
-    if (!body.managerId) {
-      return NextResponse.json(
-        { error: 'Manager ID is required' },
-        { status: 400 }
-      );
+    // Handle image upload to Vercel Blob
+    let imagePath: string | null = null;
+    if (image) {
+      try {
+        const { put } = await import('@vercel/blob');
+        const bytes = await image.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        
+        const blob = await put(`base-images/${Date.now()}-${image.name}`, buffer, {
+          access: 'public',
+          addRandomSuffix: true,
+        });
+        
+        imagePath = blob.url;
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        return NextResponse.json(
+          { error: 'Failed to upload image' },
+          { status: 500 }
+        );
+      }
     }
 
     // Check if manager exists and has appropriate role
@@ -54,13 +79,13 @@ export async function PUT(
         id,
         "firstName",
         "lastName",
-        userRoles (
-          role (
+        user_roles!user_roles_userId_fkey (
+          roles (
             name
           )
         )
       `)
-      .eq('id', body.managerId)
+      .eq('id', managerId)
       .single();
 
     if (managerError || !managerExists) {
@@ -71,7 +96,7 @@ export async function PUT(
     }
 
     // Check if user has appropriate role (ADMIN, SUPER_ADMIN, or BASE_MANAGER)
-    const managerRoles = managerExists.userRoles.map((ur: any) => ur.role.name);
+    const managerRoles = managerExists.user_roles.map((ur: any) => ur.roles.name);
     const hasAppropriateRole = managerRoles.some((role: string) => 
       ['ADMIN', 'SUPER_ADMIN', 'BASE_MANAGER'].includes(role)
     );
@@ -85,8 +110,8 @@ export async function PUT(
 
     // Check if base management already exists for this airfield
     const { data: existingBaseManagement, error: existingError } = await supabase
-      .from('baseManagement')
-      .select('id, "managerId"')
+      .from('base_management')
+      .select('id, "baseManagerId", imagepath')
       .eq('airfieldId', id)
       .single();
 
@@ -100,20 +125,34 @@ export async function PUT(
 
     if (existingBaseManagement) {
       // Update existing base management
+      const updateData: any = {
+        baseManagerId: managerId,
+        additionalInfo: additionalInfo || null,
+        operatingHours: operatingHours || null,
+        emergencyContact: emergencyContact || null,
+        notes: notes || null,
+        updatedAt: new Date().toISOString(),
+      };
+
+      // Only update imagepath if a new image was uploaded
+      if (imagePath) {
+        updateData.imagepath = imagePath;
+      }
+
       const { data: updatedBaseManagement, error: updateError } = await supabase
-        .from('baseManagement')
-        .update({
-          managerId: body.managerId,
-          assignedAt: new Date().toISOString(),
-          assignedBy: user.id,
-        })
+        .from('base_management')
+        .update(updateData)
         .eq('airfieldId', id)
         .select(`
           id,
           "airfieldId",
-          "managerId",
-          "assignedAt",
-          "assignedBy"
+          "baseManagerId",
+          "additionalInfo",
+          "operatingHours",
+          "emergencyContact",
+          "notes",
+          imagepath,
+          "updatedAt"
         `)
         .single();
 
@@ -130,21 +169,46 @@ export async function PUT(
         baseManagement: updatedBaseManagement,
       });
     } else {
+      // Check if airfield exists before creating base management
+      const { data: airfield, error: airfieldError } = await supabase
+        .from('airfields')
+        .select('id')
+        .eq('id', id)
+        .single();
+
+      if (airfieldError || !airfield) {
+        return NextResponse.json(
+          { error: 'Airfield not found' },
+          { status: 404 }
+        );
+      }
+
       // Create new base management
       const { data: newBaseManagement, error: createError } = await supabase
-        .from('baseManagement')
+        .from('base_management')
         .insert({
+          id: crypto.randomUUID(),
           airfieldId: id,
-          managerId: body.managerId,
-          assignedAt: new Date().toISOString(),
-          assignedBy: user.id,
+          baseManagerId: managerId,
+          additionalInfo: additionalInfo || null,
+          operatingHours: operatingHours || null,
+          emergencyContact: emergencyContact || null,
+          notes: notes || null,
+          imagepath: imagePath,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
         })
         .select(`
           id,
           "airfieldId",
-          "managerId",
-          "assignedAt",
-          "assignedBy"
+          "baseManagerId",
+          "additionalInfo",
+          "operatingHours",
+          "emergencyContact",
+          "notes",
+          imagepath,
+          "createdAt",
+          "updatedAt"
         `)
         .single();
 
@@ -191,10 +255,11 @@ export async function DELETE(
     const payload = AuthService.verifyToken(token);
     const userRoles = payload?.roles || [];
     
-    // Check if user is super admin
-    if (!AuthService.hasRole(userRoles, 'SUPER_ADMIN')) {
+    // Check if user has appropriate permissions (SUPER_ADMIN or ADMIN only)
+    if (!AuthService.hasRole(userRoles, 'SUPER_ADMIN') && 
+        !AuthService.hasRole(userRoles, 'ADMIN')) {
       return NextResponse.json(
-        { error: 'Insufficient permissions' },
+        { error: 'Insufficient permissions. Only administrators can delete base assignments.' },
         { status: 403 }
       );
     }
@@ -208,7 +273,7 @@ export async function DELETE(
 
     // Check if base management exists
     const { data: existingBaseManagement, error: existingError } = await supabase
-      .from('baseManagement')
+      .from('base_management')
       .select('id')
       .eq('airfieldId', id)
       .single();
@@ -230,7 +295,7 @@ export async function DELETE(
 
     // Delete base management
     const { error: deleteError } = await supabase
-      .from('baseManagement')
+      .from('base_management')
       .delete()
       .eq('airfieldId', id);
 

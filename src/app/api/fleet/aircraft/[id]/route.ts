@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireRole } from '@/lib/middleware';
+import { requireAnyRole } from '@/lib/middleware';
 import { getSupabaseClient } from '@/lib/supabase';
 
 // GET /api/fleet/aircraft/[id] - Get aircraft by ID
@@ -300,6 +300,6 @@ async function deleteAircraft(request: NextRequest, currentUser: any) {
 }
 
 // Export handlers with middleware
-export const GET = requireRole('ADMIN')(getAircraft);
-export const PUT = requireRole('ADMIN')(updateAircraft);
-export const DELETE = requireRole('ADMIN')(deleteAircraft); 
+export const GET = requireAnyRole(['ADMIN', 'BASE_MANAGER'])(getAircraft);
+export const PUT = requireAnyRole(['ADMIN', 'BASE_MANAGER'])(updateAircraft);
+export const DELETE = requireAnyRole(['ADMIN', 'BASE_MANAGER'])(deleteAircraft); 

@@ -53,10 +53,14 @@ async function getUsers(request: NextRequest, currentUser: any) {
     // Get total count first
     const { count: total } = await query;
     
-    // Apply pagination
-    const from = (page - 1) * limit;
-    const to = from + limit - 1;
-    query = query.range(from, to).order('createdAt', { ascending: false });
+    // Apply pagination only if not filtering by role (since we need to check all users for role filtering)
+    if (!role) {
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+      query = query.range(from, to);
+    }
+    
+    query = query.order('createdAt', { ascending: false });
     
     // Execute query
     const { data: users, error } = await query;
@@ -86,10 +90,10 @@ async function getUsers(request: NextRequest, currentUser: any) {
     return NextResponse.json({
       users: usersWithRoles,
       pagination: {
-        page,
-        limit,
-        total: total || 0,
-        pages: Math.ceil((total || 0) / limit),
+        page: role ? 1 : page, // Always page 1 when filtering by role
+        limit: role ? usersWithRoles.length : limit, // Show all results when filtering by role
+        total: role ? usersWithRoles.length : (total || 0),
+        pages: role ? 1 : Math.ceil((total || 0) / limit),
       },
     });
     
