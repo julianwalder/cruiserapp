@@ -39,6 +39,7 @@ import {
 import { useDateFormatUtils } from '@/hooks/use-date-format';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { OptimizedImage } from "@/components/ui/optimized-image";
 
 // Aircraft creation schema
 const createAircraftSchema = z.object({
@@ -280,6 +281,9 @@ export default function FleetManagement() {
         total: data.pagination?.total || data.aircraft.length,
         pages: data.pagination?.pages || Math.ceil((data.pagination?.total || data.aircraft.length) / pagination.limit)
       });
+      
+      // Preload critical images for faster loading
+      preloadAircraftImages(data.aircraft);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -376,9 +380,10 @@ export default function FleetManagement() {
       setSelectedManufacturer(selectedAircraft.icaoReferenceType?.manufacturer || '');
       
       // Set image preview if exists
-          if (selectedAircraft.imagePath) {
-      setImagePreview(getImageUrl(selectedAircraft.imagePath));
-    }
+      if (selectedAircraft.imagePath) {
+        const imageUrl = getImageUrl(selectedAircraft.imagePath);
+        setImagePreview(imageUrl || null);
+      }
     }
   }, [selectedAircraft, isEditMode, setEditValue]);
 
@@ -693,14 +698,16 @@ export default function FleetManagement() {
 
   // Utility function to handle both old and new image paths
   const getImageUrl = (imagePath?: string) => {
-    if (!imagePath) return '';
+    if (!imagePath || imagePath.trim() === '') return null;
     
     console.log('getImageUrl called with:', imagePath);
     
-    // If it's already a full URL (Vercel Blob), return as is
+    // If it's already a full URL (Vercel Blob), add optimization parameters
     if (imagePath.startsWith('http')) {
-      console.log('Returning Vercel Blob URL:', imagePath);
-      return imagePath;
+      console.log('Optimizing Vercel Blob URL:', imagePath);
+      // Add Vercel Blob optimization parameters
+      const optimizedUrl = `${imagePath}?w=400&h=300&fit=crop&f=webp&q=80`;
+      return optimizedUrl;
     }
     
     // If it's using the old /uploads/ path, convert to new API route
@@ -720,6 +727,21 @@ export default function FleetManagement() {
     // For any other format, return as is
     console.log('Returning as-is:', imagePath);
     return imagePath;
+  };
+
+  // Preload critical aircraft images for faster loading
+  const preloadAircraftImages = (aircraftList: Aircraft[]) => {
+    const criticalImages = aircraftList.slice(0, 6); // Preload first 6 images
+    
+    criticalImages.forEach((aircraft) => {
+      if (aircraft.imagePath && aircraft.imagePath.startsWith('http')) {
+        const link = document.createElement('link');
+        link.rel = 'preload';
+        link.as = 'image';
+        link.href = `${aircraft.imagePath}?w=400&h=300&fit=crop&f=webp&q=80`;
+        document.head.appendChild(link);
+      }
+    });
   };
 
   return (
@@ -777,19 +799,13 @@ export default function FleetManagement() {
           {aircraft.map((aircraft) => (
             <Card key={aircraft.id} className="hover:shadow-lg transition-shadow h-full flex flex-col p-0 relative">
               {/* Aircraft Image */}
-              <AspectRatio ratio={16 / 9} className="w-full">
-                {aircraft.imagePath ? (
-                  <img
-                    src={getImageUrl(aircraft.imagePath)}
-                    alt={`${aircraft.icaoReferenceType?.model || 'Aircraft'} ${aircraft.callSign}`}
-                    className="w-full h-full object-cover rounded-t-lg"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-muted flex items-center justify-center rounded-t-lg">
-                    <Plane className="h-8 w-8 text-muted-foreground" />
-            </div>
-                )}
-              </AspectRatio>
+              <OptimizedImage
+                src={aircraft.imagePath}
+                alt={`${aircraft.icaoReferenceType?.model || 'Aircraft'} ${aircraft.callSign}`}
+                className="rounded-t-lg"
+                aspectRatio={16 / 9}
+                placeholder={<Plane className="h-8 w-8 text-muted-foreground" />}
+              />
 
               {/* Action Menu - Top Right Corner */}
               <div className="absolute top-2 right-2">
@@ -1107,8 +1123,8 @@ export default function FleetManagement() {
                       src={imagePreview}
                       alt="Aircraft preview"
                       className="w-32 h-32 object-cover rounded-lg border"
-                />
-              </div>
+                    />
+                  </div>
                 )}
               </div>
             </div>
@@ -1452,9 +1468,9 @@ export default function FleetManagement() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                       <div className="space-y-2">
                         <Label className="text-sm font-medium text-muted-foreground">Aircraft Image</Label>
-                        {selectedAircraft.imagePath ? (
+                        {selectedAircraft.imagePath && getImageUrl(selectedAircraft.imagePath) ? (
                           <img
-                            src={getImageUrl(selectedAircraft.imagePath)}
+                            src={getImageUrl(selectedAircraft.imagePath)!}
                             alt={selectedAircraft.callSign}
                             className="w-32 h-32 object-cover rounded-lg"
                           />
