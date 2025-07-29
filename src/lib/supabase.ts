@@ -1,6 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://lvbukwpecrtdtrsmqass.supabase.co';
+const supabaseUrl = process.env.SUPABASE_URL || 'https://lvbukwpecrtdtrsmqass.supabase.co';
 
 // Function to get Supabase client (only creates when called)
 export function getSupabaseClient(): SupabaseClient | null {

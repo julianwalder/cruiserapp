@@ -17,6 +17,9 @@ export class PasswordResetService {
   static async generateResetToken(email: string): Promise<{ success: boolean; message: string }> {
     try {
       const supabase = getSupabaseClient();
+      if (!supabase) {
+        return { success: false, message: 'Database connection failed.' };
+      }
       
       // Find user by email
       const { data: user, error: userError } = await supabase
@@ -67,6 +70,9 @@ export class PasswordResetService {
   static async validateResetToken(token: string): Promise<{ valid: boolean; userId?: string; message: string }> {
     try {
       const supabase = getSupabaseClient();
+      if (!supabase) {
+        return { valid: false, message: 'Database connection failed.' };
+      }
       
       // Find token in database
       const { data: tokenData, error: tokenError } = await supabase
@@ -96,6 +102,9 @@ export class PasswordResetService {
   static async resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
     try {
       const supabase = getSupabaseClient();
+      if (!supabase) {
+        return { success: false, message: 'Database connection failed.' };
+      }
       
       // Validate token
       const validation = await this.validateResetToken(token);
@@ -150,6 +159,9 @@ export class PasswordResetService {
   static async cleanupExpiredTokens(): Promise<void> {
     try {
       const supabase = getSupabaseClient();
+      if (!supabase) {
+        return;
+      }
       
       // Delete expired tokens
       await supabase
@@ -164,6 +176,9 @@ export class PasswordResetService {
   static async revokeAllUserTokens(userId: string): Promise<void> {
     try {
       const supabase = getSupabaseClient();
+      if (!supabase) {
+        return;
+      }
       
       // Mark all user's tokens as used
       await supabase
