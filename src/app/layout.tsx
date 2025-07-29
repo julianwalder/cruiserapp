@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { DateFormatProvider } from "@/contexts/DateFormatContext";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -39,6 +40,7 @@ export default function RootLayout({
               {children}
               <Toaster />
             </div>
+            <SpeedInsights />
           </DateFormatProvider>
         </ThemeProvider>
       </body>
