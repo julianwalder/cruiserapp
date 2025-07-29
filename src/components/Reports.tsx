@@ -161,16 +161,31 @@ export default function Reports() {
 
     const params = new URLSearchParams({
       type,
-      timeframe,
-      ...(dateRange.from && { from: dateRange.from.toISOString() }),
-      ...(dateRange.to && { to: dateRange.to.toISOString() }),
+      ...(dateRange.from && { startDate: dateRange.from.toISOString().split('T')[0] }),
+      ...(dateRange.to && { endDate: dateRange.to.toISOString().split('T')[0] }),
     });
 
     // Create a download link for CSV export
     const link = document.createElement('a');
     link.href = `/api/reports/export?${params}`;
     link.download = `${type}-report-${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
+    
+    // Add authorization header
+    fetch(`/api/reports/export?${params}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    })
+    .then(response => response.blob())
+    .then(blob => {
+      const url = window.URL.createObjectURL(blob);
+      link.href = url;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    })
+    .catch(error => {
+      console.error('Export failed:', error);
+    });
   };
 
   const formatCurrency = (amount: number | undefined | null) => {
@@ -290,12 +305,13 @@ export default function Reports() {
 
       {/* Main Reports Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="flights">Flight Reports</TabsTrigger>
           <TabsTrigger value="users">User Reports</TabsTrigger>
           <TabsTrigger value="aircraft">Aircraft Reports</TabsTrigger>
           <TabsTrigger value="financial">Financial Reports</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -311,6 +327,7 @@ export default function Reports() {
                 )}
               </p>
             </div>
+
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -501,6 +518,88 @@ export default function Reports() {
                 <div className="text-center p-4 bg-muted/50 rounded-lg">
                   <div className="text-2xl font-bold text-primary">{aircraftStats.utilizationRate ? aircraftStats.utilizationRate.toFixed(1) : '0.0'}%</div>
                   <p className="text-sm text-muted-foreground">Fleet Utilization Rate</p>
+                </div>
+              </div>
+              
+              {/* Key Insights */}
+              <div className="mt-6 space-y-4">
+                <h4 className="font-semibold text-card-foreground">Key Insights</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      {(flightStats.flightsChange || 0) > 0 ? (
+                        <TrendingUp className="h-4 w-4 text-success" />
+                      ) : (flightStats.flightsChange || 0) < 0 ? (
+                        <TrendingDown className="h-4 w-4 text-destructive" />
+                      ) : (
+                        <span className="h-4 w-4" />
+                      )}
+                      <span className="text-sm font-medium">Flight Activity</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {(flightStats.flightsChange || 0) > 0 
+                        ? `Flight activity increased by ${(flightStats.flightsChange || 0).toFixed(1)}% compared to previous period`
+                        : (flightStats.flightsChange || 0) < 0
+                        ? `Flight activity decreased by ${Math.abs(flightStats.flightsChange || 0).toFixed(1)}% compared to previous period`
+                        : 'Flight activity remained stable compared to previous period'
+                      }
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      {userStats.newUsersThisMonth > 0 ? (
+                        <TrendingUp className="h-4 w-4 text-success" />
+                      ) : (
+                        <span className="h-4 w-4" />
+                      )}
+                      <span className="text-sm font-medium">User Growth</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {userStats.newUsersThisMonth > 0 
+                        ? `${userStats.newUsersThisMonth} new users joined this period`
+                        : 'No new user registrations this period'
+                      }
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      {aircraftStats.maintenanceDue > 0 ? (
+                        <Clock className="h-4 w-4 text-warning" />
+                      ) : (
+                        <span className="h-4 w-4" />
+                      )}
+                      <span className="text-sm font-medium">Maintenance Status</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {aircraftStats.maintenanceDue > 0 
+                        ? `${aircraftStats.maintenanceDue} aircraft require maintenance attention`
+                        : 'All aircraft are properly maintained'
+                      }
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      {aircraftStats.utilizationRate > 70 ? (
+                        <TrendingUp className="h-4 w-4 text-success" />
+                      ) : aircraftStats.utilizationRate < 50 ? (
+                        <TrendingDown className="h-4 w-4 text-destructive" />
+                      ) : (
+                        <span className="h-4 w-4" />
+                      )}
+                      <span className="text-sm font-medium">Fleet Utilization</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {aircraftStats.utilizationRate > 70 
+                        ? 'Excellent fleet utilization rate'
+                        : aircraftStats.utilizationRate < 50
+                        ? 'Consider increasing fleet utilization'
+                        : 'Moderate fleet utilization rate'
+                      }
+                    </p>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -803,6 +902,156 @@ export default function Reports() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Analytics Tab */}
+        <TabsContent value="analytics" className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold">Advanced Analytics</h3>
+            <Button variant="outline" size="sm" onClick={() => exportReport('analytics')}>
+              <Download className="h-4 w-4 mr-2" />
+              Export Analytics
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Flight Trends</CardTitle>
+                <CardDescription>Daily flight activity over time</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {flightStats.totalFlights > 0 ? (
+                    <div className="text-center py-8">
+                      <div className="text-2xl font-bold text-primary">{flightStats.totalFlights}</div>
+                      <p className="text-sm text-muted-foreground">Total flights in period</p>
+                      <div className="mt-4 text-sm">
+                        <p>Average daily flights: {(flightStats.totalFlights / 30).toFixed(1)}</p>
+                        <p>Peak activity: {formatHours(flightStats.totalHours)}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No flight data available for this period
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>User Growth</CardTitle>
+                <CardDescription>New user registrations over time</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="text-center py-8">
+                    <div className="text-2xl font-bold text-primary">{userStats.newUsersThisMonth}</div>
+                    <p className="text-sm text-muted-foreground">New users this period</p>
+                    <div className="mt-4 text-sm">
+                      <p>Total active users: {userStats.activeUsers}</p>
+                      <p>Growth rate: {userStats.totalUsers > 0 ? ((userStats.newUsersThisMonth / userStats.totalUsers) * 100).toFixed(1) : '0'}%</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Maintenance Alerts</CardTitle>
+                <CardDescription>Aircraft requiring attention</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {aircraftStats.maintenanceDue > 0 ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between p-3 bg-warning/10 rounded-lg">
+                        <div>
+                          <p className="font-medium text-warning-foreground">{aircraftStats.maintenanceDue} Aircraft</p>
+                          <p className="text-sm text-muted-foreground">Require maintenance</p>
+                        </div>
+                        <Badge variant="destructive">Action Required</Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Check maintenance schedules and insurance/registration expiry dates
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      All aircraft are up to date with maintenance
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Safety Metrics</CardTitle>
+                <CardDescription>Flight safety and compliance overview</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="text-center p-4 bg-muted/50 rounded-lg">
+                      <div className="text-xl font-bold">{formatHours(flightStats.averageFlightDuration)}</div>
+                      <p className="text-sm text-muted-foreground">Avg Flight Duration</p>
+                    </div>
+                    <div className="text-center p-4 bg-muted/50 rounded-lg">
+                      <div className="text-xl font-bold">{aircraftStats.utilizationRate.toFixed(1)}%</div>
+                      <p className="text-sm text-muted-foreground">Fleet Utilization</p>
+                    </div>
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    <p>• {flightStats.totalFlights} flights completed safely</p>
+                    <p>• {formatHours(flightStats.totalHours)} total flight hours</p>
+                    <p>• {aircraftStats.activeAircraft} aircraft operational</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Performance Insights</CardTitle>
+              <CardDescription>Key performance indicators and trends</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-primary">{userStats.topInstructors.length}</div>
+                  <p className="text-sm text-muted-foreground">Active Instructors</p>
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    {userStats.topInstructors.length > 0 && (
+                      <p>Top: {userStats.topInstructors[0]?.name || 'N/A'}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-primary">{aircraftStats.topUtilized.length}</div>
+                  <p className="text-sm text-muted-foreground">Utilized Aircraft</p>
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    {aircraftStats.topUtilized.length > 0 && (
+                      <p>Most used: {aircraftStats.topUtilized[0]?.aircraft || 'N/A'}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-primary">{formatHours(flightStats.totalHours)}</div>
+                  <p className="text-sm text-muted-foreground">Total Hours</p>
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    <p>Avg per flight: {formatHours(flightStats.averageFlightDuration)}</p>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>

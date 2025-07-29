@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate');
 
     let data: any[] = [];
-    let count = 0;
+    let csvContent = '';
 
     switch (type) {
       case 'flights':
@@ -69,14 +69,54 @@ export async function GET(request: NextRequest) {
           flightsQuery = flightsQuery.gte('date', startDate).lte('date', endDate);
         }
 
-        const { data: flights, count: flightsCount } = await flightsQuery;
+        const { data: flights } = await flightsQuery;
         data = flights || [];
-        count = flightsCount || 0;
+        
+        // Generate CSV for flights
+        const flightHeaders = [
+          'ID',
+          'Date',
+          'Type',
+          'Departure Time',
+          'Arrival Time',
+          'Flight Duration (hours)',
+          'Departure Airfield',
+          'Destination Airfield',
+          'Pilot ID',
+          'Instructor ID',
+          'Aircraft ID',
+          'Purpose',
+          'Remarks',
+          'Created At',
+          'Updated At'
+        ];
+        
+        csvContent = flightHeaders.join(',') + '\n';
+        data.forEach((flight: any) => {
+          const row = [
+            flight.id,
+            flight.date,
+            flight.type,
+            flight.departureTime,
+            flight.arrivalTime,
+            flight.flightDuration,
+            flight.departureAirfield,
+            flight.destinationAirfield,
+            flight.pilotId,
+            flight.instructorId,
+            flight.aircraftId,
+            flight.purpose,
+            flight.remarks,
+            flight.createdAt,
+            flight.updatedAt
+          ].map(field => `"${field || ''}"`).join(',');
+          csvContent += row + '\n';
+        });
         break;
 
       case 'users':
         // Export users
-        const { data: users, count: usersCount } = await supabase
+        const { data: users } = await supabase
           .from('users')
           .select(`
             id,
@@ -101,12 +141,62 @@ export async function GET(request: NextRequest) {
             "updatedAt"
           `);
         data = users || [];
-        count = usersCount || 0;
+        
+        // Generate CSV for users
+        const userHeaders = [
+          'ID',
+          'Email',
+          'First Name',
+          'Last Name',
+          'Personal Number',
+          'Phone',
+          'Date of Birth',
+          'Address',
+          'City',
+          'State',
+          'Zip Code',
+          'Country',
+          'Status',
+          'Total Flight Hours',
+          'License Number',
+          'Medical Class',
+          'Instructor Rating',
+          'Last Login At',
+          'Created At',
+          'Updated At'
+        ];
+        
+        csvContent = userHeaders.join(',') + '\n';
+        data.forEach((user: any) => {
+          const row = [
+            user.id,
+            user.email,
+            user.firstName,
+            user.lastName,
+            user.personalNumber,
+            user.phone,
+            user.dateOfBirth,
+            user.address,
+            user.city,
+            user.state,
+            user.zipCode,
+            user.country,
+            user.status,
+            user.totalFlightHours,
+            user.licenseNumber,
+            user.medicalClass,
+            user.instructorRating,
+            user.lastLoginAt,
+            user.createdAt,
+            user.updatedAt
+          ].map(field => `"${field || ''}"`).join(',');
+          csvContent += row + '\n';
+        });
         break;
 
       case 'aircraft':
         // Export aircraft
-        const { data: aircraft, count: aircraftCount } = await supabase
+        const { data: aircraft } = await supabase
           .from('aircraft')
           .select(`
             id,
@@ -126,7 +216,47 @@ export async function GET(request: NextRequest) {
             "updatedAt"
           `);
         data = aircraft || [];
-        count = aircraftCount || 0;
+        
+        // Generate CSV for aircraft
+        const aircraftHeaders = [
+          'ID',
+          'Registration Number',
+          'ICAO Type',
+          'Manufacturer',
+          'Model',
+          'Type',
+          'Status',
+          'Year of Manufacture',
+          'Total Flight Hours',
+          'Last Maintenance Date',
+          'Next Maintenance Date',
+          'Insurance Expiry Date',
+          'Registration Expiry Date',
+          'Created At',
+          'Updated At'
+        ];
+        
+        csvContent = aircraftHeaders.join(',') + '\n';
+        data.forEach((aircraft: any) => {
+          const row = [
+            aircraft.id,
+            aircraft.registrationNumber,
+            aircraft.icaoType,
+            aircraft.manufacturer,
+            aircraft.model,
+            aircraft.type,
+            aircraft.status,
+            aircraft.yearOfManufacture,
+            aircraft.totalFlightHours,
+            aircraft.lastMaintenanceDate,
+            aircraft.nextMaintenanceDate,
+            aircraft.insuranceExpiryDate,
+            aircraft.registrationExpiryDate,
+            aircraft.createdAt,
+            aircraft.updatedAt
+          ].map(field => `"${field || ''}"`).join(',');
+          csvContent += row + '\n';
+        });
         break;
 
       default:
@@ -136,41 +266,16 @@ export async function GET(request: NextRequest) {
         );
     }
 
-    // Get additional statistics for the export
-    const [
-      totalFlightsResult,
-      totalUsersResult,
-      totalAircraftResult
-    ] = await Promise.all([
-      supabase.from('flight_logs').select('id', { count: 'exact', head: true }),
-      supabase.from('users').select('id', { count: 'exact', head: true }),
-      supabase.from('aircraft').select('id', { count: 'exact', head: true })
-    ]);
-
-    const exportData = {
-      type,
-      data,
-      count,
-      totalRecords: count,
-      statistics: {
-        totalFlights: totalFlightsResult.count || 0,
-        totalUsers: totalUsersResult.count || 0,
-        totalAircraft: totalAircraftResult.count || 0,
+    // Return CSV file
+    const filename = `${type}-report-${new Date().toISOString().split('T')[0]}.csv`;
+    
+    return new NextResponse(csvContent, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/csv',
+        'Content-Disposition': `attachment; filename="${filename}"`,
       },
-      exportDate: new Date().toISOString(),
-      exportedBy: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-      },
-      filters: {
-        startDate: startDate || null,
-        endDate: endDate || null,
-      },
-    };
-
-    return NextResponse.json(exportData);
+    });
   } catch (error) {
     console.error('Error exporting data:', error);
     return NextResponse.json(
