@@ -177,6 +177,10 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
     return hasRole('SUPER_ADMIN') || hasRole('ADMIN');
   };
 
+  const canAccessReports = () => {
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER');
+  };
+
   // Filter navigation items based on user permissions
   const filteredNavigationItems = navigationItems.filter(item => {
     switch (item.title) {
@@ -188,6 +192,8 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
         return canAccessFleet();
       case 'Settings':
         return canAccessSettings();
+      case 'Reports':
+        return canAccessReports();
       default:
         return true; // Show other items to all users
     }

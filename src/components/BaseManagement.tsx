@@ -59,7 +59,7 @@ interface BaseManagement {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
-  imagepath?: string;
+  imagePath?: string;
   airfield: Airfield;
   airfields?: Airfield; // Handle both singular and plural from API
   baseManager: User | null;
@@ -305,8 +305,8 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
       notes: base.notes || ''
     });
     // Set existing image preview if available
-    if (base.imagepath) {
-      setImagePreview(getImageUrl(base.imagepath) || null);
+    if (base.imagePath) {
+      setImagePreview(getImageUrl(base.imagePath) || null);
     } else {
       setImagePreview(null);
     }
@@ -571,7 +571,7 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
             >
               {/* Base Image */}
               <OptimizedImage
-                src={base.imagepath}
+                src={base.imagePath}
                 alt={`${getAirfieldData(base).name} Base`}
                 className="rounded-t-lg"
                 aspectRatio={16 / 9}

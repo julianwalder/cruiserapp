@@ -210,6 +210,10 @@ function DashboardContent() {
     return hasRole('SUPER_ADMIN') || hasRole('ADMIN');
   };
 
+  const canAccessReports = () => {
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER');
+  };
+
   return (
           <div className="flex h-screen bg-white dark:bg-gray-900">
       <NewSidebar 
@@ -427,7 +431,16 @@ function DashboardContent() {
               </div>
             </div>
           )}
-          {activeTab === 'reports' && <Reports />}
+          {activeTab === 'reports' && canAccessReports() && <Reports />}
+          {activeTab === 'reports' && !canAccessReports() && (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-card-foreground mb-2">Access Denied</h3>
+                <p className="text-muted-foreground">You don't have permission to access reports.</p>
+              </div>
+            </div>
+          )}
           {activeTab === 'settings' && <Settings />}
         </main>
       </div>

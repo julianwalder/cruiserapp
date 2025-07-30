@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
         operatingHours: operatingHours || null,
         emergencyContact: emergencyContact || null,
         notes: notes || null,
-        imagepath: imagePath,
+                  imagePath: imagePath,
       })
       .select(`
         *,

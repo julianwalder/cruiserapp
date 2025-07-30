@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+
+# Allow OG image generation routes
+Allow: /api/og/*
+Allow: /api/og/advanced/*
+Allow: /api/og/simple/*
+Allow: /api/og/negative/*
+Allow: /api/og/negative/advanced/*
+
+# Sitemap
+Sitemap: https://your-domain.com/sitemap.xml 

@@ -20,8 +20,12 @@ export async function GET(request: NextRequest) {
     const payload = AuthService.verifyToken(token);
     const userRoles = payload?.roles || [];
     
-    // Check if user has appropriate permissions
-    if (!AuthService.hasPermission(userRoles, 'ADMIN')) {
+    // Check if user has appropriate permissions for reports
+    const hasReportsAccess = userRoles.some(role => 
+      role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'BASE_MANAGER'
+    );
+    
+    if (!hasReportsAccess) {
       return NextResponse.json(
         { error: 'Insufficient permissions' },
         { status: 403 }

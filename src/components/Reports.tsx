@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import FlightHoursChart from '@/components/FlightHoursChart';
 
 interface FlightStats {
   totalFlights: number;
@@ -249,8 +250,8 @@ export default function Reports() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-card-foreground">Reports & Analytics</h2>
-          <p className="text-muted-foreground">Comprehensive insights into your flight school operations</p>
+          <h2 className="text-2xl font-bold text-card-foreground"></h2>
+          <p className="text-muted-foreground"></p>
         </div>
         
         <div className="flex items-center gap-2">
@@ -520,86 +521,91 @@ export default function Reports() {
                   <p className="text-sm text-muted-foreground">Fleet Utilization Rate</p>
                 </div>
               </div>
-              
-              {/* Key Insights */}
-              <div className="mt-6 space-y-4">
-                <h4 className="font-semibold text-card-foreground">Key Insights</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      {(flightStats.flightsChange || 0) > 0 ? (
-                        <TrendingUp className="h-4 w-4 text-success" />
-                      ) : (flightStats.flightsChange || 0) < 0 ? (
-                        <TrendingDown className="h-4 w-4 text-destructive" />
-                      ) : (
-                        <span className="h-4 w-4" />
-                      )}
-                      <span className="text-sm font-medium">Flight Activity</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {(flightStats.flightsChange || 0) > 0 
-                        ? `Flight activity increased by ${(flightStats.flightsChange || 0).toFixed(1)}% compared to previous period`
-                        : (flightStats.flightsChange || 0) < 0
-                        ? `Flight activity decreased by ${Math.abs(flightStats.flightsChange || 0).toFixed(1)}% compared to previous period`
-                        : 'Flight activity remained stable compared to previous period'
-                      }
-                    </p>
+            </CardContent>
+          </Card>
+
+          {/* Key Insights */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Key Insights</CardTitle>
+              <CardDescription>Key insights from the selected reporting period</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    {(flightStats.flightsChange || 0) > 0 ? (
+                      <TrendingUp className="h-4 w-4 text-success" />
+                    ) : (flightStats.flightsChange || 0) < 0 ? (
+                      <TrendingDown className="h-4 w-4 text-destructive" />
+                    ) : (
+                      <span className="h-4 w-4" />
+                    )}
+                    <span className="text-sm font-medium">Flight Activity</span>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      {userStats.newUsersThisMonth > 0 ? (
-                        <TrendingUp className="h-4 w-4 text-success" />
-                      ) : (
-                        <span className="h-4 w-4" />
-                      )}
-                      <span className="text-sm font-medium">User Growth</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {userStats.newUsersThisMonth > 0 
-                        ? `${userStats.newUsersThisMonth} new users joined this period`
-                        : 'No new user registrations this period'
-                      }
-                    </p>
+                  <p className="text-sm text-muted-foreground">
+                    {(flightStats.flightsChange || 0) > 0 
+                      ? `Flight activity increased by ${(flightStats.flightsChange || 0).toFixed(1)}% compared to previous period`
+                      : (flightStats.flightsChange || 0) < 0
+                      ? `Flight activity decreased by ${Math.abs(flightStats.flightsChange || 0).toFixed(1)}% compared to previous period`
+                      : 'Flight activity remained stable compared to previous period'
+                    }
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    {userStats.newUsersThisMonth > 0 ? (
+                      <TrendingUp className="h-4 w-4 text-success" />
+                    ) : (
+                      <span className="h-4 w-4" />
+                    )}
+                    <span className="text-sm font-medium">User Growth</span>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      {aircraftStats.maintenanceDue > 0 ? (
-                        <Clock className="h-4 w-4 text-warning" />
-                      ) : (
-                        <span className="h-4 w-4" />
-                      )}
-                      <span className="text-sm font-medium">Maintenance Status</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {aircraftStats.maintenanceDue > 0 
-                        ? `${aircraftStats.maintenanceDue} aircraft require maintenance attention`
-                        : 'All aircraft are properly maintained'
-                      }
-                    </p>
+                  <p className="text-sm text-muted-foreground">
+                    {userStats.newUsersThisMonth > 0 
+                      ? `${userStats.newUsersThisMonth} new users joined this period`
+                      : 'No new user registrations this period'
+                    }
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    {aircraftStats.maintenanceDue > 0 ? (
+                      <Clock className="h-4 w-4 text-warning" />
+                    ) : (
+                      <span className="h-4 w-4" />
+                    )}
+                    <span className="text-sm font-medium">Maintenance Status</span>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      {aircraftStats.utilizationRate > 70 ? (
-                        <TrendingUp className="h-4 w-4 text-success" />
-                      ) : aircraftStats.utilizationRate < 50 ? (
-                        <TrendingDown className="h-4 w-4 text-destructive" />
-                      ) : (
-                        <span className="h-4 w-4" />
-                      )}
-                      <span className="text-sm font-medium">Fleet Utilization</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {aircraftStats.utilizationRate > 70 
-                        ? 'Excellent fleet utilization rate'
-                        : aircraftStats.utilizationRate < 50
-                        ? 'Consider increasing fleet utilization'
-                        : 'Moderate fleet utilization rate'
-                      }
-                    </p>
+                  <p className="text-sm text-muted-foreground">
+                    {aircraftStats.maintenanceDue > 0 
+                      ? `${aircraftStats.maintenanceDue} aircraft require maintenance attention`
+                      : 'All aircraft are properly maintained'
+                    }
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    {aircraftStats.utilizationRate > 70 ? (
+                      <TrendingUp className="h-4 w-4 text-success" />
+                    ) : aircraftStats.utilizationRate < 50 ? (
+                      <TrendingDown className="h-4 w-4 text-destructive" />
+                    ) : (
+                      <span className="h-4 w-4" />
+                    )}
+                    <span className="text-sm font-medium">Fleet Utilization</span>
                   </div>
+                  <p className="text-sm text-muted-foreground">
+                    {aircraftStats.utilizationRate > 70 
+                      ? 'Excellent fleet utilization rate'
+                      : aircraftStats.utilizationRate < 50
+                      ? 'Consider increasing fleet utilization'
+                      : 'Moderate fleet utilization rate'
+                    }
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -677,6 +683,9 @@ export default function Reports() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Flight Hours Chart */}
+          <FlightHoursChart />
         </TabsContent>
 
         {/* User Reports Tab */}

@@ -111,7 +111,7 @@ export async function PUT(
     // Check if base management already exists for this airfield
     const { data: existingBaseManagement, error: existingError } = await supabase
       .from('base_management')
-      .select('id, "baseManagerId", imagepath')
+      .select('id, "baseManagerId", "imagePath"')
       .eq('airfieldId', id)
       .single();
 
@@ -134,9 +134,9 @@ export async function PUT(
         updatedAt: new Date().toISOString(),
       };
 
-      // Only update imagepath if a new image was uploaded
+      // Only update imagePath if a new image was uploaded
       if (imagePath) {
-        updateData.imagepath = imagePath;
+        updateData.imagePath = imagePath;
       }
 
       const { data: updatedBaseManagement, error: updateError } = await supabase
@@ -151,7 +151,7 @@ export async function PUT(
           "operatingHours",
           "emergencyContact",
           "notes",
-          imagepath,
+          "imagePath",
           "updatedAt"
         `)
         .single();
@@ -194,7 +194,7 @@ export async function PUT(
           operatingHours: operatingHours || null,
           emergencyContact: emergencyContact || null,
           notes: notes || null,
-          imagepath: imagePath,
+          imagePath: imagePath,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         })
@@ -206,7 +206,7 @@ export async function PUT(
           "operatingHours",
           "emergencyContact",
           "notes",
-          imagepath,
+          "imagePath",
           "createdAt",
           "updatedAt"
         `)
