@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { userRegistrationSchema } from '@/lib/validations';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
+import crypto from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,6 +48,7 @@ export async function POST(request: NextRequest) {
     const { data: user, error: createUserError } = await supabase
       .from('users')
       .insert({
+        id: crypto.randomUUID(),
         email: validatedData.email,
         password: hashedPassword,
         firstName: validatedData.firstName,
@@ -61,7 +63,9 @@ export async function POST(request: NextRequest) {
         licenseNumber: validatedData.licenseNumber,
         medicalClass: validatedData.medicalClass,
         instructorRating: validatedData.instructorRating,
-        status: 'ACTIVE',
+        status: 'INACTIVE',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       })
       .select('id, email, "firstName", "lastName", status, "createdAt"')
       .single();
@@ -74,11 +78,11 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Get the default role (PILOT)
+    // Get the default role (PROSPECT)
     const { data: defaultRole, error: roleError } = await supabase
       .from('roles')
       .select('id')
-      .eq('name', validatedData.role || 'PILOT')
+      .eq('name', validatedData.role || 'PROSPECT')
       .single();
     
     if (roleError) {
@@ -92,8 +96,9 @@ export async function POST(request: NextRequest) {
     if (defaultRole) {
       // Assign the role to the user
       const { error: assignRoleError } = await supabase
-        .from('userRoles')
+        .from('user_roles')
         .insert({
+          id: crypto.randomUUID(),
           userId: user.id,
           roleId: defaultRole.id,
           assignedAt: new Date().toISOString(),
@@ -112,7 +117,7 @@ export async function POST(request: NextRequest) {
     const token = AuthService.generateToken({
       userId: user.id,
       email: user.email,
-      roles: [validatedData.role || 'PILOT'],
+      roles: [validatedData.role || 'PROSPECT'],
     });
     
     // Create session (for backward compatibility)

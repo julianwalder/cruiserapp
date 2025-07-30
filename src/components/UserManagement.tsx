@@ -189,6 +189,23 @@ export default function UserManagement() {
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [upgradeRoleDialogOpen, setUpgradeRoleDialogOpen] = useState(false);
+  const [userToUpgrade, setUserToUpgrade] = useState<User | null>(null);
+  const [upgradeRole, setUpgradeRole] = useState<string>('STUDENT');
+  const [upgradeValidationData, setUpgradeValidationData] = useState({
+    licenseNumber: '',
+    medicalClass: '',
+    instructorRating: '',
+    totalFlightHours: 0,
+  });
+  const [activateDialogOpen, setActivateDialogOpen] = useState(false);
+  const [userToActivate, setUserToActivate] = useState<User | null>(null);
+  const [activatePaymentData, setActivatePaymentData] = useState({
+    paymentReference: '',
+    paymentAmount: 0,
+    paymentMethod: '',
+    notes: '',
+  });
 
   const {
     register,
@@ -362,6 +379,112 @@ export default function UserManagement() {
   const handleDeleteUser = async (userId: string) => {
     setUserToDelete(users.find(u => u.id === userId) || null);
     setDeleteConfirmOpen(true);
+  };
+
+  const handleUpgradeRole = async (userId: string, newRole: string, validationData?: any) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/users/${userId}/upgrade-role`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          newRole,
+          validationData,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to upgrade user role');
+      }
+
+      const result = await response.json();
+      
+      // Refresh users list
+      fetchUsers();
+      
+      // Show success toast
+      toast.success('User role upgraded successfully!', {
+        description: `${result.user.firstName} ${result.user.lastName} has been upgraded from PROSPECT to ${newRole}.`,
+        duration: 3000,
+      });
+      
+      // Close dialog
+      setUpgradeRoleDialogOpen(false);
+      setUserToUpgrade(null);
+    } catch (err: any) {
+      setError(err.message);
+      toast.error('Failed to upgrade user role', {
+        description: err.message,
+        duration: 4000,
+      });
+    }
+  };
+
+  const openUpgradeDialog = (user: User) => {
+    setUserToUpgrade(user);
+    setUpgradeRole('STUDENT');
+    setUpgradeValidationData({
+      licenseNumber: user.licenseNumber || '',
+      medicalClass: user.medicalClass || '',
+      instructorRating: user.instructorRating || '',
+      totalFlightHours: user.totalFlightHours || 0,
+    });
+    setUpgradeRoleDialogOpen(true);
+  };
+
+  const handleActivateUser = async (userId: string, paymentData?: any) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/users/${userId}/activate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(paymentData || {}),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to activate user');
+      }
+
+      const result = await response.json();
+      
+      // Refresh users list
+      fetchUsers();
+      
+      // Show success toast
+      toast.success('User activated successfully!', {
+        description: `${result.user.firstName} ${result.user.lastName} has been activated after payment verification.`,
+        duration: 3000,
+      });
+      
+      // Close dialog
+      setActivateDialogOpen(false);
+      setUserToActivate(null);
+    } catch (err: any) {
+      setError(err.message);
+      toast.error('Failed to activate user', {
+        description: err.message,
+        duration: 4000,
+      });
+    }
+  };
+
+  const openActivateDialog = (user: User) => {
+    setUserToActivate(user);
+    setActivatePaymentData({
+      paymentReference: '',
+      paymentAmount: 0,
+      paymentMethod: '',
+      notes: '',
+    });
+    setActivateDialogOpen(true);
   };
 
   const confirmDeleteUser = async () => {
@@ -901,6 +1024,16 @@ export default function UserManagement() {
                               }}>
                                 <Edit className="h-4 w-4 mr-2" /> Edit User
                               </DropdownMenuItem>
+                              {user.roles.includes('PROSPECT') && (
+                                <DropdownMenuItem onClick={() => openUpgradeDialog(user)}>
+                                  <UserCheck className="h-4 w-4 mr-2" /> Upgrade Role
+                                </DropdownMenuItem>
+                              )}
+                              {user.status === 'INACTIVE' && (
+                                <DropdownMenuItem onClick={() => openActivateDialog(user)}>
+                                  <UserCheck className="h-4 w-4 mr-2" /> Activate User
+                                </DropdownMenuItem>
+                              )}
                               {user.status === 'ACTIVE' && (
                                 <>
                                   <DropdownMenuItem onClick={() => handleStatusChange(user.id, 'INACTIVE')}>
@@ -1779,6 +1912,214 @@ export default function UserManagement() {
             </Button>
             <Button variant="destructive" onClick={confirmDeleteUser}>
               Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upgrade Role Dialog */}
+      <Dialog open={upgradeRoleDialogOpen} onOpenChange={setUpgradeRoleDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Upgrade User Role</DialogTitle>
+            <DialogDescription>
+              Upgrade {userToUpgrade?.firstName} {userToUpgrade?.lastName} from PROSPECT to a new role. Please provide validation information.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="newRole">New Role</Label>
+              <Select value={upgradeRole} onValueChange={setUpgradeRole}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="STUDENT">Student</SelectItem>
+                  <SelectItem value="PILOT">Pilot</SelectItem>
+                  <SelectItem value="INSTRUCTOR">Instructor</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="licenseNumber">License Number</Label>
+              <Input
+                id="licenseNumber"
+                value={upgradeValidationData.licenseNumber}
+                onChange={(e) => setUpgradeValidationData(prev => ({
+                  ...prev,
+                  licenseNumber: e.target.value
+                }))}
+                placeholder="Enter license number"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="medicalClass">Medical Class</Label>
+              <Select 
+                value={upgradeValidationData.medicalClass} 
+                onValueChange={(value) => setUpgradeValidationData(prev => ({
+                  ...prev,
+                  medicalClass: value
+                }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select medical class" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Class 1">Class 1</SelectItem>
+                  <SelectItem value="Class 2">Class 2</SelectItem>
+                  <SelectItem value="Class 3">Class 3</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {upgradeRole === 'INSTRUCTOR' && (
+              <div className="space-y-2">
+                <Label htmlFor="instructorRating">Instructor Rating</Label>
+                <Input
+                  id="instructorRating"
+                  value={upgradeValidationData.instructorRating}
+                  onChange={(e) => setUpgradeValidationData(prev => ({
+                    ...prev,
+                    instructorRating: e.target.value
+                  }))}
+                  placeholder="Enter instructor rating"
+                />
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="totalFlightHours">Total Flight Hours</Label>
+              <Input
+                id="totalFlightHours"
+                type="number"
+                value={upgradeValidationData.totalFlightHours}
+                onChange={(e) => setUpgradeValidationData(prev => ({
+                  ...prev,
+                  totalFlightHours: parseInt(e.target.value) || 0
+                }))}
+                placeholder="Enter total flight hours"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setUpgradeRoleDialogOpen(false);
+                setUserToUpgrade(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => handleUpgradeRole(
+                userToUpgrade!.id, 
+                upgradeRole, 
+                upgradeValidationData
+              )}
+            >
+              Upgrade Role
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Activate User Dialog */}
+      <Dialog open={activateDialogOpen} onOpenChange={setActivateDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Activate User</DialogTitle>
+            <DialogDescription>
+              Activate {userToActivate?.firstName} {userToActivate?.lastName} after payment verification. Please provide payment details.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="paymentReference">Payment Reference</Label>
+              <Input
+                id="paymentReference"
+                value={activatePaymentData.paymentReference}
+                onChange={(e) => setActivatePaymentData(prev => ({
+                  ...prev,
+                  paymentReference: e.target.value
+                }))}
+                placeholder="Enter payment reference number"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="paymentAmount">Payment Amount</Label>
+              <Input
+                id="paymentAmount"
+                type="number"
+                value={activatePaymentData.paymentAmount}
+                onChange={(e) => setActivatePaymentData(prev => ({
+                  ...prev,
+                  paymentAmount: parseFloat(e.target.value) || 0
+                }))}
+                placeholder="Enter payment amount"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="paymentMethod">Payment Method</Label>
+              <Select 
+                value={activatePaymentData.paymentMethod} 
+                onValueChange={(value) => setActivatePaymentData(prev => ({
+                  ...prev,
+                  paymentMethod: value
+                }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select payment method" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Credit Card">Credit Card</SelectItem>
+                  <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                  <SelectItem value="Cash">Cash</SelectItem>
+                  <SelectItem value="Check">Check</SelectItem>
+                  <SelectItem value="PayPal">PayPal</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes</Label>
+              <Input
+                id="notes"
+                value={activatePaymentData.notes}
+                onChange={(e) => setActivatePaymentData(prev => ({
+                  ...prev,
+                  notes: e.target.value
+                }))}
+                placeholder="Additional notes about payment"
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setActivateDialogOpen(false);
+                setUserToActivate(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => handleActivateUser(
+                userToActivate!.id, 
+                activatePaymentData
+              )}
+            >
+              Activate User
             </Button>
           </div>
         </DialogContent>

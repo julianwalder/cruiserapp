@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -63,6 +64,12 @@ export default function RegisterPage() {
       localStorage.setItem('token', result.token);
       localStorage.setItem('user', JSON.stringify(result.user));
 
+      // Show success message about inactive status
+      toast.success('Account created successfully!', {
+        description: 'Your account has been created with inactive status. You will be activated after payment verification by our staff.',
+        duration: 5000,
+      });
+
       // Redirect to dashboard
       router.push('/dashboard');
     } catch (err: any) {
@@ -83,6 +90,11 @@ export default function RegisterPage() {
           <CardDescription className="text-center">
             Sign up for a new account
           </CardDescription>
+          <Alert className="mt-4">
+            <AlertDescription>
+              <strong>Note:</strong> New accounts are created with inactive status. You will be activated after payment verification by our staff.
+            </AlertDescription>
+          </Alert>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
