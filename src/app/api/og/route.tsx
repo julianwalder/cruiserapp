@@ -188,7 +188,7 @@ export async function GET(request: Request) {
             >
               {/* Cruiser Aviation Logo - Local SVG */}
               <img
-                src="http://localhost:3000/logo_ca_white.svg"
+                src="https://app.cruiseraviation.com/logo_ca_white.svg"
                 alt="Cruiser Aviation"
                 style={{
                   width: '100%',
