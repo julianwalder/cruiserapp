@@ -9,6 +9,7 @@
     "lint": "next lint",
     "setup": "node scripts/setup.js",
     "setup-password-reset": "node scripts/setup-password-reset-db.js",
+    "setup-rls": "node scripts/setup-rls-complete.js",
     "test-email": "node scripts/test-email-config.js"
   },
   "dependencies": {
@@ -49,6 +50,7 @@
     "csv-parse": "^6.0.0",
     "csv-stringify": "^6.6.0",
     "date-fns": "^4.1.0",
+    "dotenv": "^16.4.5",
     "express": "^5.1.0",
     "formidable": "^3.5.4",
     "imask": "^7.6.1",

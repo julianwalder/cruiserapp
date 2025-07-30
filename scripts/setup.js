@@ -3,12 +3,22 @@
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
 
+// Load environment variables
+require('dotenv').config({ path: '.env.local' });
+
 // Initialize Supabase client
-const supabaseUrl = 'https://lvbukwpecrtdtrsmqass.supabase.co';
+const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl) {
+  console.error('❌ SUPABASE_URL environment variable is required');
+  console.error('Please check your .env.local file');
+  process.exit(1);
+}
 
 if (!supabaseServiceKey) {
   console.error('❌ SUPABASE_SERVICE_ROLE_KEY environment variable is required');
+  console.error('Please check your .env.local file');
   process.exit(1);
 }
 

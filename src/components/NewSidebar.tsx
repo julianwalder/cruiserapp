@@ -383,10 +383,9 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
                 </Avatar>
                 {!isCollapsed && (
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm text-sidebar-foreground truncate">
-                      {user.firstName} {user.lastName}
-                    </div>
-                    <div className="text-xs text-sidebar-foreground/60 truncate">{user.email}</div>
+                                      <div className="font-medium text-sm text-sidebar-foreground truncate">
+                    {user.firstName} {user.lastName}
+                  </div>
                     <div className="flex gap-0.5 mt-1">
                       {user.userRoles?.slice(0, 2).map((userRole, index) => (
                         <Badge key={`${userRole.roles.name}-${index}`} className={`text-xs px-0.5 py-0 border flex-shrink-0 ${getRoleBadgeColor(userRole.roles.name)}`}>
@@ -423,7 +422,6 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
                           <div className="font-medium text-sm text-foreground truncate">
                             {user.firstName} {user.lastName}
                           </div>
-                          <div className="text-xs text-muted-foreground truncate">{user.email}</div>
                         </div>
                       </div>
                     </div>

@@ -1,29 +1,18 @@
-'use client';
+import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+export default async function HomePage() {
+  // Check if user is already logged in using server-side cookies
+  const cookieStore = await cookies();
+  const token = cookieStore.get('token')?.value;
+  const user = cookieStore.get('user')?.value;
 
-export default function HomePage() {
-  const router = useRouter();
+  if (token && user) {
+    redirect('/dashboard');
+  } else {
+    redirect('/login');
+  }
 
-  useEffect(() => {
-    // Check if user is already logged in
-    const token = localStorage.getItem('token');
-    const user = localStorage.getItem('user');
-
-    if (token && user) {
-      router.push('/dashboard');
-    } else {
-      router.push('/login');
-    }
-  }, [router]);
-
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-        <p className="mt-2">Redirecting...</p>
-      </div>
-    </div>
-  );
+  // This won't be reached due to redirect, but needed for TypeScript
+  return null;
 }

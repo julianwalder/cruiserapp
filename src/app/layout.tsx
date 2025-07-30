@@ -19,6 +19,50 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Cruiser Aviation Management System",
   description: "Modern flight school management with user management, aircraft tracking, and scheduling",
+  metadataBase: new URL('https://app.cruiseraviation.com'),
+  openGraph: {
+    title: "Cruiser Aviation Management System",
+    description: "Modern flight school management with user management, aircraft tracking, and scheduling",
+    url: 'https://app.cruiseraviation.com',
+    siteName: 'Cruiser Aviation',
+    images: [
+      {
+        url: '/api/og',
+        width: 1200,
+        height: 630,
+        alt: 'Cruiser Aviation Management System - Flight Hours, Landings, Pilots, and Students Statistics',
+      },
+    ],
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: "Cruiser Aviation Management System",
+    description: "Modern flight school management with user management, aircraft tracking, and scheduling",
+    images: [
+      {
+        url: '/api/og',
+        width: 1200,
+        height: 630,
+        alt: 'Cruiser Aviation Management System - Flight Hours, Landings, Pilots, and Students Statistics',
+      },
+    ],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  verification: {
+    google: 'your-google-verification-code',
+  },
 };
 
 export default function RootLayout({
