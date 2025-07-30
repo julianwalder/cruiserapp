@@ -20,9 +20,13 @@ import {
   ChevronLeft,
   Menu,
   X,
-  Clock
+  Clock,
+  MoreVertical,
+  User
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { Logo } from '@/components/ui/logo';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 interface User {
   id: string;
@@ -286,7 +290,7 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
       {/* Sidebar */}
       <div 
         className={`
-          fixed top-0 left-0 h-full bg-sidebar border-r border-sidebar-border shadow-xl z-50 transition-all duration-300 ease-in-out
+          fixed top-0 left-0 h-full bg-sidebar border-r border-sidebar-border shadow-xl z-50 transition-all duration-300 ease-in-out flex flex-col
           ${isCollapsed ? 'w-16' : 'w-64'}
           ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
@@ -294,19 +298,15 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-sidebar-border">
-          {!isCollapsed && (
-            <div className="flex items-center space-x-2">
-              <div className="p-2 rounded-lg bg-sidebar-primary/10">
-                <Plane className="h-6 w-6 text-sidebar-primary" />
-              </div>
-              <div>
-                <h1 className="font-bold text-lg text-sidebar-foreground">Cruiser</h1>
-                <p className="text-xs text-sidebar-foreground/60">Aviation</p>
-              </div>
-            </div>
-          )}
+        {/* Fixed Header */}
+        <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border flex-shrink-0">
+          <div className="flex items-center">
+            {!isCollapsed ? (
+              <Logo width={140} height={32} className="h-8 w-auto" />
+            ) : (
+              <Logo width={32} height={32} className="h-8 w-8" />
+            )}
+          </div>
           
           {/* Collapse Toggle */}
           <Button
@@ -319,49 +319,11 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
           </Button>
         </div>
 
-        {/* User Profile */}
-        {user && (
-          <div className="p-4 border-b border-sidebar-border">
-            <div className="flex items-center space-x-3">
-              <Avatar className="h-10 w-10">
-                <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-sm font-medium">
-                  {getInitials(user.firstName, user.lastName)}
-                </AvatarFallback>
-              </Avatar>
-              {!isCollapsed && (
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm text-sidebar-foreground truncate">
-                    {user.firstName} {user.lastName}
-                  </div>
-                  <div className="text-xs text-sidebar-foreground/60 truncate">{user.email}</div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {user.userRoles?.slice(0, 2).map((userRole, index) => (
-                      <Badge key={`${userRole.roles.name}-${index}`} className={`text-xs border ${getRoleBadgeColor(userRole.roles.name)}`}>
-                        {getRoleDisplayName(userRole.roles.name)}
-                      </Badge>
-                    ))}
-                    {user.userRoles?.length > 2 && (
-                      <Badge variant="outline" className="text-xs">
-                        +{user.userRoles.length - 2}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
-        {/* Navigation */}
+
+        {/* Scrollable Navigation */}
         <div className="flex-1 overflow-y-auto">
           <div className="p-4">
-            {!isCollapsed && (
-              <div className="mb-4">
-                <h2 className="text-xs font-semibold text-sidebar-foreground/60 uppercase tracking-wider">
-                  Navigation
-                </h2>
-              </div>
-            )}
             
             <nav className="space-y-1">
               {filteredNavigationItems.map((item) => {
@@ -408,20 +370,86 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-sidebar-border">
-          <div className="flex items-center justify-between">
-            <ThemeToggle />
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-9 text-destructive hover:bg-destructive/10 hover:text-destructive transition-colors"
-              onClick={onLogout}
-            >
-              <LogOut className="h-4 w-4" />
-              {!isCollapsed && <span className="ml-2">Logout</span>}
-            </Button>
-          </div>
+        {/* Fixed Footer with User Profile and Actions */}
+        <div className="flex-shrink-0 border-t border-sidebar-border">
+          {/* User Profile with Menu */}
+          {user && (
+            <div className="p-4">
+              <div className="flex items-center space-x-3">
+                <Avatar className="h-10 w-10">
+                  <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-sm font-medium">
+                    {getInitials(user.firstName, user.lastName)}
+                  </AvatarFallback>
+                </Avatar>
+                {!isCollapsed && (
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm text-sidebar-foreground truncate">
+                      {user.firstName} {user.lastName}
+                    </div>
+                    <div className="text-xs text-sidebar-foreground/60 truncate">{user.email}</div>
+                    <div className="flex gap-0.5 mt-1">
+                      {user.userRoles?.slice(0, 2).map((userRole, index) => (
+                        <Badge key={`${userRole.roles.name}-${index}`} className={`text-xs px-0.5 py-0 border flex-shrink-0 ${getRoleBadgeColor(userRole.roles.name)}`}>
+                          {getRoleDisplayName(userRole.roles.name)}
+                        </Badge>
+                      ))}
+                      {user.userRoles?.length > 2 && (
+                        <Badge variant="outline" className="text-xs px-0.5 py-0 flex-shrink-0">
+                          +{user.userRoles.length - 2}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <div className="px-2 py-1.5">
+                      <div className="flex items-center space-x-2">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs font-medium">
+                            {getInitials(user.firstName, user.lastName)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm text-foreground truncate">
+                            {user.firstName} {user.lastName}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">{user.email}</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="h-px bg-gray-300 dark:bg-gray-600 mx-2" />
+                    <DropdownMenuItem>
+                      <User className="mr-2 h-4 w-4" />
+                      Account
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <DollarSign className="mr-2 h-4 w-4" />
+                      Billing
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Notifications
+                    </DropdownMenuItem>
+                    <div className="h-px bg-border my-1" />
+                    <DropdownMenuItem onClick={onLogout} className="text-destructive">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Logout
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

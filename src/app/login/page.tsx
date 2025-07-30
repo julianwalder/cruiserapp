@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Eye, EyeOff, Plane } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
+import { Logo } from '@/components/ui/logo';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -69,9 +70,8 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white dark:from-gray-900 to-muted p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center space-x-2">
-            <Plane className="h-8 w-8 text-primary" />
-            <CardTitle className="text-2xl font-bold">Cruiser Aviation</CardTitle>
+          <div className="flex items-center justify-center">
+            <Logo width={200} height={48} className="h-12 w-auto" />
           </div>
           <CardDescription className="text-center">
             Sign in to your account to continue

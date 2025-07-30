@@ -80,10 +80,13 @@ export function OptimizedImage({
   }
 
   return (
-    <div className="relative" style={{ aspectRatio }}>
+    <div 
+      className={cn("relative overflow-hidden", className)}
+      style={{ aspectRatio }}
+    >
       {/* Loading skeleton */}
       {isLoading && (
-        <div className="absolute inset-0 bg-muted animate-pulse rounded-lg" />
+        <div className="absolute inset-0 bg-muted animate-pulse" />
       )}
       
       {/* Optimized image - only render if we have a valid imageSrc */}
@@ -93,8 +96,7 @@ export function OptimizedImage({
           alt={alt}
           className={cn(
             "w-full h-full object-cover transition-opacity duration-300",
-            isLoading ? "opacity-0" : "opacity-100",
-            className
+            isLoading ? "opacity-0" : "opacity-100"
           )}
           loading="lazy"
           onLoad={handleLoad}

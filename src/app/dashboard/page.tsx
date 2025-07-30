@@ -15,6 +15,7 @@ import Settings from '@/components/Settings';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { 
   Users, 
   Plane, 
@@ -152,36 +153,7 @@ function DashboardContent() {
     }
   };
 
-  const getTabDescription = (tab: string) => {
-    switch (tab) {
-      case 'dashboard':
-        return 'Overview of your flight school operations';
-      case 'users':
-        return 'Manage users, roles, and permissions';
-      case 'airfields':
-        return 'Manage airfields and operational areas';
-      case 'operational-areas':
-        return 'Configure operational areas and bases';
-      case 'role-management':
-        return 'Manage user roles and permissions';
-      case 'base-management':
-        return 'Manage base operations and assignments';
-      case 'fleet':
-        return 'Manage aircraft fleet and operations';
-      case 'flight-logs':
-        return 'View and manage flight logs and hours';
-      case 'scheduling':
-        return 'Schedule flights and manage bookings';
-      case 'accounting':
-        return 'Financial management and billing';
-      case 'reports':
-        return 'Analytics and reporting';
-      case 'settings':
-        return 'System configuration and preferences';
-      default:
-        return 'Overview of your flight school operations';
-    }
-  };
+
 
   const recentActivity = [
     { title: 'New user registered', description: 'John Doe registered as a pilot', time: '2 minutes ago' },
@@ -222,16 +194,14 @@ function DashboardContent() {
       />
       
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
-        <header className="bg-card shadow-sm border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-4">
-          <div className="flex items-center justify-between">
+        <header className="bg-card shadow-sm border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 h-16 flex items-center">
+          <div className="flex items-center justify-between w-full">
             <div className="flex items-center space-x-4">
               <div className="lg:ml-0 ml-12">
                 <h1 className="text-xl sm:text-2xl font-semibold text-card-foreground">
                   {getTabTitle(activeTab)}
                 </h1>
-                <p className="text-sm text-muted-foreground mt-1 hidden sm:block">
-                  {getTabDescription(activeTab)}
-                </p>
+
               </div>
             </div>
             
@@ -247,6 +217,7 @@ function DashboardContent() {
                   {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
                 </span>
               </div>
+              <ThemeToggle />
             </div>
           </div>
         </header>
