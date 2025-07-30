@@ -47,7 +47,6 @@ export class AuthService {
           )
         `)
         .eq('email', email)
-        .eq('status', 'ACTIVE')
         .single();
       if (error || !user) {
         console.log('User not found or error:', error);
@@ -138,7 +137,6 @@ export class AuthService {
           )
         `)
         .eq('id', payload.userId)
-        .eq('status', 'ACTIVE')
         .single();
       if (error || !user) {
         return null;

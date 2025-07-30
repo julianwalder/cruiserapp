@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
         licenseNumber: validatedData.licenseNumber,
         medicalClass: validatedData.medicalClass,
         instructorRating: validatedData.instructorRating,
-        status: 'INACTIVE',
+        status: 'ACTIVE',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       })

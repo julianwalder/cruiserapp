@@ -28,7 +28,7 @@ async function testEmailConfiguration() {
   console.log('');
 
   // Create transporter
-  const transporter = nodemailer.createTransporter({
+  const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: parseInt(process.env.SMTP_PORT),
     secure: process.env.SMTP_SECURE === 'true',

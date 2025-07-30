@@ -17,6 +17,46 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if user is inactive and provide appropriate feedback
+    if (user.status === 'INACTIVE') {
+      return NextResponse.json(
+        { 
+          error: 'Your account has been suspended. Please contact an administrator for reactivation.',
+          status: 'INACTIVE',
+          userId: user.id 
+        },
+        { status: 403 }
+      );
+    }
+
+    // Check if user is a prospect and provide guidance
+    const userRoles = user.user_roles.map(userRole => userRole.roles.name);
+    if (userRoles.includes('PROSPECT')) {
+      return NextResponse.json({
+        message: 'Login successful',
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          userRoles: user.user_roles,
+          roles: userRoles,
+          status: user.status,
+          totalFlightHours: 0,
+          licenseNumber: null,
+          medicalClass: null,
+          instructorRating: null,
+          lastLoginAt: new Date().toISOString(),
+        },
+        token: AuthService.generateToken({
+          userId: user.id,
+          email: user.email,
+          roles: userRoles,
+        }),
+        prospectGuidance: 'Welcome! Please complete your document validation to upgrade your account status.',
+      });
+    }
+
     // Extract roles from user
     const roles = user.user_roles.map(userRole => userRole.roles.name);
 

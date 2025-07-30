@@ -10,7 +10,9 @@
     "setup": "node scripts/setup.js",
     "setup-password-reset": "node scripts/setup-password-reset-db.js",
     "setup-rls": "node scripts/setup-rls-complete.js",
-    "test-email": "node scripts/test-email-config.js"
+    "test-email": "node scripts/test-email-config.js",
+    "test-password-reset-email": "node scripts/test-password-reset-email.js",
+    "test-user-login-scenarios": "node scripts/test-user-login-scenarios.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
