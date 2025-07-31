@@ -44,9 +44,15 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { formatDateWithCurrentFormat } from "@/lib/date-utils";
+import { useFormattedDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+
+// Client-side date formatter component to prevent hydration issues
+function FormattedDate({ date }: { date: string | Date | null | undefined }) {
+  const formattedDate = useFormattedDate(date);
+  return <span>{formattedDate}</span>;
+}
 
 // Utility function to format hours as HH:MM
 const formatHours = (hours: number): string => {
@@ -1344,38 +1350,40 @@ export default function FlightLogs() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-card-foreground">Jeppesen FCL.050 (A)</h1>
-            <p className="text-muted-foreground">Official Logbook format</p>
           </div>
-          <div className="flex items-center space-x-2">
-            <Tabs value={showPPLView ? "ppl" : "full"} onValueChange={(value) => setShowPPLView(value === "ppl")}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="full" className="text-xs">Full View</TabsTrigger>
-                <TabsTrigger value="ppl" className="text-xs">PPL View</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            {canToggleViewMode() && (
-              <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "personal" | "company")}>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:space-x-2">
+            <div className="flex items-center space-x-2 order-2 sm:order-1">
+              <Tabs value={showPPLView ? "ppl" : "full"} onValueChange={(value) => setShowPPLView(value === "ppl")}>
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="personal" className="text-xs">Personal</TabsTrigger>
-                  <TabsTrigger value="company" className="text-xs">Company</TabsTrigger>
+                  <TabsTrigger value="full" className="text-xs">Full View</TabsTrigger>
+                  <TabsTrigger value="ppl" className="text-xs">PPL View</TabsTrigger>
                 </TabsList>
               </Tabs>
-            )}
-            <Button variant="outline" size="sm">
-              <Download className="h-4 w-4 mr-2" />
-              Export
-            </Button>
-            {canToggleViewMode() && (
-              <Button variant="outline" size="sm" onClick={() => setShowImportDialog(true)}>
-                <Upload className="h-4 w-4 mr-2" />
-                Import
+              {canToggleViewMode() && (
+                <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "personal" | "company")}>
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="personal" className="text-xs">Personal</TabsTrigger>
+                    <TabsTrigger value="company" className="text-xs">Company</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              )}
+            </div>
+            <div className="flex items-center space-x-2 order-1 sm:order-2">
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Export
               </Button>
-            )}
-            <Button onClick={() => setShowCreateDialog(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Log Flight
-            </Button>
+              {canToggleViewMode() && (
+                <Button variant="outline" size="sm" onClick={() => setShowImportDialog(true)}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import
+                </Button>
+              )}
+              <Button onClick={() => setShowCreateDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Log Flight
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -1398,28 +1406,30 @@ export default function FlightLogs() {
         {!loading && !error && (
           <>
             {/* Search and Filters */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center space-x-2 w-full sm:w-auto">
                 <Input
                   placeholder="Search flight logs..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-64"
+                  className="w-full sm:w-64"
                 />
               </div>
             </div>
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList>
-                <TabsTrigger value="all">All Flights</TabsTrigger>
-                <TabsTrigger value="invoiced">Invoiced</TabsTrigger>
-                <TabsTrigger value="school">School</TabsTrigger>
-                <TabsTrigger value="ferry">Ferry</TabsTrigger>
-                <TabsTrigger value="charter">Charter</TabsTrigger>
-                <TabsTrigger value="demo">Demo</TabsTrigger>
-                <TabsTrigger value="promo">Promo</TabsTrigger>
-              </TabsList>
+              <div className="overflow-x-auto">
+                <TabsList className="w-max min-w-full">
+                  <TabsTrigger value="all">All Flights</TabsTrigger>
+                  <TabsTrigger value="invoiced">Invoiced</TabsTrigger>
+                  <TabsTrigger value="school">School</TabsTrigger>
+                  <TabsTrigger value="ferry">Ferry</TabsTrigger>
+                  <TabsTrigger value="charter">Charter</TabsTrigger>
+                  <TabsTrigger value="demo">Demo</TabsTrigger>
+                  <TabsTrigger value="promo">Promo</TabsTrigger>
+                </TabsList>
+              </div>
 
               <TabsContent value={activeTab} className="space-y-4">
                 {/* Flight Logs Table */}
@@ -1648,7 +1658,7 @@ export default function FlightLogs() {
                               >
                                 {/* Column 1: Date */}
                                 <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
-                                  {formatDateWithCurrentFormat(log.date)}
+                                  <FormattedDate date={log.date} />
                                 </TableCell>
                                 
                                 {/* Column 2: Departure */}
@@ -1830,7 +1840,7 @@ export default function FlightLogs() {
                     </div>
 
                     {/* Pagination */}
-                    <div className="flex items-center justify-between mt-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mt-6 gap-4">
                       <div className="text-sm text-muted-foreground">
                         {pagination.total > 0 ? (
                           <>
@@ -1843,7 +1853,7 @@ export default function FlightLogs() {
                         )}
                       </div>
                       {pagination.pages > 1 && (
-                        <div className="flex items-center space-x-6">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 w-full sm:w-auto">
                           <div className="flex items-center space-x-2">
                             <span className="text-sm text-muted-foreground">Show:</span>
                             <Select 
@@ -1868,21 +1878,32 @@ export default function FlightLogs() {
                             </Select>
                             <span className="text-sm text-muted-foreground">per page</span>
                           </div>
-                          <div className="flex items-center space-x-3">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={pagination.page === 1 || loading}
-                              onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-                              className="h-8 px-3"
-                            >
-                              {loading ? 'Loading...' : 'Previous'}
-                            </Button>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-sm text-muted-foreground">Page</span>
-                              <span className="text-sm font-medium">{pagination.page}</span>
-                              <span className="text-sm text-muted-foreground">of</span>
-                              <span className="text-sm font-medium">{pagination.pages}</span>
+                          <div className="flex flex-col sm:flex-row items-center gap-3">
+                            <div className="flex items-center space-x-3">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={pagination.page === 1 || loading}
+                                onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                                className="h-8 px-3"
+                              >
+                                {loading ? 'Loading...' : 'Previous'}
+                              </Button>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-muted-foreground">Page</span>
+                                <span className="text-sm font-medium">{pagination.page}</span>
+                                <span className="text-sm text-muted-foreground">of</span>
+                                <span className="text-sm font-medium">{pagination.pages}</span>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={pagination.page === pagination.pages || loading}
+                                onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                                className="h-8 px-3"
+                              >
+                                {loading ? 'Loading...' : 'Next'}
+                              </Button>
                             </div>
                             <div className="flex items-center space-x-2">
                               <span className="text-sm text-muted-foreground">Go to:</span>
@@ -1900,15 +1921,6 @@ export default function FlightLogs() {
                                 className="w-16 h-8 text-center"
                               />
                             </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={pagination.page === pagination.pages || loading}
-                              onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-                              className="h-8 px-3"
-                            >
-                              {loading ? 'Loading...' : 'Next'}
-                            </Button>
                           </div>
                         </div>
                       )}
@@ -2412,7 +2424,7 @@ export default function FlightLogs() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Date</Label>
-                    <p className="text-sm">{formatDateWithCurrentFormat(selectedFlightLog.date)}</p>
+                    <p className="text-sm"><FormattedDate date={selectedFlightLog.date} /></p>
                   </div>
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Flight Type</Label>
@@ -2487,7 +2499,7 @@ export default function FlightLogs() {
                   </div>
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Created On</Label>
-                    <p className="text-sm">{formatDateWithCurrentFormat(selectedFlightLog.createdAt)}</p>
+                    <p className="text-sm"><FormattedDate date={selectedFlightLog.createdAt} /></p>
                   </div>
                 </div>
               </div>
@@ -2606,7 +2618,7 @@ export default function FlightLogs() {
                     Flight: {flightLogToDelete.aircraft.callSign} - {flightLogToDelete.aircraft.icaoReferenceType?.typeDesignator || flightLogToDelete.aircraft.icao_reference_type?.type_designator}
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    {formatDateWithCurrentFormat(flightLogToDelete.date)} | {flightLogToDelete.departureAirfield.code} → {flightLogToDelete.arrivalAirfield.code}
+                    <FormattedDate date={flightLogToDelete.date} /> | {flightLogToDelete.departureAirfield.code} → {flightLogToDelete.arrivalAirfield.code}
                   </div>
                   <div className="text-sm text-muted-foreground">
                     Pilot: {flightLogToDelete.pilot.firstName} {flightLogToDelete.pilot.lastName}

@@ -722,7 +722,7 @@ export default function AirfieldsManagement() {
       </Card>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between mt-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mt-6 gap-4">
         <div className="text-sm text-muted-foreground">
           {pagination.total > 0 ? (
             <>
@@ -735,7 +735,7 @@ export default function AirfieldsManagement() {
           )}
         </div>
         {pagination.pages > 1 && (
-          <div className="flex items-center space-x-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 w-full sm:w-auto">
             <div className="flex items-center space-x-2">
               <span className="text-sm text-muted-foreground">Show:</span>
               <Select 
@@ -760,21 +760,32 @@ export default function AirfieldsManagement() {
               </Select>
               <span className="text-sm text-muted-foreground">per page</span>
             </div>
-            <div className="flex items-center space-x-3">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pagination.page === 1 || loading}
-                onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-                className="h-8 px-3"
-              >
-                {loading ? 'Loading...' : 'Previous'}
-              </Button>
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-muted-foreground">Page</span>
-                <span className="text-sm font-medium">{pagination.page}</span>
-                <span className="text-sm text-muted-foreground">of</span>
-                <span className="text-sm font-medium">{pagination.pages}</span>
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="flex items-center space-x-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pagination.page === 1 || loading}
+                  onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                  className="h-8 px-3"
+                >
+                  {loading ? 'Loading...' : 'Previous'}
+                </Button>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm text-muted-foreground">Page</span>
+                  <span className="text-sm font-medium">{pagination.page}</span>
+                  <span className="text-sm text-muted-foreground">of</span>
+                  <span className="text-sm font-medium">{pagination.pages}</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={pagination.page === pagination.pages || loading}
+                  onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                  className="h-8 px-3"
+                >
+                  {loading ? 'Loading...' : 'Next'}
+                </Button>
               </div>
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-muted-foreground">Go to:</span>
@@ -792,15 +803,6 @@ export default function AirfieldsManagement() {
                   className="w-16 h-8 text-center"
                 />
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={pagination.page === pagination.pages || loading}
-                onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-                className="h-8 px-3"
-              >
-                {loading ? 'Loading...' : 'Next'}
-              </Button>
             </div>
           </div>
         )}
