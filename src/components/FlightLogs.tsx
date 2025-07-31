@@ -48,6 +48,13 @@ import { formatDateWithCurrentFormat } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 
+// Utility function to format hours as HH:MM
+const formatHours = (hours: number): string => {
+  const wholeHours = Math.floor(hours);
+  const minutes = Math.round((hours - wholeHours) * 60);
+  return `${wholeHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+};
+
 // Flight log creation schema - Jeppesen format
 const createFlightLogSchema = z.object({
   // Basic flight information
@@ -2422,7 +2429,7 @@ export default function FlightLogs() {
                   </div>
                   <div>
                     <Label className="text-sm font-medium text-muted-foreground">Total Hours</Label>
-                    <p className="text-sm">{selectedFlightLog.totalHours.toFixed(1)}h</p>
+                    <p className="text-sm">{formatHours(selectedFlightLog.totalHours)}</p>
                   </div>
                 </div>
 

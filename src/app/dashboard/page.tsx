@@ -12,6 +12,10 @@ import FleetManagement from '@/components/FleetManagement';
 import FlightLogs from '@/components/FlightLogs';
 import Reports from '@/components/Reports';
 import Settings from '@/components/Settings';
+import SmartBillInvoices from '@/components/SmartBillInvoices';
+import ImportedXMLInvoices from '@/components/ImportedXMLInvoices';
+import ClientHours from '@/components/ClientHours';
+import SmartBillStatus from '@/components/SmartBillStatus';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,7 +30,8 @@ import {
   Shield,
   MapPin,
   DollarSign,
-  Clock
+  Clock,
+  Upload
 } from 'lucide-react';
 
 interface User {
@@ -144,6 +149,8 @@ function DashboardContent() {
         return 'Scheduling';
       case 'accounting':
         return 'Accounting';
+      case 'client-hours':
+        return 'Client Hours';
       case 'reports':
         return 'Reports';
       case 'settings':
@@ -287,7 +294,7 @@ function DashboardContent() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <Button 
                       variant="outline" 
                       className="h-20 flex flex-col items-center justify-center space-y-2 hover:bg-accent"
@@ -304,6 +311,15 @@ function DashboardContent() {
                     >
                       <Plane className="h-6 w-6" />
                       <span>View Airfields</span>
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      className="h-20 flex flex-col items-center justify-center space-y-2 hover:bg-accent"
+                      onClick={() => handleTabChange('client-hours')}
+                    >
+                      <Clock className="h-6 w-6" />
+                      <span>Client Hours</span>
                     </Button>
                     
                     <Button 
@@ -382,26 +398,110 @@ function DashboardContent() {
             </div>
           )}
           {activeTab === 'accounting' && (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <DollarSign className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-card-foreground mb-2">Accounting</h3>
-                <p className="text-muted-foreground">Financial management and accounting features coming soon.</p>
-                <div className="mt-6 max-w-md mx-auto">
-                  <div className="bg-primary/5 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                    <h4 className="font-medium text-primary mb-2">Planned Features</h4>
-                    <ul className="text-sm text-primary/80 space-y-1">
-                      <li>• Student billing and payment tracking</li>
-                      <li>• Instructor payroll management</li>
-                      <li>• Aircraft maintenance cost tracking</li>
-                      <li>• Financial reporting and analytics</li>
-                      <li>• Invoice generation and management</li>
-                    </ul>
+                          <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-card-foreground">Accounting & Invoicing</h2>
+                    <p className="text-muted-foreground">Manage your SmartBill invoices and financial data</p>
                   </div>
                 </div>
+                
+                <SmartBillStatus />
+                
+                <ImportedXMLInvoices />
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card className="card-hover">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <DollarSign className="h-5 w-5" />
+                      Planned Features
+                    </CardTitle>
+                    <CardDescription>
+                      Upcoming financial management capabilities
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="text-sm space-y-2">
+                      <li className="flex items-center gap-2">
+                        <div className="h-2 w-2 bg-primary rounded-full"></div>
+                        Student billing and payment tracking
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="h-2 w-2 bg-primary rounded-full"></div>
+                        Instructor payroll management
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="h-2 w-2 bg-primary rounded-full"></div>
+                        Aircraft maintenance cost tracking
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="h-2 w-2 bg-primary rounded-full"></div>
+                        Financial reporting and analytics
+                      </li>
+                    </ul>
+                  </CardContent>
+                </Card>
+                
+                <Card className="card-hover">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      SmartBill Integration
+                    </CardTitle>
+                    <CardDescription>
+                      Connected invoice management system
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">API Status</span>
+                        <Badge variant="outline" className="text-xs">
+                          Connected
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Last Sync</span>
+                        <span className="text-xs text-muted-foreground">
+                          {new Date().toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Total Invoices</span>
+                        <span className="text-xs font-medium">-</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="card-hover">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Upload className="h-5 w-5" />
+                      XML Import Available
+                    </CardTitle>
+                    <CardDescription>
+                      Import SmartBill XML invoices manually
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        Import XML invoices while waiting for API activation.
+                      </p>
+                      <Button asChild className="w-full">
+                        <a href="/xml-import">
+                          Import XML Invoices
+                        </a>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </div>
           )}
+          {activeTab === 'client-hours' && <ClientHours />}
           {activeTab === 'reports' && canAccessReports() && <Reports />}
           {activeTab === 'reports' && !canAccessReports() && (
             <div className="flex items-center justify-center h-full">

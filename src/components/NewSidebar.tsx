@@ -97,6 +97,12 @@ const navigationItems = [
     description: 'Financial management'
   },
   {
+    title: 'Client Hours',
+    url: '/dashboard?tab=client-hours',
+    icon: Clock,
+    description: 'Client hour packages and usage'
+  },
+  {
     title: 'Reports',
     url: '/dashboard?tab=reports',
     icon: FileText,
