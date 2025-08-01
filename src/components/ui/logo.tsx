@@ -2,6 +2,7 @@
 
 import { useTheme } from 'next-themes';
 import Image from 'next/image';
+import { useEffect, useState } from 'react';
 
 interface LogoProps {
   className?: string;
@@ -10,10 +11,17 @@ interface LogoProps {
 }
 
 export function Logo({ className = '', width = 120, height = 40 }: LogoProps) {
-  const { theme } = useTheme();
-  
-  // Default to black logo if theme is not available yet
-  const logoSrc = theme === 'dark' ? '/logo_ca_white.svg' : '/logo_ca_black.svg';
+  const { theme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Use resolvedTheme to avoid hydration mismatch
+  const logoSrc = mounted && (resolvedTheme === 'dark' || theme === 'dark') 
+    ? '/logo_ca_white.svg' 
+    : '/logo_ca_black.svg';
   
   return (
     <Image
