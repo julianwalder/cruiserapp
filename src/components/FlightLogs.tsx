@@ -150,6 +150,7 @@ interface User {
   firstName: string;
   lastName: string;
   email: string;
+  status?: string;
   userRoles: Array<{
     role: {
       name: string;
@@ -784,14 +785,14 @@ export default function FlightLogs() {
         return;
       }
 
-      // Fetch both pilots and students, but only active ones
+      // Fetch both pilots and students, including inactive/suspended ones
       const [pilotsResponse, studentsResponse] = await Promise.all([
-        fetch('/api/users?role=PILOT&status=ACTIVE&limit=1000', {
+        fetch('/api/users?role=PILOT&limit=1000', {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
         }),
-        fetch('/api/users?role=STUDENT&status=ACTIVE&limit=1000', {
+        fetch('/api/users?role=STUDENT&limit=1000', {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -836,7 +837,7 @@ export default function FlightLogs() {
 
       // If current user is a pilot-only user, they might not have access to instructor list
       // This is fine since instructor is optional
-      const response = await fetch('/api/users?role=INSTRUCTOR&status=ACTIVE&limit=1000', {
+      const response = await fetch('/api/users?role=INSTRUCTOR&limit=1000', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -1472,7 +1473,8 @@ export default function FlightLogs() {
                       options={pilots.map((pilot) => ({
                         value: pilot.id,
                         label: `${pilot.firstName} ${pilot.lastName}`,
-                        searchText: `${pilot.firstName} ${pilot.lastName}`
+                        searchText: `${pilot.firstName} ${pilot.lastName}`,
+                        status: pilot.status
                       }))}
                       value={filters.pilotId}
                       onValueChange={(value) => setFilters(prev => ({ ...prev, pilotId: value }))}
@@ -1492,7 +1494,8 @@ export default function FlightLogs() {
                       options={instructors.map((instructor) => ({
                         value: instructor.id,
                         label: `${instructor.firstName} ${instructor.lastName}`,
-                        searchText: `${instructor.firstName} ${instructor.lastName}`
+                        searchText: `${instructor.firstName} ${instructor.lastName}`,
+                        status: instructor.status
                       }))}
                       value={filters.instructorId}
                       onValueChange={(value) => setFilters(prev => ({ ...prev, instructorId: value }))}
@@ -1897,7 +1900,15 @@ export default function FlightLogs() {
                                 
                                 {/* Column 7: Name PIC */}
                                 <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
-                                  {getPICDisplayName(log)}
+                                  <span className={cn(
+                                    // Check if the PIC is inactive/suspended
+                                    (viewMode === 'company' && log.instructor && log.instructor.status && log.instructor.status !== 'ACTIVE') ||
+                                    (viewMode === 'company' && !log.instructor && log.pilot && log.pilot.status && log.pilot.status !== 'ACTIVE') ||
+                                    (viewMode !== 'company' && log.pilot && log.pilot.status && log.pilot.status !== 'ACTIVE')
+                                      ? "text-gray-400" : ""
+                                  )}>
+                                    {getPICDisplayName(log)}
+                                  </span>
                                 </TableCell>
                                 
                                 {/* Column 8: Takeoffs */}
@@ -1967,9 +1978,13 @@ export default function FlightLogs() {
                                       <div>Hobbs: {log.departureHobbs.toFixed(1)} → {log.arrivalHobbs.toFixed(1)}</div>
                                     )}
                                     {log.instructor && (
-                                      <div>Student: {log.pilot?.firstName && log.pilot?.lastName ? 
-                                        `${log.pilot.firstName} ${log.pilot.lastName}` : 
-                                        log.pilotId || 'Unknown'}</div>
+                                      <div>Student: <span className={cn(
+                                        log.pilot?.status && log.pilot.status !== 'ACTIVE' ? "text-gray-400" : ""
+                                      )}>
+                                        {log.pilot?.firstName && log.pilot?.lastName ? 
+                                          `${log.pilot.firstName} ${log.pilot.lastName}` : 
+                                          log.pilotId || 'Unknown'}
+                                      </span></div>
                                     )}
                                   </div>
                                 </TableCell>
@@ -2133,16 +2148,18 @@ export default function FlightLogs() {
                     <div className="space-y-2">
                       {shouldShowPilotSelection() && (
                         <Combobox
-                          options={pilots.map((pilot) => ({
-                            value: pilot.id,
-                            label: `${pilot.firstName} ${pilot.lastName}`,
-                            searchText: `${pilot.firstName} ${pilot.lastName}`
-                          }))}
+                          options={pilots
+                            .filter((pilot) => !pilot.status || pilot.status === 'ACTIVE')
+                            .map((pilot) => ({
+                              value: pilot.id,
+                              label: `${pilot.firstName} ${pilot.lastName}`,
+                              searchText: `${pilot.firstName} ${pilot.lastName}`
+                            }))}
                           value={form.watch("pilotId")}
                           onValueChange={(value) => form.setValue("pilotId", value)}
                           placeholder="Pilot/Student *"
                           searchPlaceholder="Search by name..."
-                          emptyText="No pilots or students found."
+                          emptyText="No active pilots or students found."
                           searchFunction={(option, searchValue) => {
                             return option.searchText?.toLowerCase().includes(searchValue.toLowerCase()) || false;
                           }}
@@ -2220,16 +2237,18 @@ export default function FlightLogs() {
 
                     <div className="space-y-2">
                       <Combobox
-                        options={instructors.map((instructor) => ({
-                          value: instructor.id,
-                          label: `${instructor.firstName} ${instructor.lastName}`,
-                          searchText: `${instructor.firstName} ${instructor.lastName}`
-                        }))}
+                        options={instructors
+                          .filter((instructor) => !instructor.status || instructor.status === 'ACTIVE')
+                          .map((instructor) => ({
+                            value: instructor.id,
+                            label: `${instructor.firstName} ${instructor.lastName}`,
+                            searchText: `${instructor.firstName} ${instructor.lastName}`
+                          }))}
                         value={form.watch("instructorId") || ""}
                         onValueChange={(value) => form.setValue("instructorId", value || undefined)}
                         placeholder="Instructor (Optional)"
                         searchPlaceholder="Search by name..."
-                        emptyText={instructors.length === 0 ? "No instructors available. This field is optional." : "No instructors found."}
+                        emptyText={instructors.filter(i => !i.status || i.status === 'ACTIVE').length === 0 ? "No active instructors available. This field is optional." : "No active instructors found."}
                         searchFunction={(option, searchValue) => {
                           return option.searchText?.toLowerCase().includes(searchValue.toLowerCase()) || false;
                         }}

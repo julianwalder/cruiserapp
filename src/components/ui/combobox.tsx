@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/popover"
 
 interface ComboboxProps {
-  options: { value: string; label: string; searchText?: string }[]
+  options: { value: string; label: string; searchText?: string; status?: string }[]
   value?: string
   onValueChange: (value: string) => void
   placeholder?: string
@@ -28,7 +28,7 @@ interface ComboboxProps {
   emptyText?: string
   disabled?: boolean
   className?: string
-  searchFunction?: (option: { value: string; label: string; searchText?: string }, searchValue: string) => boolean
+  searchFunction?: (option: { value: string; label: string; searchText?: string; status?: string }, searchValue: string) => boolean
 }
 
 export function Combobox({
@@ -140,7 +140,11 @@ export function Combobox({
                           value === option.value ? "opacity-100" : "opacity-0"
                         )}
                       />
-                      {option.label}
+                      <span className={cn(
+                        option.status && option.status !== 'ACTIVE' ? "text-gray-400" : ""
+                      )}>
+                        {option.label}
+                      </span>
                     </CommandItem>
                   ))}
               </CommandGroup>
