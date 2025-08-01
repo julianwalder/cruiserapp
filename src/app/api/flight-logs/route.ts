@@ -59,6 +59,9 @@ export async function GET(request: NextRequest) {
     const flightType = searchParams.get('flightType') || '';
     const pilotId = searchParams.get('pilotId') || '';
     const aircraftId = searchParams.get('aircraftId') || '';
+    const instructorId = searchParams.get('instructorId') || '';
+    const departureAirfieldId = searchParams.get('departureAirfieldId') || '';
+    const arrivalAirfieldId = searchParams.get('arrivalAirfieldId') || '';
     const dateFrom = searchParams.get('dateFrom') || '';
     const dateTo = searchParams.get('dateTo') || '';
     const viewMode = searchParams.get('viewMode') || 'personal';
@@ -137,6 +140,18 @@ export async function GET(request: NextRequest) {
 
     if (aircraftId) {
       query = query.eq('aircraftId', aircraftId);
+    }
+
+    if (instructorId) {
+      query = query.eq('instructorId', instructorId);
+    }
+
+    if (departureAirfieldId) {
+      query = query.eq('departureAirfieldId', departureAirfieldId);
+    }
+
+    if (arrivalAirfieldId) {
+      query = query.eq('arrivalAirfieldId', arrivalAirfieldId);
     }
 
     if (dateFrom) {

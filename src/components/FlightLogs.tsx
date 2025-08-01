@@ -397,7 +397,6 @@ export default function FlightLogs() {
   const [showPPLView, setShowPPLView] = useState(true);
   const [viewMode, setViewMode] = useState<"personal" | "company">("company");
   const [activeTab, setActiveTab] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -405,6 +404,18 @@ export default function FlightLogs() {
     total: 0,
     pages: 1,
   });
+
+  // Filter state
+  const [filters, setFilters] = useState({
+    aircraftId: '',
+    pilotId: '',
+    instructorId: '',
+    departureAirfieldId: '',
+    arrivalAirfieldId: '',
+    dateFrom: '',
+    dateTo: '',
+  });
+  const [showFilters, setShowFilters] = useState(false);
 
   console.log('🔍 Component state initialized');
   
@@ -607,7 +618,6 @@ export default function FlightLogs() {
       currentUser: !!currentUser, 
       page: pagination.page, 
       limit: pagination.limit, 
-      searchTerm, 
       viewMode 
     });
     
@@ -639,19 +649,19 @@ export default function FlightLogs() {
     } else {
       console.log('🔍 No current user, skipping fetchData');
     }
-  }, [currentUser, pagination.page, pagination.limit, searchTerm, viewMode]);
+  }, [currentUser, pagination.page, pagination.limit, viewMode]);
 
-  // Update flight logs when pagination, search, activeTab, or viewMode changes
+  // Update flight logs when pagination, activeTab, viewMode, or filters change
   useEffect(() => {
     if (!loading) {
       fetchFlightLogs();
     }
-  }, [pagination.page, pagination.limit, searchTerm, activeTab, viewMode]);
+  }, [pagination.page, pagination.limit, activeTab, viewMode, filters]);
 
-  // Reset to first page when search term, activeTab, or viewMode changes
+  // Reset to first page when activeTab, viewMode, or filters change
   useEffect(() => {
     setPagination(prev => ({ ...prev, page: 1 }));
-  }, [searchTerm, activeTab, viewMode]);
+  }, [activeTab, viewMode, filters]);
 
   const fetchFlightLogs = async () => {
     try {
@@ -670,9 +680,7 @@ export default function FlightLogs() {
         limit: pagination.limit.toString(),
       });
 
-      if (searchTerm) {
-        params.append('search', searchTerm);
-      }
+
 
       // Add flight type filter if not "all"
       if (activeTab !== "all") {
@@ -681,6 +689,29 @@ export default function FlightLogs() {
 
       // Add view mode filter
       params.append('viewMode', viewMode);
+
+      // Add filter parameters
+      if (filters.aircraftId) {
+        params.append('aircraftId', filters.aircraftId);
+      }
+      if (filters.pilotId) {
+        params.append('pilotId', filters.pilotId);
+      }
+      if (filters.instructorId) {
+        params.append('instructorId', filters.instructorId);
+      }
+      if (filters.departureAirfieldId) {
+        params.append('departureAirfieldId', filters.departureAirfieldId);
+      }
+      if (filters.arrivalAirfieldId) {
+        params.append('arrivalAirfieldId', filters.arrivalAirfieldId);
+      }
+      if (filters.dateFrom) {
+        params.append('dateFrom', filters.dateFrom);
+      }
+      if (filters.dateTo) {
+        params.append('dateTo', filters.dateTo);
+      }
 
       const url = `/api/flight-logs?${params}`;
       console.log('🔍 Making API call to:', url);
@@ -774,12 +805,12 @@ export default function FlightLogs() {
       const pilotMap = new Map();
       
       // Add pilots first
-      (pilotsData.users || []).forEach(pilot => {
+      (pilotsData.users || []).forEach((pilot: User) => {
         pilotMap.set(pilot.id, pilot);
       });
       
       // Add students, but don't overwrite if already exists (pilots take precedence)
-      (studentsData.users || []).forEach(student => {
+      (studentsData.users || []).forEach((student: User) => {
         if (!pilotMap.has(student.id)) {
           pilotMap.set(student.id, student);
         }
@@ -1051,9 +1082,7 @@ export default function FlightLogs() {
     setPagination(prev => ({ ...prev, limit: newPageSize, page: 1 })); // Reset to first page when changing page size
   };
 
-  const handleSearch = (value: string) => {
-    setSearchTerm(value);
-  };
+
 
   // Calculate pagination info
   const startRecord = (pagination.page - 1) * pagination.limit + 1;
@@ -1367,6 +1396,15 @@ export default function FlightLogs() {
                   </TabsList>
                 </Tabs>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowFilters(!showFilters)}
+                className="flex items-center space-x-2"
+              >
+                <Filter className="h-4 w-4" />
+                <span>Filters</span>
+              </Button>
             </div>
             <div className="flex items-center space-x-2 order-1 sm:order-2">
               <Button variant="outline" size="sm">
@@ -1405,17 +1443,159 @@ export default function FlightLogs() {
         {/* Content */}
         {!loading && !error && (
           <>
-            {/* Search and Filters */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center space-x-2 w-full sm:w-auto">
-                <Input
-                  placeholder="Search flight logs..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full sm:w-64"
-                />
+
+
+            {/* Filters Panel */}
+            {showFilters && (
+              <div className="bg-muted/50 rounded-lg p-4 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {/* Aircraft Filter */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Aircraft</Label>
+                    <Combobox
+                      options={aircraft.map((ac) => ({
+                        value: ac.id,
+                        label: ac.callSign
+                      }))}
+                      value={filters.aircraftId}
+                      onValueChange={(value) => setFilters(prev => ({ ...prev, aircraftId: value }))}
+                      placeholder="All Aircraft"
+                      searchPlaceholder="Search aircraft..."
+                      emptyText="No aircraft found."
+                    />
+                  </div>
+
+                  {/* Pilot/Student Filter */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Pilot/Student</Label>
+                    <Combobox
+                      options={pilots.map((pilot) => ({
+                        value: pilot.id,
+                        label: `${pilot.firstName} ${pilot.lastName}`,
+                        searchText: `${pilot.firstName} ${pilot.lastName}`
+                      }))}
+                      value={filters.pilotId}
+                      onValueChange={(value) => setFilters(prev => ({ ...prev, pilotId: value }))}
+                      placeholder="All Pilots/Students"
+                      searchPlaceholder="Search by name..."
+                      emptyText="No pilots/students found."
+                      searchFunction={(option, searchValue) => {
+                        return option.searchText?.toLowerCase().includes(searchValue.toLowerCase()) || false;
+                      }}
+                    />
+                  </div>
+
+                  {/* Instructor Filter */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Instructor</Label>
+                    <Combobox
+                      options={instructors.map((instructor) => ({
+                        value: instructor.id,
+                        label: `${instructor.firstName} ${instructor.lastName}`,
+                        searchText: `${instructor.firstName} ${instructor.lastName}`
+                      }))}
+                      value={filters.instructorId}
+                      onValueChange={(value) => setFilters(prev => ({ ...prev, instructorId: value }))}
+                      placeholder="All Instructors"
+                      searchPlaceholder="Search by name..."
+                      emptyText="No instructors found."
+                      searchFunction={(option, searchValue) => {
+                        return option.searchText?.toLowerCase().includes(searchValue.toLowerCase()) || false;
+                      }}
+                    />
+                  </div>
+
+                  {/* Departure Airfield Filter */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Departure Airfield</Label>
+                    <Combobox
+                      options={airfields.map((airfield) => ({
+                        value: airfield.id,
+                        label: `${airfield.name} (${airfield.code})`
+                      }))}
+                      value={filters.departureAirfieldId}
+                      onValueChange={(value) => setFilters(prev => ({ ...prev, departureAirfieldId: value }))}
+                      placeholder="All Departure Airfields"
+                      searchPlaceholder="Search by name or code..."
+                      emptyText="No airfields found."
+                    />
+                  </div>
+
+                  {/* Arrival Airfield Filter */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Arrival Airfield</Label>
+                    <Combobox
+                      options={airfields.map((airfield) => ({
+                        value: airfield.id,
+                        label: `${airfield.name} (${airfield.code})`
+                      }))}
+                      value={filters.arrivalAirfieldId}
+                      onValueChange={(value) => setFilters(prev => ({ ...prev, arrivalAirfieldId: value }))}
+                      placeholder="All Arrival Airfields"
+                      searchPlaceholder="Search by name or code..."
+                      emptyText="No airfields found."
+                    />
+                  </div>
+
+                  {/* Date Range Filters */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Date From</Label>
+                    <DatePicker
+                      value={filters.dateFrom ? new Date(filters.dateFrom) : undefined}
+                      onChange={(date) => {
+                        if (date) {
+                          setFilters(prev => ({ ...prev, dateFrom: date.toISOString().split('T')[0] }));
+                        } else {
+                          setFilters(prev => ({ ...prev, dateFrom: '' }));
+                        }
+                      }}
+                      placeholder="Start Date"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Date To</Label>
+                    <DatePicker
+                      value={filters.dateTo ? new Date(filters.dateTo) : undefined}
+                      onChange={(date) => {
+                        if (date) {
+                          setFilters(prev => ({ ...prev, dateTo: date.toISOString().split('T')[0] }));
+                        } else {
+                          setFilters(prev => ({ ...prev, dateTo: '' }));
+                        }
+                      }}
+                      placeholder="End Date"
+                    />
+                  </div>
+                </div>
+
+                {/* Filter Actions */}
+                <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
+                  <div className="text-sm text-muted-foreground">
+                    {Object.values(filters).some(value => value !== '') ? 'Filters applied' : 'No filters applied'}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setFilters({
+                          aircraftId: '',
+                          pilotId: '',
+                          instructorId: '',
+                          departureAirfieldId: '',
+                          arrivalAirfieldId: '',
+                          dateFrom: '',
+                          dateTo: '',
+                        });
+                      }}
+                    >
+                      Clear All
+                    </Button>
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab}>
