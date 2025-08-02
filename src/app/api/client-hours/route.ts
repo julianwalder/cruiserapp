@@ -211,15 +211,9 @@ export async function GET(request: NextRequest) {
       .select(`
         is_ppl,
         ppl_hours_paid,
-        invoice_clients (
+        invoice_clients!inner (
           user_id,
           email
-        ),
-        users!invoice_clients_user_id_fkey (
-          id,
-          email,
-          firstName,
-          lastName
         )
       `)
       .eq('is_ppl', true);
@@ -228,28 +222,50 @@ export async function GET(request: NextRequest) {
       console.log('❌ Error fetching PPL invoices:', pplError.message);
     } else {
       console.log(`✅ Found ${pplInvoices?.length || 0} PPL course invoices`);
-      pplInvoices?.forEach(invoice => {
-        const user = Array.isArray(invoice.users) ? invoice.users[0] : invoice.users;
-        if (user) {
-          console.log(`   - ${user?.email} (${user?.firstName} ${user?.lastName}): ${invoice.ppl_hours_paid} hours`);
+      
+      // Get user IDs from PPL invoices
+      const pplUserIds = pplInvoices?.map(invoice => invoice.invoice_clients?.[0]?.user_id).filter(Boolean) || [];
+      
+      // Fetch user data for PPL course users
+      if (pplUserIds.length > 0) {
+        const { data: pplUsers, error: pplUsersError } = await supabase
+          .from('users')
+          .select('id, email, firstName, lastName')
+          .in('id', pplUserIds);
+        
+        if (pplUsersError) {
+          console.log('❌ Error fetching PPL users:', pplUsersError.message);
+        } else {
+          // Create user lookup map
+          const pplUserMap = new Map(pplUsers?.map(user => [user.id, user]) || []);
+          
+          // Log PPL course information
+          pplInvoices?.forEach(invoice => {
+            const client = invoice.invoice_clients?.[0];
+            const user = client?.user_id ? pplUserMap.get(client.user_id) : null;
+            if (user) {
+              console.log(`   - ${user.email} (${user.firstName} ${user.lastName}): ${invoice.ppl_hours_paid} hours`);
+            }
+          });
+          
+          // Add PPL course users to client map if they're not already included
+          pplInvoices?.forEach(invoice => {
+            const client = invoice.invoice_clients?.[0];
+            const user = client?.user_id ? pplUserMap.get(client.user_id) : null;
+            if (user && !clientMap.has(user.email)) {
+              clientMap.set(user.email, {
+                id: user.email,
+                name: `${user.firstName} ${user.lastName}`,
+                email: user.email,
+                user_id: user.id,
+                company: null
+              });
+              console.log(`➕ Added PPL course user to client map: ${user.email}`);
+            }
+          });
         }
-      });
-    }
-    
-    // Add PPL course users to client map if they're not already included
-    pplInvoices?.forEach(invoice => {
-      const user = Array.isArray(invoice.users) ? invoice.users[0] : invoice.users;
-      if (user && !clientMap.has(user.email)) {
-        clientMap.set(user.email, {
-          id: user.email,
-          name: `${user.firstName} ${user.lastName}`,
-          email: user.email,
-          user_id: user.id,
-          company: null
-        });
-        console.log(`➕ Added PPL course user to client map: ${user.email}`);
       }
-    });
+    }
 
     for (const invoice of invoices || []) {
       try {

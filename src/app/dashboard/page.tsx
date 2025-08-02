@@ -14,7 +14,7 @@ import Reports from '@/components/Reports';
 import Settings from '@/components/Settings';
 import SmartBillInvoices from '@/components/SmartBillInvoices';
 import ImportedXMLInvoices from '@/components/ImportedXMLInvoices';
-import ClientHours from '@/components/ClientHours';
+
 import SmartBillStatus from '@/components/SmartBillStatus';
 import PilotOverview from '@/components/PilotOverview';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -187,8 +187,7 @@ function DashboardContent() {
         return 'Scheduling';
       case 'accounting':
         return 'Accounting';
-      case 'client-hours':
-        return 'Packages';
+
       case 'reports':
         return 'Reports';
       case 'settings':
@@ -233,6 +232,10 @@ function DashboardContent() {
 
   const canAccessAccounting = () => {
     return hasRole('SUPER_ADMIN') || hasRole('ADMIN');
+  };
+
+  const canAccessAirfields = () => {
+    return true; // Allow all users to access airfields
   };
 
   const isPilotOrStudent = () => {
@@ -396,14 +399,7 @@ function DashboardContent() {
                       <span>View Airfields</span>
                     </Button>
                     
-                    <Button 
-                      variant="outline" 
-                      className="h-20 flex flex-col items-center justify-center space-y-2 hover:bg-accent"
-                      onClick={() => handleTabChange('client-hours')}
-                    >
-                      <Clock className="h-6 w-6" />
-                      <span>Client Hours</span>
-                    </Button>
+
                     
                     <Button 
                       variant="outline" 
@@ -445,7 +441,16 @@ function DashboardContent() {
           )}
 
           {activeTab === 'users' && <UserManagement />}
-          {activeTab === 'airfields' && <AirfieldsManagement />}
+          {activeTab === 'airfields' && canAccessAirfields() && <AirfieldsManagement />}
+          {activeTab === 'airfields' && !canAccessAirfields() && (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <MapPin className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-card-foreground mb-2">Access Denied</h3>
+                <p className="text-muted-foreground">You don't have permission to access airfield management.</p>
+              </div>
+            </div>
+          )}
           {activeTab === 'operational-areas' && <OperationalAreaManagement />}
           {activeTab === 'role-management' && <RoleManagement />}
           {activeTab === 'base-management' && canAccessBaseManagement() && (
@@ -595,7 +600,7 @@ function DashboardContent() {
               </div>
             </div>
           )}
-          {activeTab === 'client-hours' && <ClientHours />}
+
           {activeTab === 'reports' && canAccessReports() && <Reports />}
           {activeTab === 'reports' && !canAccessReports() && (
             <div className="flex items-center justify-center h-full">

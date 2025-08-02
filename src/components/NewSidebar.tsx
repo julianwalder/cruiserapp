@@ -56,67 +56,74 @@ const navigationItems = [
   },
   {
     title: 'Users',
-    url: '/dashboard?tab=users',
+    url: '/users',
     icon: Users,
     description: 'Manage users and roles'
   },
   {
     title: 'Airfields',
-    url: '/dashboard?tab=airfields',
+    url: '/airfields',
     icon: MapPin,
     description: 'Airfield management'
   },
   {
     title: 'Bases',
-    url: '/dashboard?tab=base-management',
+    url: '/bases',
     icon: Shield,
     description: 'Base operations'
   },
   {
     title: 'Fleet',
-    url: '/dashboard?tab=fleet',
+    url: '/fleet',
     icon: Plane,
     description: 'Aircraft fleet management'
   },
   {
     title: 'Flight Logs',
-    url: '/dashboard?tab=flight-logs',
+    url: '/flight-logs',
     icon: Clock,
     description: 'View flight logs'
   },
   {
     title: 'Scheduling',
-    url: '/dashboard?tab=scheduling',
+    url: '/scheduling',
     icon: Calendar,
     description: 'Flight scheduling'
   },
   {
     title: 'Accounting',
-    url: '/dashboard?tab=accounting',
+    url: '/accounting',
     icon: DollarSign,
     description: 'Financial management'
   },
   {
     title: 'Packages',
-    url: '/dashboard?tab=client-hours',
+    url: '/packages',
+    icon: Clock,
+    description: 'Hour packages and usage tracking'
+  },
+  {
+    title: 'Usage',
+    url: '/usage',
     icon: Clock,
     description: 'Hour packages and usage tracking'
   },
   {
     title: 'Reports',
-    url: '/dashboard?tab=reports',
+    url: '/reports',
     icon: FileText,
     description: 'Analytics and reports'
   },
   {
     title: 'Settings',
-    url: '/dashboard?tab=settings',
+    url: '/settings',
     icon: Settings,
     description: 'System configuration'
   },
 ];
 
 export function NewSidebar({ user, onLogout }: NewSidebarProps) {
+  // Debug log removed - user authentication is working correctly
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -195,25 +202,51 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
     return hasRole('SUPER_ADMIN') || hasRole('ADMIN');
   };
 
+  const canAccessAirfields = () => {
+    return true; // Allow all users to access airfields
+  };
+
+  const canAccessUsage = () => {
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT') || hasRole('STUDENT');
+  };
+
   // Filter navigation items based on user permissions
   const filteredNavigationItems = navigationItems.filter(item => {
+    let hasAccess = true;
     switch (item.title) {
       case 'Users':
-        return canAccessUsers();
+        hasAccess = canAccessUsers();
+        break;
+      case 'Airfields':
+        hasAccess = canAccessAirfields();
+        break;
       case 'Bases':
-        return canAccessBaseManagement();
+        hasAccess = canAccessBaseManagement();
+        break;
       case 'Fleet':
-        return canAccessFleet();
+        hasAccess = canAccessFleet();
+        break;
       case 'Settings':
-        return canAccessSettings();
+        hasAccess = canAccessSettings();
+        break;
       case 'Reports':
-        return canAccessReports();
+        hasAccess = canAccessReports();
+        break;
       case 'Accounting':
-        return canAccessAccounting();
+        hasAccess = canAccessAccounting();
+        break;
+      case 'Usage':
+        hasAccess = canAccessUsage();
+        break;
       default:
-        return true; // Show other items to all users
+        hasAccess = true; // Show other items to all users
     }
+    
+            // Debug log removed - navigation filtering is working correctly
+    return hasAccess;
   });
+
+  // Debug logs removed - navigation filtering is working correctly
 
   const isActive = (url: string) => {
     if (url === '/dashboard') {
@@ -338,8 +371,10 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
           <div className="p-4">
             
             <nav className="space-y-1">
+
               {filteredNavigationItems.map((item) => {
                 const active = isActive(item.url);
+                // Debug log removed - navigation rendering is working correctly
                 return (
                   <Button
                     key={item.title}

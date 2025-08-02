@@ -3,26 +3,26 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { NewSidebar } from '@/components/NewSidebar';
-import HourPackages from '@/components/HourPackages';
+import FlightLogs from '@/components/FlightLogs';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
-export default function PackagesPage() {
+export default function FlightLogsPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchUser = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          router.push('/login');
-          return;
-        }
-        const response = await fetch('/api/auth/me', {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+      const response = await fetch('/api/auth/me', {
         headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) {
+      });
+      if (!response.ok) {
         router.push('/login');
         return;
       }
@@ -58,11 +58,11 @@ export default function PackagesPage() {
             <div className="flex items-center space-x-4">
               <div>
                 <h1 className="text-xl sm:text-2xl font-semibold text-card-foreground">
-                  Hour Packages
-            </h1>
-          </div>
-        </div>
-
+                  Flight Logs
+                </h1>
+              </div>
+            </div>
+            
             <div className="flex items-center space-x-4">
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-medium text-card-foreground">
@@ -76,12 +76,12 @@ export default function PackagesPage() {
                 </span>
               </div>
               <ThemeToggle />
-              </div>
-              </div>
+            </div>
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-white dark:bg-gray-900">
-          <HourPackages />
+          <FlightLogs />
         </main>
       </div>
     </div>

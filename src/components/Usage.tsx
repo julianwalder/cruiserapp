@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +34,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import PilotOverview from './PilotOverview';
 import {
   Tooltip,
   TooltipContent,
@@ -134,7 +136,7 @@ interface ClientHoursData {
   recentFlights: FlightLog[];
 }
 
-export default function ClientHours() {
+export default function Usage() {
   const [clients, setClients] = useState<ClientHoursData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -146,13 +148,14 @@ export default function ClientHours() {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderPackage, setOrderPackage] = useState<{ hours: number; price: number } | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
-  const [currentUserRole, setCurrentUserRole] = useState<string>('');
+  const [currentUserRoles, setCurrentUserRoles] = useState<string[]>([]);
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 10,
     total: 0,
     pages: 0
   });
+  const [viewMode, setViewMode] = useState<'personal' | 'company'>('company');
 
   const fetchCurrentUser = async () => {
     try {
@@ -167,10 +170,17 @@ export default function ClientHours() {
         const userData = await response.json();
         console.log('🔍 User data from /api/auth/me:', userData);
         setCurrentUserEmail(userData.email);
-        // Use the first role from the roles array, or fallback to userRoles
-        const userRole = userData.roles?.[0] || userData.userRoles?.[0]?.roles?.name || '';
-        console.log('🔍 Extracted user role:', userRole);
-        setCurrentUserRole(userRole);
+        
+        // Extract all user roles
+        let roles: string[] = [];
+        if (userData.roles && Array.isArray(userData.roles)) {
+          roles = userData.roles;
+        } else if (userData.userRoles && Array.isArray(userData.userRoles)) {
+          roles = userData.userRoles.map((ur: any) => ur.roles?.name).filter(Boolean);
+        }
+        
+        console.log('🔍 Extracted user roles:', roles);
+        setCurrentUserRoles(roles);
       }
     } catch (error) {
       console.error('Failed to fetch current user:', error);
@@ -190,14 +200,14 @@ export default function ClientHours() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch client hours data');
+        throw new Error('Failed to fetch usage data');
       }
 
       const data = await response.json();
       setClients(data.clients || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
-      toast.error('Failed to load client hours data');
+      toast.error('Failed to load usage data');
     } finally {
       setLoading(false);
     }
@@ -208,8 +218,31 @@ export default function ClientHours() {
     fetchClientHours();
   }, []);
 
+  // Helper functions for role-based display
+  const isPilotOrStudent = () => {
+    // Only PILOT and STUDENT should have the simplified view
+    // BASE_MANAGER, ADMIN, SUPER_ADMIN should have full admin functionality
+    const hasAdminRole = currentUserRoles.some(role => 
+      role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'BASE_MANAGER' || role === 'INSTRUCTOR'
+    );
+    const isPilotStudent = !hasAdminRole && currentUserRoles.some(role => role === 'PILOT' || role === 'STUDENT');
+    console.log('🔍 Role check:', { currentUserRoles, hasAdminRole, isPilotStudent });
+    return isPilotStudent;
+  };
+
+  const isAdminOrManager = () => {
+    return currentUserRoles.some(role => 
+      role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'BASE_MANAGER' || role === 'INSTRUCTOR'
+    );
+  };
+
   // Filter clients by search term and status
   const filteredClients = clients.filter(client => {
+    // For personal mode (admin/manager users), only show current user's data
+    if (isAdminOrManager() && viewMode === 'personal') {
+      return currentUserEmail && client.client.email === currentUserEmail;
+    }
+    
     const matchesSearch = !searchTerm || 
       client.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       client.client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -240,13 +273,6 @@ export default function ClientHours() {
       pages: Math.ceil(filteredClients.length / prev.limit)
     }));
   }, [filteredClients.length]);
-
-  // Helper functions for role-based display
-  const isPilotOrStudent = () => {
-    const isPilotStudent = currentUserRole === 'PILOT' || currentUserRole === 'STUDENT';
-    console.log('🔍 Role check:', { currentUserRole, isPilotStudent });
-    return isPilotStudent;
-  };
 
   // Reset to first page when filters change
   useEffect(() => {
@@ -315,12 +341,12 @@ export default function ClientHours() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `client-hours-report-${clientData.client.name.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    a.download = `usage-report-${clientData.client.name.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
     
     toast.success('Report exported successfully!', {
-      description: `Client hours report for ${clientData.client.name} has been downloaded.`,
+      description: `Usage report for ${clientData.client.name} has been downloaded.`,
       duration: 3000,
     });
   };
@@ -404,7 +430,29 @@ export default function ClientHours() {
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center gap-2">
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-4">
+                {/* View Mode Toggle for Admin/Manager with Pilot role */}
+                {isAdminOrManager() && (
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <h3 className="text-sm font-medium text-card-foreground">
+                        {viewMode === 'personal' ? 'Personal Usage' : 'Company Usage'}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {viewMode === 'personal' 
+                          ? 'Your personal hour packages and usage' 
+                          : 'Manage all clients\' hour packages and usage'
+                        }
+                      </p>
+                    </div>
+                    <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'personal' | 'company')}>
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="personal" className="text-xs">Personal</TabsTrigger>
+                        <TabsTrigger value="company" className="text-xs">Company</TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </div>
+                )}
                 <Button
                   onClick={fetchClientHours}
                   disabled={loading}
@@ -416,11 +464,10 @@ export default function ClientHours() {
                 </Button>
               </div>
             </CardTitle>
-
           </CardHeader>
           <CardContent>
-            {/* Filters - Hidden for Pilot/Student view */}
-            {!isPilotOrStudent() && (
+            {/* Filters - Hidden for Pilot/Student view and Personal mode */}
+            {!isPilotOrStudent() && viewMode === 'company' && (
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <div className="space-y-2">
                   <Label htmlFor="search">Search Clients</Label>
@@ -487,8 +534,8 @@ export default function ClientHours() {
               </Alert>
             )}
 
-            {/* Summary Stats - Hidden for Pilot/Student view */}
-            {filteredClients.length > 0 && !isPilotOrStudent() && (
+            {/* Summary Stats - Hidden for Pilot/Student view and Personal mode */}
+            {filteredClients.length > 0 && !isPilotOrStudent() && viewMode === 'company' && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <Card>
                   <CardContent className="p-4">
@@ -532,16 +579,16 @@ export default function ClientHours() {
             {loading ? (
               <div className="flex items-center justify-center py-8">
                 <RefreshCw className="h-6 w-6 animate-spin" />
-                <span className="ml-2">Loading client hours data...</span>
+                <span className="ml-2">Loading usage data...</span>
               </div>
             ) : filteredClients.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 {clients.length === 0 ? (
                   <div className="space-y-4">
                     <Clock className="h-12 w-12 mx-auto text-muted-foreground" />
-                    <h3 className="text-lg font-medium">No Client Hours Data</h3>
+                    <h3 className="text-lg font-medium">No Usage Data</h3>
                     <p className="text-sm">
-                      No client hours data found. This could be because:
+                      No usage data found. This could be because:
                     </p>
                     <ul className="text-sm space-y-1">
                       <li>• No paid invoices with flight hours have been imported</li>
@@ -554,7 +601,7 @@ export default function ClientHours() {
                   </div>
                 ) : 'No clients match your current filters'}
               </div>
-            ) : (
+            ) : (isPilotOrStudent() || viewMode === 'company') && (
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
@@ -573,9 +620,9 @@ export default function ClientHours() {
                       <TableRow 
                         key={clientData.client.id}
                         className={cn(
-                          !isPilotOrStudent() && "cursor-pointer hover:bg-muted/50 transition-colors"
+                          (!isPilotOrStudent() && viewMode === 'company') && "cursor-pointer hover:bg-muted/50 transition-colors"
                         )}
-                        onClick={!isPilotOrStudent() ? () => handleViewDetails(clientData) : undefined}
+                        onClick={(!isPilotOrStudent() && viewMode === 'company') ? () => handleViewDetails(clientData) : undefined}
                       >
                         <TableCell>
                           <div>
@@ -663,7 +710,7 @@ export default function ClientHours() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              {!isPilotOrStudent() && (
+                              {(!isPilotOrStudent() && viewMode === 'company') && (
                                 <>
                                   <DropdownMenuItem onClick={() => handleViewDetails(clientData)}>
                                     <Eye className="h-4 w-4 mr-2" />
@@ -691,9 +738,310 @@ export default function ClientHours() {
               </div>
             )}
 
+            {/* Personal View for Admin/Manager with Pilot role */}
+            {isAdminOrManager() && viewMode === 'personal' && (
+              <div className="space-y-6">
+                {/* Personal usage table - show only current user's data */}
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Client</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Bought Hours</TableHead>
+                        <TableHead className="text-right">Used Hours</TableHead>
+                        <TableHead className="text-right">Remaining</TableHead>
+                        <TableHead className="text-center">Progress</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredClients.length > 0 ? (
+                        filteredClients.map((clientData) => (
+                          <TableRow key={clientData.client.id}>
+                            <TableCell>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-medium">{clientData.client.name}</p>
+                                  {clientData.client.company && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Badge variant="outline" className="text-xs">
+                                          <Building2 className="h-3 w-3 mr-1" />
+                                          Company Billing
+                                        </Badge>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>Billed by: {clientData.client.company.name}</p>
+                                        <p className="text-muted-foreground text-xs">Company billing</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                </div>
+                                <p className="text-sm text-muted-foreground">{clientData.client.email}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                {getStatusBadge(clientData.totalRemainingHours)}
+                                {clientData.packages.length > 1 && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                                        FIFO
+                                      </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Multiple packages - FIFO method applied</p>
+                                      <p className="text-xs text-muted-foreground">Oldest packages consumed first</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              {clientData.totalBoughtHours > 0 ? formatHours(clientData.totalBoughtHours) : '0:00'}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {clientData.totalUsedHours > 0 ? formatHours(clientData.totalUsedHours) : '0:00'}
+                            </TableCell>
+                            <TableCell className="text-right font-medium">
+                              <span className={cn(
+                                clientData.totalRemainingHours <= 0 ? 'text-destructive' : 
+                                clientData.totalRemainingHours <= 5 ? 'text-orange-600' : 'text-green-600'
+                              )}>
+                                {clientData.totalRemainingHours > 0 ? formatHours(clientData.totalRemainingHours) : '0:00'}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="w-full">
+                                    <Progress 
+                                      value={clientData.totalBoughtHours > 0 ? (clientData.totalUsedHours / clientData.totalBoughtHours) * 100 : 0} 
+                                      className={cn(
+                                        "h-2",
+                                        clientData.totalRemainingHours <= 0 ? 'bg-destructive' :
+                                        clientData.totalRemainingHours <= clientData.totalBoughtHours * 0.25 ? 'bg-orange-500' :
+                                        'bg-green-500'
+                                      )}
+                                    />
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{clientData.totalBoughtHours > 0 ? Math.round((clientData.totalUsedHours / clientData.totalBoughtHours) * 100) : 0}% used</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {formatHours(clientData.totalUsedHours)} of {formatHours(clientData.totalBoughtHours)} hours
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-8">
+                            <div className="space-y-4">
+                              <Clock className="h-12 w-12 mx-auto text-muted-foreground" />
+                              <h3 className="text-lg font-medium">No Personal Usage Data</h3>
+                              <p className="text-sm text-muted-foreground">
+                                You don't have any hour packages yet.
+                              </p>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Detailed view for personal data */}
+                {filteredClients.length > 0 && (
+                  <div className="mt-8 space-y-6">
+                    {filteredClients.map((clientData) => (
+                      <div key={clientData.client.id} className="space-y-6">
+                        {/* PPL Course */}
+                        {clientData.pplCourse && (
+                          <div className="bg-background rounded-lg p-6 border">
+                            <h4 className="text-lg font-semibold text-card-foreground mb-4 flex items-center">
+                              <Package className="h-4 w-4 mr-2" />
+                              PPL Course 45 Hours ({clientData.pplCourse.tranches.length} tranches)
+                            </h4>
+                            
+                            {/* PPL Course Summary */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                              <div className="rounded-lg p-4 border">
+                                <h5 className="text-lg font-semibold text-card-foreground mb-2">Total Allocated</h5>
+                                <div className="text-2xl font-bold">{formatHours(clientData.pplCourse.summary.totalHoursAllocated)}</div>
+                                <p className="text-xs text-muted-foreground">Course hours</p>
+                              </div>
+                              
+                              <div className="rounded-lg p-4 border">
+                                <h5 className="text-lg font-semibold text-card-foreground mb-2">Used</h5>
+                                <div className="text-2xl font-bold">{formatHours(clientData.pplCourse.summary.totalHoursUsed)}</div>
+                                <p className="text-xs text-muted-foreground">Flown hours</p>
+                              </div>
+                              
+                              <div className="rounded-lg p-4 border">
+                                <h5 className="text-lg font-semibold text-card-foreground mb-2">Remaining</h5>
+                                <div className={cn(
+                                  "text-2xl font-bold",
+                                  clientData.pplCourse.summary.totalHoursRemaining <= 0 ? 'text-destructive' : 
+                                  clientData.pplCourse.summary.totalHoursRemaining <= 5 ? 'text-orange-600' : 'text-green-600'
+                                )}>
+                                  {formatHours(clientData.pplCourse.summary.totalHoursRemaining)}
+                                </div>
+                                <p className="text-xs text-muted-foreground">Available hours</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Hour Packages */}
+                        <div className="bg-background rounded-lg p-6 border">
+                          <h4 className="text-lg font-semibold text-card-foreground mb-4 flex items-center">
+                            <Package className="h-4 w-4 mr-2" />
+                            Hour Packages ({clientData.packages.length}) - FIFO Method
+                          </h4>
+                          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <p className="text-sm text-blue-800 dark:text-blue-200">
+                              <strong>FIFO Method:</strong> Hours are consumed from the oldest packages first. 
+                              This ensures fair usage tracking and proper package expiration management.
+                            </p>
+                          </div>
+                          {clientData.packages.length === 0 ? (
+                            <p className="text-muted-foreground text-center py-4">No hour packages found</p>
+                          ) : (
+                            <div className="space-y-4">
+                              {clientData.packages
+                                .sort((a, b) => new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime())
+                                .map((pkg, index) => (
+                                  <div key={pkg.id} className={cn(
+                                    "border-2 rounded-lg p-4",
+                                    pkg.remainingHours <= 0 && "opacity-60",
+                                    pkg.remainingHours <= 0 ? "border-gray-800" :
+                                    pkg.remainingHours <= pkg.totalHours * 0.25 ? "border-orange-500" :
+                                    "border-green-500"
+                                  )}>
+                                    <div className="flex items-center justify-between mb-3">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <p className="font-medium text-lg">{formatHours(pkg.totalHours)} Package</p>
+                                          {index === 0 && pkg.usedHours > 0 && (
+                                            <Badge variant="outline" className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                              <Clock className="h-3 w-3 mr-1" />
+                                              First Used
+                                            </Badge>
+                                          )}
+                                          {pkg.remainingHours <= 0 && (
+                                            <Badge variant="outline" className="text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
+                                              Consumed
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        <p className="text-sm text-muted-foreground">
+                                          Purchased: {formatDate(pkg.purchaseDate)}
+                                          {pkg.expiryDate && ` • Expires: ${formatDate(pkg.expiryDate)}`}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                          Invoice: {pkg.invoiceId} • Price: {formatCurrency(pkg.price, pkg.currency)}
+                                        </p>
+                                      </div>
+                                      <Badge className={
+                                        pkg.status === 'in progress' ? 'bg-green-500 hover:bg-green-600 text-white' :
+                                        pkg.status === 'low hours' ? 'bg-orange-500 hover:bg-orange-600 text-white' :
+                                        pkg.status === 'overdrawn' ? 'bg-destructive text-white' :
+                                        'bg-gray-500 hover:bg-gray-600 text-white'
+                                      }>
+                                        {pkg.status}
+                                      </Badge>
+                                    </div>
+                                    
+                                    <div className="space-y-3">
+                                      <div className="grid grid-cols-3 gap-4 text-sm">
+                                        <div className="text-center">
+                                          <p className="font-medium text-green-600 dark:text-green-400">Used</p>
+                                          <p className="text-lg font-bold">{formatHours(pkg.usedHours)}</p>
+                                        </div>
+                                        <div className="text-center">
+                                          <p className="font-medium text-blue-600 dark:text-blue-400">Remaining</p>
+                                          <p className="text-lg font-bold">{formatHours(pkg.remainingHours)}</p>
+                                        </div>
+                                        <div className="text-center">
+                                          <p className="font-medium text-gray-600 dark:text-gray-400">Total</p>
+                                          <p className="text-lg font-bold">{formatHours(pkg.totalHours)}</p>
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="space-y-2">
+                                        <div className="flex justify-between text-xs text-muted-foreground">
+                                          <span>Usage Progress</span>
+                                          <span>{Math.round((pkg.usedHours / pkg.totalHours) * 100)}%</span>
+                                        </div>
+                                        <Progress 
+                                          value={(pkg.usedHours / pkg.totalHours) * 100}
+                                          className={cn(
+                                            pkg.remainingHours <= 0 ? 'bg-green-500' :
+                                            pkg.remainingHours <= pkg.totalHours * 0.25 ? 'bg-orange-500' :
+                                            'bg-green-500'
+                                          )}
+                                        />
+                                      </div>
+                                      
+                                      <div className="flex justify-between text-xs text-muted-foreground">
+                                        <span>Rate: {formatCurrency(pkg.price / pkg.totalHours, pkg.currency)}/hour</span>
+                                        <span>{Math.round((pkg.remainingHours / pkg.totalHours) * 100)}% remaining</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Recent Flights */}
+                        <div className="bg-background rounded-lg p-6 border">
+                          <h4 className="text-lg font-semibold text-card-foreground mb-4 flex items-center">
+                            <TrendingUp className="h-4 w-4 mr-2" />
+                            Recent Flights ({clientData.recentFlights.length})
+                          </h4>
+                          {clientData.recentFlights.length === 0 ? (
+                            <p className="text-muted-foreground text-center py-4">No recent flights found</p>
+                          ) : (
+                            <div className="space-y-3">
+                              {clientData.recentFlights.slice(0, 10).map((flight) => (
+                                <div key={flight.id} className="flex items-center justify-between p-3 border rounded-lg">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-sm font-medium">{formatDate(flight.date)}</p>
+                                      {flight.role && (
+                                        <Badge variant="outline" className="text-xs">
+                                          {flight.role}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                      {flight.flightType}
+                                    </p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-sm font-medium">{formatHours(flight.totalHours)}</p>
+                                    <p className="text-xs text-muted-foreground">hours</p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Pagination */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mt-6 gap-4">
-              {!isPilotOrStudent() && (
+              {(!isPilotOrStudent() && viewMode === 'company') && (
                 <div className="text-sm text-muted-foreground">
                   {pagination.total > 0 ? (
                     <>
@@ -976,7 +1324,7 @@ export default function ClientHours() {
             <div className="flex-shrink-0 pb-2 flex justify-between">
               <DialogTitle className="text-2xl flex items-center gap-2">
                 <User className="h-5 w-5" />
-                Client Hours Details - {selectedClient?.client.name}
+                Usage Details - {selectedClient?.client.name}
               </DialogTitle>
               <Button
                 variant="outline"
@@ -991,7 +1339,7 @@ export default function ClientHours() {
               {selectedClient && (
                 <div className="space-y-8">
                   <div className="text-sm text-muted-foreground mb-4">
-                    Comprehensive view of hour packages, usage, and billing information for {selectedClient?.client.email}
+                    Comprehensive view of usage, packages, and billing information for {selectedClient?.client.email}
                     {selectedClient?.client.company && (
                       <span className="block mt-1 text-blue-600">
                         💼 Company billing: {selectedClient.client.company.name}
