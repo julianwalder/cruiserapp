@@ -96,6 +96,7 @@ interface FlightLog {
   instructorId?: string;
   isFerryFlight?: boolean;
   isDemoFlight?: boolean;
+  isCharterFlight?: boolean;
 }
 
 interface PPLCourseTranche {
@@ -1014,7 +1015,7 @@ export default function Usage() {
                               {clientData.recentFlights.slice(0, 10).map((flight) => (
                                 <div key={flight.id} className={cn(
                                   "flex items-center justify-between p-3 border rounded-lg",
-                                  (flight.isFerryFlight || flight.isDemoFlight) && "bg-gray-50 dark:bg-gray-900/20 opacity-75"
+                                  (flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && "bg-gray-50 dark:bg-gray-900/20 opacity-75"
                                 )}>
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2">
@@ -1034,10 +1035,15 @@ export default function Usage() {
                                           DEMO
                                         </Badge>
                                       )}
+                                      {flight.isCharterFlight && (
+                                        <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-800 dark:text-purple-300">
+                                          CHARTER
+                                        </Badge>
+                                      )}
                                     </div>
                                     <p className="text-xs text-muted-foreground mt-1">
                                       {flight.flightType}
-                                      {(flight.isFerryFlight || flight.isDemoFlight) && (
+                                      {(flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && (
                                         <span className="text-gray-500 ml-1">(excluded from hour calculation)</span>
                                       )}
                                     </p>
@@ -1045,7 +1051,7 @@ export default function Usage() {
                                   <div className="text-right">
                                     <p className={cn(
                                       "text-sm font-medium",
-                                      (flight.isFerryFlight || flight.isDemoFlight) && "text-gray-500 line-through"
+                                      (flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && "text-gray-500 line-through"
                                     )}>
                                       {formatHours(flight.totalHours)}
                                     </p>
@@ -1304,10 +1310,10 @@ export default function Usage() {
                     <TrendingUp className="h-4 w-4 mr-2" />
                     Recent Flights ({clientData.recentFlights.length})
                   </h4>
-                  {clientData.recentFlights.some(flight => flight.isFerryFlight || flight.isDemoFlight) && (
+                  {clientData.recentFlights.some(flight => flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && (
                     <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
                       <p className="text-sm text-blue-800 dark:text-blue-200">
-                        <strong>Note:</strong> FERRY and DEMO flights are excluded from hour calculations and are marked with badges and strikethrough hours.
+                        <strong>Note:</strong> FERRY, DEMO, and CHARTER flights are excluded from hour calculations and are marked with badges and strikethrough hours.
                       </p>
                     </div>
                   )}
@@ -1318,7 +1324,7 @@ export default function Usage() {
                                             {clientData.recentFlights.slice(0, 10).map((flight) => (
                         <div key={flight.id} className={cn(
                           "flex items-center justify-between p-3 border rounded-lg",
-                          (flight.isFerryFlight || flight.isDemoFlight) && "bg-gray-50 dark:bg-gray-900/20 opacity-75"
+                          (flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && "bg-gray-50 dark:bg-gray-900/20 opacity-75"
                         )}>
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
@@ -1338,10 +1344,15 @@ export default function Usage() {
                                   DEMO
                                 </Badge>
                               )}
+                              {flight.isCharterFlight && (
+                                <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-800 dark:text-purple-300">
+                                  CHARTER
+                                </Badge>
+                              )}
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">
                               {flight.flightType}
-                              {(flight.isFerryFlight || flight.isDemoFlight) && (
+                              {(flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && (
                                 <span className="text-gray-500 ml-1">(excluded from hour calculation)</span>
                               )}
                             </p>
@@ -1349,7 +1360,7 @@ export default function Usage() {
                           <div className="text-right">
                             <span className={cn(
                               "text-sm font-medium",
-                              (flight.isFerryFlight || flight.isDemoFlight) && "text-gray-500 line-through"
+                              (flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && "text-gray-500 line-through"
                             )}>
                               {formatHours(flight.totalHours)}
                             </span>
@@ -1676,10 +1687,10 @@ export default function Usage() {
                       <TrendingUp className="h-5 w-5 mr-2" />
                       Recent Flights ({selectedClient.recentFlights.length})
                     </h3>
-                    {selectedClient.recentFlights.some(flight => flight.isFerryFlight || flight.isDemoFlight) && (
+                    {selectedClient.recentFlights.some(flight => flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && (
                       <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
                         <p className="text-sm text-blue-800 dark:text-blue-200">
-                          <strong>Note:</strong> FERRY and DEMO flights are excluded from hour calculations and are marked with badges and strikethrough hours.
+                          <strong>Note:</strong> FERRY, DEMO, and CHARTER flights are excluded from hour calculations and are marked with badges and strikethrough hours.
                         </p>
                       </div>
                     )}
@@ -1690,7 +1701,7 @@ export default function Usage() {
                         {selectedClient.recentFlights.slice(0, 10).map((flight) => (
                           <div key={flight.id} className={cn(
                             "flex items-center justify-between p-3 border rounded-lg bg-background",
-                            (flight.isFerryFlight || flight.isDemoFlight) && "bg-gray-50 dark:bg-gray-900/20 opacity-75"
+                            (flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && "bg-gray-50 dark:bg-gray-900/20 opacity-75"
                           )}>
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
@@ -1710,10 +1721,15 @@ export default function Usage() {
                                     DEMO
                                   </Badge>
                                 )}
+                                {flight.isCharterFlight && (
+                                  <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-800 dark:text-purple-300">
+                                    CHARTER
+                                  </Badge>
+                                )}
                               </div>
                               <p className="text-xs text-muted-foreground mt-1">
                                 {flight.flightType}
-                                {(flight.isFerryFlight || flight.isDemoFlight) && (
+                                {(flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && (
                                   <span className="text-gray-500 ml-1">(excluded from hour calculation)</span>
                                 )}
                               </p>
@@ -1721,7 +1737,7 @@ export default function Usage() {
                             <div className="text-right">
                               <span className={cn(
                                 "text-sm font-medium",
-                                (flight.isFerryFlight || flight.isDemoFlight) && "text-gray-500 line-through"
+                                (flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && "text-gray-500 line-through"
                               )}>
                                 {formatHours(flight.totalHours)}
                               </span>

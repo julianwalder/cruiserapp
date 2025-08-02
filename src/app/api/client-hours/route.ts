@@ -361,18 +361,19 @@ export async function GET(request: NextRequest) {
       const pilot = userMap.get(log.pilotId) as any;
       const instructor = log.instructorId ? userMap.get(log.instructorId) as any : null;
       
-      // Skip FERRY and DEMO flights when calculating used hours
+      // Skip FERRY, DEMO, and CHARTER flights when calculating used hours
       const isFerryFlight = log.flightType && log.flightType.toUpperCase().includes('FERRY');
       const isDemoFlight = log.flightType && log.flightType.toUpperCase().includes('DEMO');
+      const isCharterFlight = log.flightType && log.flightType.toUpperCase().includes('CHARTER');
       
-      // If there's a pilot, count their hours (excluding FERRY and DEMO flights)
+      // If there's a pilot, count their hours (excluding FERRY, DEMO, and CHARTER flights)
       if (pilot?.email) {
-        if (!isFerryFlight && !isDemoFlight) {
+        if (!isFerryFlight && !isDemoFlight && !isCharterFlight) {
           const currentHours = clientFlightHours.get(pilot.email) || 0;
           clientFlightHours.set(pilot.email, currentHours + log.totalHours);
         }
         
-        // Store flight log for this client (including FERRY and DEMO flights for display purposes)
+        // Store flight log for this client (including FERRY, DEMO, and CHARTER flights for display purposes)
         if (!clientFlightLogs.has(pilot.email)) {
           clientFlightLogs.set(pilot.email, []);
         }
@@ -384,7 +385,8 @@ export async function GET(request: NextRequest) {
           flightType: log.flightType,
           role: 'PIC',
           isFerryFlight: isFerryFlight,
-          isDemoFlight: isDemoFlight
+          isDemoFlight: isDemoFlight,
+          isCharterFlight: isCharterFlight
         });
       }
       

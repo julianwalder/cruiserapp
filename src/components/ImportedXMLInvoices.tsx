@@ -933,9 +933,9 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                         onChange={(e) => handleFieldChange('total_amount', parseFloat(e.target.value) || 0)}
                       />
                     ) : (
-                      <p className="text-base font-medium text-green-600">
+                    <p className="text-base font-medium text-green-600">
                         {formatCurrency(selectedInvoice?.total_amount || 0, selectedInvoice?.currency || 'RON')}
-                      </p>
+                    </p>
                     )}
                   </div>
                   <div className="space-y-2">
