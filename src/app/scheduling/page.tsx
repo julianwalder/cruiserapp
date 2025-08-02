@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Plus, Search, Filter, Clock, Plane } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Calendar, Plus, Search, Filter, Clock, Plane, AlertTriangle } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 interface ScheduledFlight {
@@ -28,6 +29,7 @@ export default function SchedulingPage() {
   const [user, setUser] = useState<any>(null);
   const [scheduledFlights, setScheduledFlights] = useState<ScheduledFlight[]>([]);
   const [loading, setLoading] = useState(true);
+  const [todayDate, setTodayDate] = useState<string>('');
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -96,6 +98,11 @@ export default function SchedulingPage() {
     };
     fetchUser();
   }, [router]);
+
+  // Set today's date on client side only to avoid hydration issues
+  useEffect(() => {
+    setTodayDate(new Date().toISOString().split('T')[0]);
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -180,6 +187,14 @@ export default function SchedulingPage() {
               </Button>
             </div>
 
+          {/* Mock Data Warning */}
+          <Alert className="border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950">
+            <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+            <AlertDescription className="text-yellow-800 dark:text-yellow-200">
+              This page displays mock data for demonstration purposes. Real flight scheduling functionality will be implemented in future updates.
+            </AlertDescription>
+          </Alert>
+
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
@@ -223,7 +238,7 @@ export default function SchedulingPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {scheduledFlights.filter(f => f.date === new Date().toISOString().split('T')[0]).length}
+                  {todayDate ? scheduledFlights.filter(f => f.date === todayDate).length : 0}
                 </div>
               </CardContent>
             </Card>
@@ -279,7 +294,7 @@ export default function SchedulingPage() {
                           <div className="text-right">
                             <p className="text-sm text-muted-foreground">Date & Time</p>
                             <p className="font-semibold">
-                              {new Date(flight.date).toLocaleDateString()} {flight.time}
+                              {flight.date} {flight.time}
                             </p>
                           </div>
                           <Badge className={getTypeColor(flight.type)}>

@@ -20,7 +20,8 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
-  Cloud
+  Cloud,
+  ShoppingCart
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -347,8 +348,8 @@ export default function PilotOverview() {
                className="w-full bg-black hover:bg-gray-800 text-white"
                onClick={() => router.push('/packages')}
              >
-               <Clock className="h-4 w-4 mr-2" />
-               Top up Hours
+               <ShoppingCart className="h-4 w-4 mr-2" />
+               Buy Flight Hours
              </Button>
              
              {/* Temporary button to setup hour packages system - remove after setup */}

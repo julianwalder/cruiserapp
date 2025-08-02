@@ -22,7 +22,8 @@ import {
   X,
   Clock,
   MoreVertical,
-  User
+  User,
+  ShoppingCart
 } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Logo } from '@/components/ui/logo';
@@ -97,10 +98,10 @@ const navigationItems = [
     description: 'Financial management'
   },
   {
-    title: 'Packages',
+    title: 'Buy Flight Hours',
     url: '/packages',
-    icon: Clock,
-    description: 'Hour packages and usage tracking'
+    icon: ShoppingCart,
+    description: 'Purchase flight hour packages'
   },
   {
     title: 'Usage',
