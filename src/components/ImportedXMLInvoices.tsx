@@ -14,6 +14,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Modal } from './ui/Modal';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { 
   CalendarIcon, 
   Download, 
@@ -32,10 +33,12 @@ import {
   Unlink,
   ChevronUp,
   ChevronDown,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Check
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import type { ImportedInvoice } from '@/lib/invoice-import-service';
 
 interface ImportedXMLInvoicesProps {
@@ -58,6 +61,39 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [sortField, setSortField] = useState<SortField>('issue_date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [currentUserRoles, setCurrentUserRoles] = useState<string[]>([]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<ImportedInvoice | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+
+  const fetchCurrentUser = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        
+        // Extract all user roles
+        let roles: string[] = [];
+        if (userData.roles && Array.isArray(userData.roles)) {
+          roles = userData.roles;
+        } else if (userData.userRoles && Array.isArray(userData.userRoles)) {
+          roles = userData.userRoles.map((ur: any) => ur.roles?.name).filter(Boolean);
+        }
+        
+        setCurrentUserRoles(roles);
+      }
+    } catch (error) {
+      console.error('Failed to fetch current user:', error);
+    }
+  };
 
   const fetchInvoices = async () => {
     setLoading(true);
@@ -91,8 +127,14 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
   };
 
   useEffect(() => {
+    fetchCurrentUser();
     fetchInvoices();
   }, []);
+
+  // Helper function to check if user is superadmin
+  const isSuperAdmin = () => {
+    return currentUserRoles.includes('SUPER_ADMIN');
+  };
 
   // Filter invoices by search term
   const filteredInvoices = invoices.filter(invoice => {
@@ -225,6 +267,163 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedInvoice(null);
+    setIsEditing(false);
+    setEditingInvoice(null);
+  };
+
+  const handleEditInvoice = () => {
+    if (selectedInvoice) {
+      setEditingInvoice(JSON.parse(JSON.stringify(selectedInvoice))); // Deep copy
+      setIsEditing(true);
+      fetchUsers(); // Fetch users for the dropdown
+    }
+  };
+
+  const handleEditInvoiceFromDropdown = (invoice: ImportedInvoice) => {
+    setSelectedInvoice(invoice);
+    setEditingInvoice(JSON.parse(JSON.stringify(invoice))); // Deep copy
+    setIsEditing(true);
+    setIsModalOpen(true);
+    fetchUsers(); // Fetch users for the dropdown
+  };
+
+  const handleSaveInvoice = async () => {
+    if (!editingInvoice) return;
+
+    setSaving(true);
+    try {
+      // Validate required fields before sending
+      if (!editingInvoice.client?.name) {
+        toast.error('Client name is required', {
+          description: 'Please enter a client name before saving.',
+          duration: 5000,
+        });
+        setSaving(false);
+        return;
+      }
+
+      const token = localStorage.getItem('token');
+      
+      // Log the data being sent
+      console.log('🔍 Sending invoice update:', editingInvoice.id);
+      console.log('🔍 Invoice data:', JSON.stringify(editingInvoice, null, 2));
+      console.log('🔍 Client data:', JSON.stringify(editingInvoice.client, null, 2));
+      console.log('🔍 Client name:', editingInvoice.client?.name);
+      
+      const response = await fetch(`/api/smartbill/invoices/${editingInvoice.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(editingInvoice),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ API Error:', errorData);
+        throw new Error(errorData.error || 'Failed to update invoice');
+      }
+
+      const result = await response.json();
+      console.log('✅ API Response:', result);
+
+      // Update the local state
+      setSelectedInvoice(editingInvoice);
+      setInvoices(prev => prev.map(inv => 
+        inv.id === editingInvoice.id ? editingInvoice : inv
+      ));
+      
+      setIsEditing(false);
+      setEditingInvoice(null);
+      
+      // Show success message
+      toast.success('Invoice updated successfully!', {
+        description: `Invoice ${editingInvoice.smartbill_id} has been updated.`,
+        duration: 3000,
+      });
+    } catch (error) {
+      console.error('Error updating invoice:', error);
+      // Show error message
+      toast.error('Failed to update invoice', {
+        description: error instanceof Error ? error.message : 'An unexpected error occurred',
+        duration: 5000,
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditingInvoice(null);
+  };
+
+  const fetchUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const token = localStorage.getItem('token');
+      // Fetch all users without pagination
+      const response = await fetch('/api/users?limit=1000', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data.users || []);
+        console.log('Fetched users:', data.users?.length || 0, 'users');
+        // Debug: Log first few users to see the structure
+        if (data.users && data.users.length > 0) {
+          console.log('Sample users:', data.users.slice(0, 3).map(u => ({ 
+            id: u.id, 
+            firstName: u.firstName, 
+            lastName: u.lastName, 
+            email: u.email 
+          })));
+        }
+      } else {
+        console.error('Failed to fetch users:', response.status);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  const handleFieldChange = (field: string, value: any) => {
+    if (!editingInvoice) return;
+    
+    setEditingInvoice(prev => {
+      if (!prev) return prev;
+      
+      if (field.startsWith('client.')) {
+        const clientField = field.replace('client.', '');
+        return {
+          ...prev,
+          client: {
+            ...prev.client,
+            [clientField]: value
+          }
+        };
+      } else if (field.startsWith('items.')) {
+        const [itemIndex, itemField] = field.replace('items.', '').split('.');
+        const index = parseInt(itemIndex);
+        return {
+          ...prev,
+          items: prev.items.map((item, i) => 
+            i === index ? { ...item, [itemField]: value } : item
+          )
+        };
+      } else {
+        return {
+          ...prev,
+          [field]: value
+        };
+      }
+    });
   };
 
   const exportToCSV = () => {
@@ -561,6 +760,12 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                               <Eye className="h-4 w-4 mr-2" />
                               View Details
                             </DropdownMenuItem>
+                            {isSuperAdmin() && (
+                              <DropdownMenuItem onClick={() => handleEditInvoiceFromDropdown(invoice)}>
+                                <FileText className="h-4 w-4 mr-2" />
+                                Edit Invoice
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem>
                               <Download className="h-4 w-4 mr-2" />
                               Download
@@ -613,10 +818,36 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
         open={isModalOpen}
         onClose={handleCloseModal}
         title={`Invoice Details - ${selectedInvoice?.smartbill_id}`}
+        headerActions={
+          isSuperAdmin() ? (
+            isEditing ? (
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleSaveInvoice}
+                  disabled={saving}
+                >
+                  {saving ? 'Saving...' : 'Save'}
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={handleCancelEdit}
+                  disabled={saving}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Button onClick={handleEditInvoice}>
+                <FileText className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+            )
+          ) : undefined
+        }
       >
           
-          {selectedInvoice && (
-            <div key={selectedInvoice.id} className="space-y-8">
+          {(selectedInvoice || editingInvoice) && (
+            <div key={selectedInvoice?.id || editingInvoice?.id} className="space-y-8">
               {/* Invoice Information */}
               <div className="bg-muted rounded-lg p-6">
                 <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
@@ -626,39 +857,103 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Invoice Number</Label>
-                    <p className="text-base font-medium text-card-foreground">{selectedInvoice.smartbill_id}</p>
+                    {isEditing && editingInvoice ? (
+                      <Input
+                        value={editingInvoice.smartbill_id}
+                        onChange={(e) => handleFieldChange('smartbill_id', e.target.value)}
+                      />
+                    ) : (
+                      <p className="text-base font-medium text-card-foreground">{selectedInvoice?.smartbill_id}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Series</Label>
-                    <p className="text-base text-card-foreground">{selectedInvoice.series}</p>
+                    {isEditing && editingInvoice ? (
+                      <Input
+                        value={editingInvoice.series || ''}
+                        onChange={(e) => handleFieldChange('series', e.target.value)}
+                      />
+                    ) : (
+                      <p className="text-base text-card-foreground">{selectedInvoice?.series}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Issue Date</Label>
-                    <p className="text-base text-card-foreground">{formatDate(selectedInvoice.issue_date)}</p>
+                    {isEditing && editingInvoice ? (
+                      <Input
+                        type="date"
+                        value={editingInvoice.issue_date}
+                        onChange={(e) => handleFieldChange('issue_date', e.target.value)}
+                      />
+                    ) : (
+                      <p className="text-base text-card-foreground">{formatDate(selectedInvoice?.issue_date || '')}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Due Date</Label>
-                    <p className="text-base text-card-foreground">{formatDate(selectedInvoice.due_date)}</p>
+                    {isEditing && editingInvoice ? (
+                      <Input
+                        type="date"
+                        value={editingInvoice.due_date}
+                        onChange={(e) => handleFieldChange('due_date', e.target.value)}
+                      />
+                    ) : (
+                      <p className="text-base text-card-foreground">{formatDate(selectedInvoice?.due_date || '')}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Status</Label>
-                    <div className="mt-1">{getStatusBadge(selectedInvoice.status)}</div>
+                    {isEditing && editingInvoice ? (
+                      <Select value={editingInvoice.status} onValueChange={(value) => handleFieldChange('status', value)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="imported">Imported</SelectItem>
+                          <SelectItem value="draft">Draft</SelectItem>
+                          <SelectItem value="sent">Sent</SelectItem>
+                          <SelectItem value="paid">Paid</SelectItem>
+                          <SelectItem value="overdue">Overdue</SelectItem>
+                          <SelectItem value="cancelled">Cancelled</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="mt-1">{getStatusBadge(selectedInvoice?.status || '')}</div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Total Amount</Label>
-                    <p className="text-base font-medium text-green-600">
-                      {formatCurrency(selectedInvoice.total_amount, selectedInvoice.currency)}
-                    </p>
+                    {isEditing && editingInvoice ? (
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={editingInvoice.total_amount}
+                        onChange={(e) => handleFieldChange('total_amount', parseFloat(e.target.value) || 0)}
+                      />
+                    ) : (
+                      <p className="text-base font-medium text-green-600">
+                        {formatCurrency(selectedInvoice?.total_amount || 0, selectedInvoice?.currency || 'RON')}
+                      </p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">VAT Amount</Label>
-                    <p className="text-base text-card-foreground">{formatCurrency(selectedInvoice.vat_amount, selectedInvoice.currency)}</p>
+                    {isEditing && editingInvoice ? (
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={editingInvoice.vat_amount}
+                        onChange={(e) => handleFieldChange('vat_amount', parseFloat(e.target.value) || 0)}
+                      />
+                    ) : (
+                      <p className="text-base text-card-foreground">{formatCurrency(selectedInvoice?.vat_amount || 0, selectedInvoice?.currency || 'RON')}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Total Hours</Label>
-                    <p className="text-base font-medium text-card-foreground">{formatHours(calculateTotalHours(selectedInvoice))}</p>
+                    <p className="text-base font-medium text-card-foreground">{formatHours(calculateTotalHours(selectedInvoice || editingInvoice || {} as ImportedInvoice))}</p>
                   </div>
-                  {selectedInvoice.is_ppl && (
+                  {(selectedInvoice?.is_ppl || editingInvoice?.is_ppl) && (
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground">PPL Course</Label>
                       <div className="flex items-center gap-2">
@@ -667,7 +962,7 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                           PPL Course
                         </Badge>
                         <span className="text-sm text-muted-foreground">
-                          {selectedInvoice.ppl_hours_paid} hours paid of 45 total
+                          {(selectedInvoice?.ppl_hours_paid || editingInvoice?.ppl_hours_paid || 0)} hours paid of 45 total
                         </span>
                       </div>
                     </div>
@@ -684,38 +979,143 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Name</Label>
-                    <p className="text-base font-medium text-card-foreground">{selectedInvoice.client.name}</p>
+                    {isEditing && editingInvoice ? (
+                      <Input
+                        value={editingInvoice.client.name}
+                        onChange={(e) => handleFieldChange('client.name', e.target.value)}
+                      />
+                    ) : (
+                      <p className="text-base font-medium text-card-foreground">{selectedInvoice?.client.name}</p>
+                    )}
                   </div>
 
-                  {selectedInvoice.client.vat_code && (
+                  {/* User Link Selection - Only in Edit Mode */}
+                  {isEditing && editingInvoice && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Link to User</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            className="w-full justify-between"
+                            disabled={loadingUsers}
+                          >
+                            {editingInvoice.client.user_id && editingInvoice.client.user_id !== 'none'
+                              ? users.find((user) => user.id === editingInvoice.client.user_id)?.firstName + ' ' + 
+                                users.find((user) => user.id === editingInvoice.client.user_id)?.lastName + 
+                                ' (' + users.find((user) => user.id === editingInvoice.client.user_id)?.email + ')'
+                              : "Select a user to link..."}
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0">
+                          <Command>
+                            <CommandInput placeholder="Search users..." />
+                            <CommandList>
+                              <CommandEmpty>No user found.</CommandEmpty>
+                              <CommandGroup>
+                                <CommandItem
+                                  value="none"
+                                  onSelect={() => {
+                                    handleFieldChange('client.user_id', null);
+                                  }}
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      !editingInvoice.client.user_id || editingInvoice.client.user_id === 'none' ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  No user linked
+                                </CommandItem>
+                                {users.map((user) => (
+                                  <CommandItem
+                                    key={user.id}
+                                    value={`${user.firstName || ''} ${user.lastName || ''} ${user.email || ''}`.toLowerCase()}
+                                    onSelect={() => {
+                                      handleFieldChange('client.user_id', user.id);
+                                      handleFieldChange('client.email', user.email);
+                                      handleFieldChange('client.name', `${user.firstName || ''} ${user.lastName || ''}`.trim());
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        editingInvoice.client.user_id === user.id ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {user.firstName || ''} {user.lastName || ''} ({user.email || ''})
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                      {loadingUsers && (
+                        <p className="text-xs text-muted-foreground">Loading users...</p>
+                      )}
+                    </div>
+                  )}
+
+                  {(selectedInvoice?.client.vat_code || editingInvoice?.client.vat_code) && (
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground">
-                        {selectedInvoice.client.vat_code.length === 13 ? 'CNP' : 'VAT Code'}
+                        {(selectedInvoice?.client.vat_code || editingInvoice?.client.vat_code)?.length === 13 ? 'CNP' : 'VAT Code'}
                       </Label>
-                      <p className="text-base text-card-foreground">{selectedInvoice.client.vat_code}</p>
+                      {isEditing && editingInvoice ? (
+                        <Input
+                          value={editingInvoice.client.vat_code || ''}
+                          onChange={(e) => handleFieldChange('client.vat_code', e.target.value)}
+                        />
+                      ) : (
+                        <p className="text-base text-card-foreground">{selectedInvoice?.client.vat_code}</p>
+                      )}
                     </div>
                   )}
-                  {selectedInvoice.client.email && (
+                  {(selectedInvoice?.client.email || editingInvoice?.client.email) && (
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground">Email</Label>
-                      <p className="text-base text-card-foreground">{selectedInvoice.client.email}</p>
+                      {isEditing && editingInvoice ? (
+                        <Input
+                          value={editingInvoice.client.email || ''}
+                          onChange={(e) => handleFieldChange('client.email', e.target.value)}
+                        />
+                      ) : (
+                        <p className="text-base text-card-foreground">{selectedInvoice?.client.email}</p>
+                      )}
                     </div>
                   )}
-                  {selectedInvoice.client.phone && (
+                  {(selectedInvoice?.client.phone || editingInvoice?.client.phone) && (
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground">Phone</Label>
-                      <p className="text-base text-card-foreground">{selectedInvoice.client.phone}</p>
+                      {isEditing && editingInvoice ? (
+                        <Input
+                          value={editingInvoice.client.phone || ''}
+                          onChange={(e) => handleFieldChange('client.phone', e.target.value)}
+                        />
+                      ) : (
+                        <p className="text-base text-card-foreground">{selectedInvoice?.client.phone}</p>
+                      )}
                     </div>
                   )}
-                  {selectedInvoice.client.address && (
+                  {(selectedInvoice?.client.address || editingInvoice?.client.address) && (
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground">Address</Label>
-                      <p className="text-base text-card-foreground">{selectedInvoice.client.address}</p>
-                      {selectedInvoice.client.city && (
-                        <p className="text-base text-card-foreground">{selectedInvoice.client.city}</p>
+                      {isEditing && editingInvoice ? (
+                        <Input
+                          value={editingInvoice.client.address || ''}
+                          onChange={(e) => handleFieldChange('client.address', e.target.value)}
+                        />
+                      ) : (
+                        <p className="text-base text-card-foreground">{selectedInvoice?.client.address}</p>
                       )}
-                      {selectedInvoice.client.country && (
-                        <p className="text-base text-card-foreground">{selectedInvoice.client.country}</p>
+                      {(selectedInvoice?.client.city || editingInvoice?.client.city) && (
+                        <p className="text-base text-card-foreground">{selectedInvoice?.client.city || editingInvoice?.client.city}</p>
+                      )}
+                      {(selectedInvoice?.client.country || editingInvoice?.client.country) && (
+                        <p className="text-base text-card-foreground">{selectedInvoice?.client.country || editingInvoice?.client.country}</p>
                       )}
                     </div>
                   )}
@@ -731,13 +1131,13 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground">User Link</Label>
                       <div className="flex items-center gap-2">
-                        {selectedInvoice.client.user_id ? (
+                        {(selectedInvoice?.client.user_id || editingInvoice?.client.user_id) ? (
                           <>
                             <Badge variant="default">
                               <User className="h-3 w-3 mr-1" />
                               Linked
                             </Badge>
-                            <span className="text-sm text-muted-foreground">User ID: {selectedInvoice.client.user_id}</span>
+                            <span className="text-sm text-muted-foreground">User ID: {selectedInvoice?.client.user_id || editingInvoice?.client.user_id}</span>
                           </>
                         ) : (
                           <>
@@ -745,7 +1145,7 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                               <Unlink className="h-3 w-3 mr-1" />
                               Not Linked
                             </Badge>
-                            <span className="text-sm text-muted-foreground">No user found with email: {selectedInvoice.client.email || 'No email provided'}</span>
+                            <span className="text-sm text-muted-foreground">No user found with email: {(selectedInvoice?.client.email || editingInvoice?.client.email) || 'No email provided'}</span>
                           </>
                         )}
                       </div>
@@ -753,13 +1153,13 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground">Company Link</Label>
                       <div className="flex items-center gap-2">
-                        {selectedInvoice.client.company_id ? (
+                        {(selectedInvoice?.client.company_id || editingInvoice?.client.company_id) ? (
                           <>
                             <Badge variant="default">
                               <Building2 className="h-3 w-3 mr-1" />
                               Linked
                             </Badge>
-                            <span className="text-sm text-muted-foreground">Company ID: {selectedInvoice.client.company_id}</span>
+                            <span className="text-sm text-muted-foreground">Company ID: {selectedInvoice?.client.company_id || editingInvoice?.client.company_id}</span>
                           </>
                         ) : (
                           <>
@@ -832,6 +1232,8 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                   </div>
                 </div>
               </div>
+
+
             </div>
           )}
       </Modal>

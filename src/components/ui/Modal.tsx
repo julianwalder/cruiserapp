@@ -8,6 +8,7 @@ interface ModalProps {
   description?: string;
   children: React.ReactNode;
   headerSticky?: boolean;
+  headerActions?: React.ReactNode;
 }
 
 export function Modal({
@@ -17,6 +18,7 @@ export function Modal({
   description,
   children,
   headerSticky = false,
+  headerActions,
 }: ModalProps) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -35,9 +37,12 @@ export function Modal({
               <div className="text-base text-muted-foreground">{description}</div>
             )}
           </div>
-          <Button variant="outline" onClick={onClose}>
-            Close
-          </Button>
+          <div className="flex items-center gap-2">
+            {headerActions}
+            <Button variant="outline" onClick={onClose}>
+              Close
+            </Button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto pt-4 scrollbar-hide">{children}</div>
       </DialogContent>
