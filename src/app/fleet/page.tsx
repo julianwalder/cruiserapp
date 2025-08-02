@@ -56,7 +56,7 @@ export default function FleetPage() {
         <header className="bg-card shadow-sm border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 h-16 flex items-center">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center space-x-4">
-              <div>
+              <div className="lg:ml-0 ml-12">
                 <h1 className="text-xl sm:text-2xl font-semibold text-card-foreground">
                   Fleet Management
                 </h1>
