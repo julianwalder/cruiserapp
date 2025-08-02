@@ -49,8 +49,6 @@ export async function PUT(
     }
 
     const body = await request.json();
-    console.log('🔍 Received update request for invoice:', params.id);
-    console.log('🔍 Request body:', JSON.stringify(body, null, 2));
     
     const { 
       smartbill_id, 
@@ -67,14 +65,12 @@ export async function PUT(
 
     // Validate required fields
     if (!smartbill_id || !issue_date || !client || !items) {
-      console.error('❌ Missing required fields:', { smartbill_id, issue_date, client: !!client, items: !!items });
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     // Validate client data
-    if (!client.name) {
-      console.error('❌ Client name is required');
-      return NextResponse.json({ error: 'Client name is required' }, { status: 400 });
+    if (!client.name && !client.email) {
+      return NextResponse.json({ error: 'Client name or email is required' }, { status: 400 });
     }
 
     // Update the invoice
@@ -99,32 +95,59 @@ export async function PUT(
       return NextResponse.json({ error: 'Failed to update invoice' }, { status: 500 });
     }
 
-    // Update client information
+    // Update or create client information
     if (client) {
-      console.log('🔍 Updating client information for invoice:', params.id);
-      console.log('🔍 Client data:', JSON.stringify(client, null, 2));
       
-      const { error: clientError } = await supabase
+      // First, check if client record exists
+      const { data: existingClient, error: checkError } = await supabase
         .from('invoice_clients')
-        .update({
-          name: client.name,
-          email: client.email,
-          phone: client.phone,
-          vat_code: client.vat_code,
-          address: client.address,
-          city: client.city,
-          country: client.country,
-          user_id: client.user_id || null
-        })
-        .eq('invoice_id', params.id);
-
-      if (clientError) {
-        console.error('❌ Error updating client:', clientError);
-        console.error('❌ Error details:', JSON.stringify(clientError, null, 2));
-        return NextResponse.json({ error: 'Failed to update client information' }, { status: 500 });
+        .select('id')
+        .eq('invoice_id', params.id)
+        .single();
+      
+      if (checkError && checkError.code !== 'PGRST116') {
+        return NextResponse.json({ error: 'Failed to check client information' }, { status: 500 });
       }
       
-      console.log('✅ Client information updated successfully');
+      let clientError;
+      
+      if (existingClient) {
+        // Update existing client record
+        const { error: updateError } = await supabase
+          .from('invoice_clients')
+          .update({
+            name: client.name,
+            email: client.email,
+            phone: client.phone,
+            vat_code: client.vat_code,
+            address: client.address,
+            city: client.city,
+            country: client.country,
+            user_id: client.user_id || null
+          })
+          .eq('invoice_id', params.id);
+        clientError = updateError;
+      } else {
+        // Create new client record
+        const { error: createError } = await supabase
+          .from('invoice_clients')
+          .insert({
+            invoice_id: params.id,
+            name: client.name,
+            email: client.email,
+            phone: client.phone,
+            vat_code: client.vat_code,
+            address: client.address,
+            city: client.city,
+            country: client.country,
+            user_id: client.user_id || null
+          });
+        clientError = createError;
+      }
+
+      if (clientError) {
+        return NextResponse.json({ error: 'Failed to update client information' }, { status: 500 });
+      }
     }
 
     // Update invoice items

@@ -273,7 +273,24 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
 
   const handleEditInvoice = () => {
     if (selectedInvoice) {
-      setEditingInvoice(JSON.parse(JSON.stringify(selectedInvoice))); // Deep copy
+      // Check if invoice has client data, if not create a placeholder
+      let invoiceToEdit = JSON.parse(JSON.stringify(selectedInvoice));
+      
+      // If no client data exists, create a placeholder
+      if (!invoiceToEdit.client) {
+        invoiceToEdit.client = {
+          name: '',
+          email: '',
+          phone: '',
+          vat_code: '',
+          address: '',
+          city: '',
+          country: '',
+          user_id: null
+        };
+      }
+      
+      setEditingInvoice(invoiceToEdit);
       setIsEditing(true);
       fetchUsers(); // Fetch users for the dropdown
     }
@@ -293,9 +310,9 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
     setSaving(true);
     try {
       // Validate required fields before sending
-      if (!editingInvoice.client?.name) {
-        toast.error('Client name is required', {
-          description: 'Please enter a client name before saving.',
+      if (!editingInvoice.client?.name && !editingInvoice.client?.email) {
+        toast.error('Client information is required', {
+          description: 'Please enter a client name or email before saving.',
           duration: 5000,
         });
         setSaving(false);
@@ -304,11 +321,7 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
 
       const token = localStorage.getItem('token');
       
-      // Log the data being sent
-      console.log('🔍 Sending invoice update:', editingInvoice.id);
-      console.log('🔍 Invoice data:', JSON.stringify(editingInvoice, null, 2));
-      console.log('🔍 Client data:', JSON.stringify(editingInvoice.client, null, 2));
-      console.log('🔍 Client name:', editingInvoice.client?.name);
+
       
       const response = await fetch(`/api/smartbill/invoices/${editingInvoice.id}`, {
         method: 'PUT',
@@ -326,7 +339,6 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
       }
 
       const result = await response.json();
-      console.log('✅ API Response:', result);
 
       // Update the local state
       setSelectedInvoice(editingInvoice);
@@ -373,16 +385,6 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
       if (response.ok) {
         const data = await response.json();
         setUsers(data.users || []);
-        console.log('Fetched users:', data.users?.length || 0, 'users');
-        // Debug: Log first few users to see the structure
-        if (data.users && data.users.length > 0) {
-          console.log('Sample users:', data.users.slice(0, 3).map(u => ({ 
-            id: u.id, 
-            firstName: u.firstName, 
-            lastName: u.lastName, 
-            email: u.email 
-          })));
-        }
       } else {
         console.error('Failed to fetch users:', response.status);
       }
@@ -992,7 +994,14 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                   {/* User Link Selection - Only in Edit Mode */}
                   {isEditing && editingInvoice && (
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-muted-foreground">Link to User</Label>
+                      <Label className="text-sm font-medium text-muted-foreground">
+                        Link to User
+                        {!editingInvoice.client?.name && !editingInvoice.client?.email && (
+                          <Badge variant="destructive" className="ml-2 text-xs">
+                            No Client Data
+                          </Badge>
+                        )}
+                      </Label>
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button
@@ -1183,7 +1192,7 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                   Invoice Items
                 </h3>
                 <div className="space-y-4">
-                  {selectedInvoice.items.map((item, index) => (
+                  {(selectedInvoice || editingInvoice)?.items?.map((item, index) => (
                     <div key={index} className="border rounded-lg p-4 bg-background">
                       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
                         <div className="lg:col-span-2">
@@ -1199,11 +1208,11 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                         </div>
                         <div>
                           <Label className="text-sm font-medium text-muted-foreground">Unit Price</Label>
-                          <p className="text-base text-card-foreground">{formatCurrency(item.unit_price, selectedInvoice.currency)}</p>
+                          <p className="text-base text-card-foreground">{formatCurrency(item.unit_price, (selectedInvoice || editingInvoice)?.currency || 'RON')}</p>
                         </div>
                         <div>
                           <Label className="text-sm font-medium text-muted-foreground">Total</Label>
-                          <p className="text-base font-medium text-card-foreground">{formatCurrency(item.total_amount, selectedInvoice.currency)}</p>
+                          <p className="text-base font-medium text-card-foreground">{formatCurrency(item.total_amount, (selectedInvoice || editingInvoice)?.currency || 'RON')}</p>
                         </div>
                         <div>
                           <Label className="text-sm font-medium text-muted-foreground">VAT Rate</Label>
@@ -1224,11 +1233,11 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Import Date</Label>
-                    <p className="text-base text-card-foreground">{formatDate(selectedInvoice.import_date)}</p>
+                    <p className="text-base text-card-foreground">{formatDate((selectedInvoice || editingInvoice)?.import_date || '')}</p>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Invoice ID</Label>
-                    <p className="text-base font-mono text-card-foreground">{selectedInvoice.id}</p>
+                    <p className="text-base font-mono text-card-foreground">{(selectedInvoice || editingInvoice)?.id}</p>
                   </div>
                 </div>
               </div>
