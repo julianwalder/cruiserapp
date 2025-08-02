@@ -302,5 +302,6 @@ export default function SchedulingPage() {
         </div>
       </main>
     </div>
+  </div>
   );
 } 
