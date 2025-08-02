@@ -1,12 +1,12 @@
 'use client';
 
 import { AppLayout } from '@/components/AppLayout';
-import Usage from '@/components/Usage';
+import Settings from '@/components/Settings';
 
-export default function UsagePage() {
+export default function SettingsPage() {
   return (
     <AppLayout>
-      <Usage />
+      <Settings />
     </AppLayout>
   );
 } 

@@ -42,6 +42,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { OptimizedImage } from "@/components/ui/optimized-image";
 import { Progress } from "@/components/ui/progress";
+import { Modal } from './ui/Modal';
 
 // Aircraft creation schema
 const createAircraftSchema = z.object({
@@ -1076,14 +1077,12 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
           )}
 
       {/* Create Aircraft Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add New Aircraft</DialogTitle>
-            <DialogDescription>
-              Enter the details for the new aircraft
-            </DialogDescription>
-          </DialogHeader>
+      <Modal
+        open={showCreateDialog}
+        onClose={() => setShowCreateDialog(false)}
+        title="Add New Aircraft"
+        description="Enter the details for the new aircraft"
+      >
           <form onSubmit={handleSubmitAircraft(handleCreateAircraft as any)} className="space-y-6">
             {/* ICAO Type Designator Selection */}
               <div>
@@ -1240,18 +1239,15 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
               </Button>
             </div>
           </form>
-        </DialogContent>
-      </Dialog>
+      </Modal>
 
       {/* Fleet Management Dialog */}
-      <Dialog open={showFleetDialog} onOpenChange={setShowFleetDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Fleet Management - {selectedAircraft?.callSign}</DialogTitle>
-            <DialogDescription>
-              Configure operational settings for this aircraft
-            </DialogDescription>
-          </DialogHeader>
+      <Modal
+        open={showFleetDialog}
+        onClose={() => setShowFleetDialog(false)}
+        title={`Fleet Management - ${selectedAircraft?.callSign}`}
+        description="Configure operational settings for this aircraft"
+      >
           <form onSubmit={handleSubmitFleet(handleFleetManagement)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -1362,39 +1358,30 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
               </Button>
             </div>
           </form>
-        </DialogContent>
-      </Dialog>
+      </Modal>
 
       {/* Aircraft Details Dialog */}
-      <Dialog open={showAircraftDialog} onOpenChange={setShowAircraftDialog}>
-        <DialogContent className="!max-w-[90vw] max-h-[90vh] flex flex-col" showCloseButton={false}>
-          <div className="flex-shrink-0 pb-2 flex justify-between">
-            <DialogTitle className="text-2xl">
-              {selectedAircraft?.callSign}
-            </DialogTitle>
-            <div className="flex items-center gap-2">
-              {selectedAircraft && canEdit && (
-                <>
-                  {!isEditMode ? (
-                    <Button onClick={enterEditMode} variant="outline" size="sm">
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit
-                    </Button>
-                  ) : (
-                    <Button onClick={exitEditMode} variant="outline" size="sm">
-                      Cancel
-                    </Button>
-                  )}
-                </>
+      <Modal
+        open={showAircraftDialog}
+        onClose={() => setShowAircraftDialog(false)}
+        title={selectedAircraft?.callSign || 'Aircraft Details'}
+      >
+        <div className="flex items-center gap-2 mb-4">
+          {selectedAircraft && canEdit && (
+            <>
+              {!isEditMode ? (
+                <Button onClick={enterEditMode} variant="outline" size="sm">
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+              ) : (
+                <Button onClick={exitEditMode} variant="outline" size="sm">
+                  Cancel
+                </Button>
               )}
-              <Button
-                variant="outline"
-                onClick={() => setShowAircraftDialog(false)}
-              >
-                Close
-              </Button>
-            </div>
-          </div>
+            </>
+          )}
+        </div>
 
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto pt-4 scrollbar-hide">
@@ -1948,8 +1935,7 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
             </div>
           )}
           </div>
-        </DialogContent>
-      </Dialog>
+      </Modal>
     </div>
   );
 } 

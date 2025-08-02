@@ -310,7 +310,10 @@ export default function Settings() {
         </TabsContent>
 
         <TabsContent value="operational-areas" className="space-y-6">
-          <OperationalAreaManagement />
+          {/* <OperationalAreaManagement /> */}
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">Operational Area Management temporarily unavailable</p>
+          </div>
         </TabsContent>
 
         <TabsContent value="icao-import" className="space-y-6">

@@ -1,107 +1,94 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { NewSidebar } from '@/components/NewSidebar';
-import Usage from '@/components/Usage';
+import { AppLayout } from '@/components/AppLayout';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { Clock, Package, User, Calendar } from 'lucide-react';
 
-export default function UsagePage() {
-  const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        console.log('Client Hours page - Token:', token ? 'exists' : 'missing');
-        
-        if (!token) {
-          console.log('Client Hours page - No token, redirecting to login');
-          router.push('/login');
-          return;
-        }
-
-        const response = await fetch('/api/auth/me', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        console.log('Client Hours page - Auth response status:', response.status);
-        
-        if (response.ok) {
-          const userData = await response.json();
-          console.log('Client Hours page - User data:', userData);
-          
-          if (!userData) {
-            console.log('Client Hours page - No user data, redirecting to login');
-            router.push('/login');
-            return;
-          }
-          
-          setUser(userData);
-          setLoading(false);
-        } else {
-          console.log('Client Hours page - Auth failed, redirecting to login');
-          router.push('/login');
-        }
-      } catch (error) {
-        console.error('Client Hours page - Error fetching user:', error);
-        router.push('/login');
-      }
-    };
-
-    fetchUser();
-  }, [router]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    router.push('/login');
-  };
-
-  if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
-  }
-
+export default function ClientHoursPage() {
   return (
-    <div className="flex h-screen bg-white dark:bg-gray-900">
-      <NewSidebar user={user} onLogout={handleLogout} />
-      
-      <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
-        <header className="bg-card shadow-sm border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 h-16 flex items-center">
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center space-x-4">
-              <div className="lg:ml-0 ml-12">
-                <h1 className="text-xl sm:text-2xl font-semibold text-card-foreground">
-                  Usage
-                </h1>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-card-foreground">
-                  {user?.firstName} {user?.lastName}
-                </p>
-                <p className="text-xs text-muted-foreground">{user?.email}</p>
-              </div>
-              <div className="h-8 w-8 bg-primary rounded-full flex items-center justify-center">
-                <span className="text-sm font-medium text-primary-foreground">
-                  {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
-                </span>
-              </div>
-              <ThemeToggle />
-            </div>
-          </div>
-        </header>
+    <AppLayout>
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-card-foreground">Client Hours</h2>
+          <p className="text-muted-foreground">Track client flight hours and usage</p>
+        </div>
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-white dark:bg-gray-900">
-          <Usage />
-        </main>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Clients</CardTitle>
+              <User className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">0</div>
+              <p className="text-xs text-muted-foreground">
+                Active clients
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Hours</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">0</div>
+              <p className="text-xs text-muted-foreground">
+                Purchased hours
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Used Hours</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">0</div>
+              <p className="text-xs text-muted-foreground">
+                Hours consumed
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">This Month</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">0</div>
+              <p className="text-xs text-muted-foreground">
+                Hours this month
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Client Hours Management</CardTitle>
+            <CardDescription>
+              Track and manage client flight hours and packages
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8">
+              <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-card-foreground mb-2">Client Hours Coming Soon</h3>
+              <p className="text-muted-foreground mb-4">
+                Client hours tracking features are currently in development.
+              </p>
+              <Button disabled>
+                Manage Client Hours
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-    </div>
+    </AppLayout>
   );
 } 

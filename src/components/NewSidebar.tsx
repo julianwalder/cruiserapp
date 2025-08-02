@@ -188,7 +188,7 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
   };
 
   const canAccessUsers = () => {
-    return hasRole('SUPER_ADMIN') || hasRole('ADMIN');
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER');
   };
 
   const canAccessSettings = () => {
@@ -484,7 +484,7 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
                       <DollarSign className="mr-2 h-4 w-4" />
                       Billing
                     </DropdownMenuItem>
-                    <DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleNavigation('/notifications')}>
                       <FileText className="mr-2 h-4 w-4" />
                       Notifications
                     </DropdownMenuItem>

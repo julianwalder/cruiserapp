@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Modal } from './ui/Modal';
 import { Clock, ShoppingCart, CheckCircle, Star } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -213,14 +214,12 @@ export default function HourPackages() {
       </div>
 
       {/* Order Confirmation Modal */}
-      <Dialog open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Confirm Package Order</DialogTitle>
-            <DialogDescription>
-              Review your selected hour package before placing the order.
-            </DialogDescription>
-          </DialogHeader>
+      <Modal
+        open={isOrderModalOpen}
+        onClose={handleCloseModal}
+        title="Confirm Package Order"
+        description="Review your selected hour package before placing the order."
+      >
           
           {selectedPackage && (
             <div className="space-y-4">
@@ -250,7 +249,7 @@ export default function HourPackages() {
             </div>
           )}
 
-          <DialogFooter>
+          <div className="flex justify-end space-x-2 pt-6">
             <Button variant="outline" onClick={handleCloseModal} disabled={isProcessing}>
               Cancel
             </Button>
@@ -271,9 +270,8 @@ export default function HourPackages() {
                 </>
               )}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+      </Modal>
     </div>
   );
 } 

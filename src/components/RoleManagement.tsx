@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Modal } from './ui/Modal';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Shield, Edit, Trash2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -185,20 +186,17 @@ export default function RoleManagement() {
           <h2 className="text-2xl font-bold">Role Management</h2>
           <p className="text-muted-foreground">Manage user roles and permissions</p>
         </div>
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Role
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New Role</DialogTitle>
-              <DialogDescription>
-                Add a new role to the system with specific permissions.
-              </DialogDescription>
-            </DialogHeader>
+        <Button onClick={() => setShowCreateDialog(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Role
+        </Button>
+        
+        <Modal
+          open={showCreateDialog}
+          onClose={() => setShowCreateDialog(false)}
+          title="Create New Role"
+          description="Add a new role to the system with specific permissions."
+        >
             <div className="space-y-4">
               <div>
                 <Label htmlFor="name">Role Name</Label>
@@ -225,8 +223,7 @@ export default function RoleManagement() {
                 <Button onClick={handleCreateRole}>Create Role</Button>
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
+        </Modal>
       </div>
 
       {roles.length === 0 ? (
@@ -287,14 +284,12 @@ export default function RoleManagement() {
         </div>
       )}
 
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Role</DialogTitle>
-            <DialogDescription>
-              Update the role information and permissions.
-            </DialogDescription>
-          </DialogHeader>
+      <Modal
+        open={showEditDialog}
+        onClose={() => setShowEditDialog(false)}
+        title="Edit Role"
+        description="Update the role information and permissions."
+      >
           <div className="space-y-4">
             <div>
               <Label htmlFor="edit-name">Role Name</Label>
@@ -321,8 +316,7 @@ export default function RoleManagement() {
               <Button onClick={handleUpdateRole}>Update Role</Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+      </Modal>
     </div>
   );
 } 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireRole } from '@/lib/middleware';
+import { requireRole, requireAnyRole } from '@/lib/middleware';
 import { getSupabaseClient } from '@/lib/supabase';
 
 // GET /api/users/[id]/roles - Get user roles
@@ -203,5 +203,5 @@ async function updateUserRoles(request: NextRequest, currentUser: any) {
 }
 
 // Export handlers with middleware
-export const GET = requireRole('ADMIN')(getUserRoles);
-export const PUT = requireRole('ADMIN')(updateUserRoles); 
+export const GET = requireAnyRole(['BASE_MANAGER', 'ADMIN', 'SUPER_ADMIN'])(getUserRoles);
+export const PUT = requireAnyRole(['ADMIN', 'SUPER_ADMIN'])(updateUserRoles); 

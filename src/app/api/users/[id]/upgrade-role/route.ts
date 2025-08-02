@@ -35,9 +35,10 @@ export async function POST(
     const payload = AuthService.verifyToken(token);
     const userRoles = payload?.roles || [];
     
-    // Check if user has permission to upgrade roles (ADMIN+ or INSTRUCTOR+)
+    // Check if user has permission to upgrade roles (ADMIN+, SUPER_ADMIN, BASE_MANAGER, or INSTRUCTOR)
     if (!AuthService.hasRole(userRoles, 'ADMIN') && 
         !AuthService.hasRole(userRoles, 'SUPER_ADMIN') && 
+        !AuthService.hasRole(userRoles, 'BASE_MANAGER') &&
         !AuthService.hasRole(userRoles, 'INSTRUCTOR')) {
       return NextResponse.json(
         { error: 'Insufficient permissions to upgrade user roles' },

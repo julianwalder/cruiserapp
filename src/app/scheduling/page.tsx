@@ -1,322 +1,94 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { NewSidebar } from '@/components/NewSidebar';
+import { AppLayout } from '@/components/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Calendar, Plus, Search, Filter, Clock, Plane, AlertTriangle } from 'lucide-react';
-import { ThemeToggle } from '@/components/ThemeToggle';
-
-interface ScheduledFlight {
-  id: string;
-  pilot: string;
-  aircraft: string;
-  departure: string;
-  arrival: string;
-  date: string;
-  time: string;
-  duration: string;
-  status: 'scheduled' | 'confirmed' | 'cancelled';
-  type: 'training' | 'commercial' | 'maintenance';
-}
+import { Calendar, Clock, Plane, Users } from 'lucide-react';
 
 export default function SchedulingPage() {
-  const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [scheduledFlights, setScheduledFlights] = useState<ScheduledFlight[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [todayDate, setTodayDate] = useState<string>('');
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-      const response = await fetch('/api/auth/me', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) {
-        router.push('/login');
-        return;
-      }
-      const userData = await response.json();
-      if (!userData) {
-        router.push('/login');
-        return;
-      }
-      setUser(userData);
-      
-      // Fetch scheduled flights data
-      // TODO: Replace with actual API call
-      const mockScheduledFlights: ScheduledFlight[] = [
-        {
-          id: '1',
-          pilot: 'John Doe',
-          aircraft: 'YR-ABC',
-          departure: 'OTP',
-          arrival: 'BBU',
-          date: '2024-01-20',
-          time: '09:00',
-          duration: '1h 30m',
-          status: 'confirmed',
-          type: 'training'
-        },
-        {
-          id: '2',
-          pilot: 'Jane Smith',
-          aircraft: 'YR-DEF',
-          departure: 'BBU',
-          arrival: 'TGV',
-          date: '2024-01-20',
-          time: '14:00',
-          duration: '45m',
-          status: 'scheduled',
-          type: 'commercial'
-        },
-        {
-          id: '3',
-          pilot: 'Bob Wilson',
-          aircraft: 'YR-ABC',
-          departure: 'OTP',
-          arrival: 'BBU',
-          date: '2024-01-21',
-          time: '10:30',
-          duration: '1h 15m',
-          status: 'scheduled',
-          type: 'training'
-        }
-      ];
-      
-      setScheduledFlights(mockScheduledFlights);
-      setLoading(false);
-    };
-    fetchUser();
-  }, [router]);
-
-  // Set today's date on client side only to avoid hydration issues
-  useEffect(() => {
-    setTodayDate(new Date().toISOString().split('T')[0]);
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    router.push('/login');
-  };
-
-
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'confirmed':
-        return 'bg-green-100 text-green-800';
-      case 'scheduled':
-        return 'bg-blue-100 text-blue-800';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'training':
-        return 'bg-purple-100 text-purple-800';
-      case 'commercial':
-        return 'bg-orange-100 text-orange-800';
-      case 'maintenance':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
-  }
-
   return (
-    <div className="flex h-screen bg-white dark:bg-gray-900">
-      <NewSidebar user={user} onLogout={handleLogout} />
-      
-      <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
-        <header className="bg-card shadow-sm border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 h-16 flex items-center">
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center space-x-4">
-              <div className="lg:ml-0 ml-12">
-                <h1 className="text-xl sm:text-2xl font-semibold text-card-foreground">
-                  Flight Scheduling
-                </h1>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-card-foreground">
-                  {user?.firstName} {user?.lastName}
-                </p>
-                <p className="text-xs text-muted-foreground">{user?.email}</p>
-              </div>
-              <div className="h-8 w-8 bg-primary rounded-full flex items-center justify-center">
-                <span className="text-sm font-medium text-primary-foreground">
-                  {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
-                </span>
-              </div>
-              <ThemeToggle />
-            </div>
-          </div>
-        </header>
+    <AppLayout>
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold text-card-foreground">Flight Scheduling</h2>
+          <p className="text-muted-foreground">Schedule and manage flight sessions</p>
+        </div>
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-white dark:bg-gray-900">
-          <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-card-foreground">Flight Scheduling</h1>
-                <p className="text-muted-foreground">Schedule and manage flights</p>
-              </div>
-              <Button className="flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                Schedule Flight
-              </Button>
-            </div>
-
-          {/* Mock Data Warning */}
-          <Alert className="border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950">
-            <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
-            <AlertDescription className="text-yellow-800 dark:text-yellow-200">
-              This page displays mock data for demonstration purposes. Real flight scheduling functionality will be implemented in future updates.
-            </AlertDescription>
-          </Alert>
-
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Scheduled</CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{scheduledFlights.length}</div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Confirmed</CardTitle>
-                <Badge className="bg-green-100 text-green-800">Confirmed</Badge>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {scheduledFlights.filter(f => f.status === 'confirmed').length}
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Training</CardTitle>
-                <Badge className="bg-purple-100 text-purple-800">Training</Badge>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {scheduledFlights.filter(f => f.type === 'training').length}
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Today</CardTitle>
-                <Clock className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {todayDate ? scheduledFlights.filter(f => f.date === todayDate).length : 0}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Search and Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card>
-            <CardHeader>
-              <CardTitle>Scheduled Flights</CardTitle>
-              <CardDescription>View and manage scheduled flights</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Today's Flights</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="flex gap-4 mb-6">
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search flights by pilot, aircraft, or route..."
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-                <Button variant="outline" className="flex items-center gap-2">
-                  <Filter className="h-4 w-4" />
-                  Filter
-                </Button>
-              </div>
+              <div className="text-2xl font-bold">0</div>
+              <p className="text-xs text-muted-foreground">
+                Scheduled for today
+              </p>
+            </CardContent>
+          </Card>
 
-              {/* Scheduled Flights List */}
-              <div className="space-y-4">
-                {scheduledFlights.map((flight) => (
-                  <Card key={flight.id} className="hover:shadow-md transition-shadow">
-                    <CardContent className="p-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="p-2 bg-primary/10 rounded-lg">
-                            <Plane className="h-6 w-6 text-primary" />
-                          </div>
-                          <div>
-                            <h3 className="font-semibold text-lg">
-                              {flight.departure} → {flight.arrival}
-                            </h3>
-                            <div className="flex items-center gap-4 text-muted-foreground">
-                              <span>{flight.pilot}</span>
-                              <span>•</span>
-                              <span>{flight.aircraft}</span>
-                              <span>•</span>
-                              <span>{flight.duration}</span>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <p className="text-sm text-muted-foreground">Date & Time</p>
-                            <p className="font-semibold">
-                              {flight.date} {flight.time}
-                            </p>
-                          </div>
-                          <Badge className={getTypeColor(flight.type)}>
-                            {flight.type}
-                          </Badge>
-                          <Badge className={getStatusColor(flight.status)}>
-                            {flight.status}
-                          </Badge>
-                          <Button variant="outline" size="sm">
-                            Edit
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">This Week</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">0</div>
+              <p className="text-xs text-muted-foreground">
+                Scheduled this week
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Available Aircraft</CardTitle>
+              <Plane className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">0</div>
+              <p className="text-xs text-muted-foreground">
+                Ready for scheduling
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Active Instructors</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">0</div>
+              <p className="text-xs text-muted-foreground">
+                Available for lessons
+              </p>
             </CardContent>
           </Card>
         </div>
-      </main>
-    </div>
-  </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Flight Scheduling</CardTitle>
+            <CardDescription>
+              Schedule and manage your flight training sessions
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8">
+              <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-card-foreground mb-2">Scheduling Coming Soon</h3>
+              <p className="text-muted-foreground mb-4">
+                Flight scheduling features are currently in development.
+              </p>
+              <Button disabled>
+                Schedule Flight
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </AppLayout>
   );
 } 

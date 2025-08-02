@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Modal } from './ui/Modal';
 
 // User creation schema
 const createUserSchema = z.object({
@@ -1415,364 +1416,332 @@ export default function UserManagement() {
       </Dialog>
 
       {/* User Details Dialog */}
-      <Dialog open={showUserDialog} onOpenChange={(open) => {
-        setShowUserDialog(open);
-        if (!open) {
-          setIsEditing(false);
-          setEditForm({});
-        }
-      }}>
-        <DialogContent className="!max-w-[90vw] max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="pb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle className="text-2xl">User Details</DialogTitle>
-                <DialogDescription className="text-base">
-                  Complete user information and profile details
-                </DialogDescription>
-              </div>
-              {canEdit && (
-                <div className="flex items-center space-x-2">
+      <Modal
+        open={showUserDialog}
+        onClose={() => setShowUserDialog(false)}
+        title="User Details"
+        description="Complete user information and profile details"
+      >
+        {selectedUser ? (
+          <div key={selectedUser.id + selectedUser.updatedAt} className="space-y-8">
+            {/* Basic Information */}
+            <div className="bg-muted rounded-lg p-6">
+              <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
+                <User className="h-5 w-5 mr-2" />
+                Basic Information
+              </h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">First Name</Label>
                   {isEditing ? (
-                    <>
-                      <Button variant="outline" onClick={() => setIsEditing(false)}>
-                        Cancel
-                      </Button>
-                      <Button onClick={handleSaveUser}>
-                        Save Changes
-                      </Button>
-                    </>
+                    <Input
+                      value={editForm.firstName}
+                      onChange={(e) => handleEditChange('firstName', e.target.value)}
+                      placeholder="Enter first name"
+                      className="bg-background border-input"
+                    />
                   ) : (
-                    <Button onClick={() => setIsEditing(true)}>
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit User
-                    </Button>
+                    <p className="text-base font-medium text-card-foreground">{selectedUser.firstName}</p>
                   )}
                 </div>
-              )}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Last Name</Label>
+                  {isEditing ? (
+                    <Input
+                      value={editForm.lastName}
+                      onChange={(e) => handleEditChange('lastName', e.target.value)}
+                      placeholder="Enter last name"
+                      className="bg-background border-input"
+                    />
+                  ) : (
+                    <p className="text-base font-medium text-card-foreground">{selectedUser.lastName}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Email Address</Label>
+                  {isEditing ? (
+                    <Input
+                      value={editForm.email}
+                      onChange={(e) => handleEditChange('email', e.target.value)}
+                      placeholder="Enter email"
+                      type="email"
+                      className="bg-background border-input"
+                    />
+                  ) : (
+                    <p className="text-base text-card-foreground">{selectedUser.email}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Personal Number</Label>
+                  {isEditing ? (
+                    <Input
+                      value={editForm.personalNumber}
+                      onChange={(e) => handleEditChange('personalNumber', e.target.value)}
+                      placeholder="Enter personal number"
+                      className="bg-background border-input"
+                    />
+                  ) : (
+                    <p className="text-base text-card-foreground">{selectedUser.personalNumber || '-'}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Phone Number</Label>
+                  {isEditing ? (
+                    <Input
+                      value={editForm.phone}
+                      onChange={(e) => handleEditChange('phone', e.target.value)}
+                      placeholder="Enter phone number"
+                      className="bg-background border-input"
+                    />
+                  ) : (
+                    <p className="text-base text-card-foreground">{selectedUser.phone || '-'}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Date of Birth</Label>
+                  {isEditing ? (
+                    <DatePicker
+                      value={editForm.dateOfBirth ? new Date(editForm.dateOfBirth) : undefined}
+                      onChange={(date) => handleEditChange('dateOfBirth', date ? date.toISOString().split('T')[0] : '')}
+                      placeholder="Select date of birth"
+                    />
+                  ) : (
+                    <p className="text-base text-card-foreground">
+                      {selectedUser.dateOfBirth ? formatDate(selectedUser.dateOfBirth) : '-'}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
-          </DialogHeader>
-          {selectedUser ? (
-            <div key={selectedUser.id + selectedUser.updatedAt} className="space-y-8">
-              {/* Basic Information */}
-              <div className="bg-muted rounded-lg p-6">
-                <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
-                  <User className="h-5 w-5 mr-2" />
-                  Basic Information
-                </h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">First Name</Label>
-                    {isEditing ? (
-                      <Input
-                        value={editForm.firstName}
-                        onChange={(e) => handleEditChange('firstName', e.target.value)}
-                        placeholder="Enter first name"
-                        className="bg-background border-input"
-                      />
-                    ) : (
-                      <p className="text-base font-medium text-card-foreground">{selectedUser.firstName}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Last Name</Label>
-                    {isEditing ? (
-                      <Input
-                        value={editForm.lastName}
-                        onChange={(e) => handleEditChange('lastName', e.target.value)}
-                        placeholder="Enter last name"
-                        className="bg-background border-input"
-                      />
-                    ) : (
-                      <p className="text-base font-medium text-card-foreground">{selectedUser.lastName}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Email Address</Label>
-                    {isEditing ? (
-                      <Input
-                        value={editForm.email}
-                        onChange={(e) => handleEditChange('email', e.target.value)}
-                        placeholder="Enter email"
-                        type="email"
-                        className="bg-background border-input"
-                      />
-                    ) : (
-                      <p className="text-base text-card-foreground">{selectedUser.email}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Personal Number</Label>
-                    {isEditing ? (
-                      <Input
-                        value={editForm.personalNumber}
-                        onChange={(e) => handleEditChange('personalNumber', e.target.value)}
-                        placeholder="Enter personal number"
-                        className="bg-background border-input"
-                      />
-                    ) : (
-                      <p className="text-base text-card-foreground">{selectedUser.personalNumber || '-'}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Phone Number</Label>
-                    {isEditing ? (
-                      <Input
-                        value={editForm.phone}
-                        onChange={(e) => handleEditChange('phone', e.target.value)}
-                        placeholder="Enter phone number"
-                        className="bg-background border-input"
-                      />
-                    ) : (
-                      <p className="text-base text-card-foreground">{selectedUser.phone || '-'}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Date of Birth</Label>
-                    {isEditing ? (
-                      <DatePicker
-                        value={editForm.dateOfBirth ? new Date(editForm.dateOfBirth) : undefined}
-                        onChange={(date) => handleEditChange('dateOfBirth', date ? date.toISOString().split('T')[0] : '')}
-                        placeholder="Select date of birth"
-                      />
-                    ) : (
-                      <p className="text-base text-card-foreground">
-                        {selectedUser.dateOfBirth ? formatDate(selectedUser.dateOfBirth) : '-'}
-                      </p>
-                    )}
-                  </div>
+
+            {/* Address Information */}
+            <div className="bg-muted rounded-lg p-6">
+              <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
+                <MapPin className="h-5 w-5 mr-2" />
+                Address Information
+              </h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Address</Label>
+                  {isEditing ? (
+                    <Input
+                      value={editForm.address}
+                      onChange={(e) => handleEditChange('address', e.target.value)}
+                      placeholder="Enter address"
+                      className="bg-background border-input"
+                    />
+                  ) : (
+                    <p className="text-base text-card-foreground">{selectedUser.address || '-'}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">City</Label>
+                  {isEditing ? (
+                    <Input
+                      value={editForm.city}
+                      onChange={(e) => handleEditChange('city', e.target.value)}
+                      placeholder="Enter city"
+                      className="bg-background border-input"
+                    />
+                  ) : (
+                    <p className="text-base text-card-foreground">{selectedUser.city || '-'}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">State/Province</Label>
+                  {isEditing ? (
+                    <Input
+                      value={editForm.state}
+                      onChange={(e) => handleEditChange('state', e.target.value)}
+                      placeholder="Enter state"
+                      className="bg-background border-input"
+                    />
+                  ) : (
+                    <p className="text-base text-card-foreground">{selectedUser.state || '-'}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">ZIP/Postal Code</Label>
+                  {isEditing ? (
+                    <Input
+                      value={editForm.zipCode}
+                      onChange={(e) => handleEditChange('zipCode', e.target.value)}
+                      placeholder="Enter ZIP code"
+                      className="bg-background border-input"
+                    />
+                  ) : (
+                    <p className="text-base text-card-foreground">{selectedUser.zipCode || '-'}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Country</Label>
+                  {isEditing ? (
+                    <Input
+                      value={editForm.country}
+                      onChange={(e) => handleEditChange('country', e.target.value)}
+                      placeholder="Enter country"
+                      className="bg-background border-input"
+                    />
+                  ) : (
+                    <p className="text-base text-card-foreground">{selectedUser.country || '-'}</p>
+                  )}
                 </div>
               </div>
+            </div>
 
-              {/* Address Information */}
-              <div className="bg-muted rounded-lg p-6">
-                <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
-                  <MapPin className="h-5 w-5 mr-2" />
-                  Address Information
-                </h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Address</Label>
-                    {isEditing ? (
-                      <Input
-                        value={editForm.address}
-                        onChange={(e) => handleEditChange('address', e.target.value)}
-                        placeholder="Enter address"
-                        className="bg-background border-input"
-                      />
-                    ) : (
-                      <p className="text-base text-card-foreground">{selectedUser.address || '-'}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">City</Label>
-                    {isEditing ? (
-                      <Input
-                        value={editForm.city}
-                        onChange={(e) => handleEditChange('city', e.target.value)}
-                        placeholder="Enter city"
-                        className="bg-background border-input"
-                      />
-                    ) : (
-                      <p className="text-base text-card-foreground">{selectedUser.city || '-'}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">State/Province</Label>
-                    {isEditing ? (
-                      <Input
-                        value={editForm.state}
-                        onChange={(e) => handleEditChange('state', e.target.value)}
-                        placeholder="Enter state"
-                        className="bg-background border-input"
-                      />
-                    ) : (
-                      <p className="text-base text-card-foreground">{selectedUser.state || '-'}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">ZIP/Postal Code</Label>
-                    {isEditing ? (
-                      <Input
-                        value={editForm.zipCode}
-                        onChange={(e) => handleEditChange('zipCode', e.target.value)}
-                        placeholder="Enter ZIP code"
-                        className="bg-background border-input"
-                      />
-                    ) : (
-                      <p className="text-base text-card-foreground">{selectedUser.zipCode || '-'}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Country</Label>
-                    {isEditing ? (
-                      <Input
-                        value={editForm.country}
-                        onChange={(e) => handleEditChange('country', e.target.value)}
-                        placeholder="Enter country"
-                        className="bg-background border-input"
-                      />
-                    ) : (
-                      <p className="text-base text-card-foreground">{selectedUser.country || '-'}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Flight School Information */}
-              <div className="bg-muted rounded-lg p-6">
-                <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
-                  <Plane className="h-5 w-5 mr-2" />
-                  Flight School Information
-                </h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Role</Label>
-                    {isEditing ? (
-                      <div className="grid grid-cols-2 gap-2">
-                        {['ADMIN', 'INSTRUCTOR', 'PILOT', 'STUDENT', 'BASE_MANAGER', 'PROSPECT'].map((role) => (
-                          <div key={role} className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              id={`role-${role}`}
-                              checked={editForm.roles.includes(role)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  handleEditChange('roles', [...editForm.roles, role]);
-                                } else {
-                                  handleEditChange('roles', editForm.roles.filter((r: string) => r !== role));
-                                }
-                              }}
-                              className="rounded"
-                            />
-                            <Label htmlFor={`role-${role}`} className="text-sm">
-                              {getRoleDisplayName(role)}
-                            </Label>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {selectedUser.roles.map((role) => (
-                          <Badge key={role} className={getRoleBadgeColor(role)}>
+            {/* Flight School Information */}
+            <div className="bg-muted rounded-lg p-6">
+              <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
+                <Plane className="h-5 w-5 mr-2" />
+                Flight School Information
+              </h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Role</Label>
+                  {isEditing ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      {['ADMIN', 'INSTRUCTOR', 'PILOT', 'STUDENT', 'BASE_MANAGER', 'PROSPECT'].map((role) => (
+                        <div key={role} className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id={`role-${role}`}
+                            checked={editForm.roles.includes(role)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                handleEditChange('roles', [...editForm.roles, role]);
+                              } else {
+                                handleEditChange('roles', editForm.roles.filter((r: string) => r !== role));
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          <Label htmlFor={`role-${role}`} className="text-sm">
                             {getRoleDisplayName(role)}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Status</Label>
-                    {isEditing ? (
-                      <Select value={editForm.status} onValueChange={(value) => handleEditChange('status', value)}>
-                        <SelectTrigger className="bg-background">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ACTIVE">Active</SelectItem>
-                          <SelectItem value="INACTIVE">Inactive</SelectItem>
-                          <SelectItem value="SUSPENDED">Suspended</SelectItem>
-                          <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Badge className={getStatusBadgeColor(selectedUser.status)}>
-                        {selectedUser.status.replace('_', ' ')}
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Total Flight Hours</Label>
-                    {isEditing ? (
-                      <Input
-                        value={editForm.totalFlightHours}
-                        onChange={(e) => handleEditChange('totalFlightHours', parseFloat(e.target.value) || 0)}
-                        type="number"
-                        step="0.1"
-                        placeholder="Enter flight hours"
-                        className="bg-background border-input"
-                      />
-                    ) : (
-                      <p className="text-base font-medium text-card-foreground">
-                        {selectedUser.totalFlightHours ? selectedUser.totalFlightHours.toLocaleString() : '0'}
-                      </p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">License Number</Label>
-                    {isEditing ? (
-                      <Input
-                        value={editForm.licenseNumber}
-                        onChange={(e) => handleEditChange('licenseNumber', e.target.value)}
-                        placeholder="Enter license number"
-                        className="bg-background border-input"
-                      />
-                    ) : (
-                      <p className="text-base text-card-foreground">{selectedUser.licenseNumber || '-'}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Medical Class</Label>
-                    {isEditing ? (
-                      <Input
-                        value={editForm.medicalClass}
-                        onChange={(e) => handleEditChange('medicalClass', e.target.value)}
-                        placeholder="Enter medical class"
-                        className="bg-background border-input"
-                      />
-                    ) : (
-                      <p className="text-base text-card-foreground">{selectedUser.medicalClass || '-'}</p>
-                    )}
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Instructor Rating</Label>
-                    {isEditing ? (
-                      <Input
-                        value={editForm.instructorRating}
-                        onChange={(e) => handleEditChange('instructorRating', e.target.value)}
-                        placeholder="Enter instructor rating"
-                        className="bg-background border-input"
-                      />
-                    ) : (
-                      <p className="text-base text-card-foreground">{selectedUser.instructorRating || '-'}</p>
-                    )}
-                  </div>
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {selectedUser.roles.map((role) => (
+                        <Badge key={role} className={getRoleBadgeColor(role)}>
+                          {getRoleDisplayName(role)}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-
-              {/* System Information */}
-              <div className="bg-muted rounded-lg p-6">
-                <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
-                  <Settings className="h-5 w-5 mr-2" />
-                  System Information
-                </h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Account Created</Label>
-                    <p className="text-base text-card-foreground">{formatDate(selectedUser.createdAt)}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Last Updated</Label>
-                    <p className="text-base text-card-foreground">{formatDate(selectedUser.updatedAt)}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Last Login</Label>
-                    <p className="text-base text-card-foreground">
-                      {selectedUser.lastLoginAt ? formatDate(selectedUser.lastLoginAt) : 'Never'}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Status</Label>
+                  {isEditing ? (
+                    <Select value={editForm.status} onValueChange={(value) => handleEditChange('status', value)}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ACTIVE">Active</SelectItem>
+                        <SelectItem value="INACTIVE">Inactive</SelectItem>
+                        <SelectItem value="SUSPENDED">Suspended</SelectItem>
+                        <SelectItem value="PENDING_APPROVAL">Pending Approval</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Badge className={getStatusBadgeColor(selectedUser.status)}>
+                      {selectedUser.status.replace('_', ' ')}
+                    </Badge>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Total Flight Hours</Label>
+                  {isEditing ? (
+                    <Input
+                      value={editForm.totalFlightHours}
+                      onChange={(e) => handleEditChange('totalFlightHours', parseFloat(e.target.value) || 0)}
+                      type="number"
+                      step="0.1"
+                      placeholder="Enter flight hours"
+                      className="bg-background border-input"
+                    />
+                  ) : (
+                    <p className="text-base font-medium text-card-foreground">
+                      {selectedUser.totalFlightHours ? selectedUser.totalFlightHours.toLocaleString() : '0'}
                     </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Created By</Label>
-                    <p className="text-base text-card-foreground">
-                      {selectedUser.createdBy ? `${selectedUser.createdBy.firstName} ${selectedUser.createdBy.lastName}` : 'System'}
-                    </p>
-                  </div>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">License Number</Label>
+                  {isEditing ? (
+                    <Input
+                      value={editForm.licenseNumber}
+                      onChange={(e) => handleEditChange('licenseNumber', e.target.value)}
+                      placeholder="Enter license number"
+                      className="bg-background border-input"
+                    />
+                  ) : (
+                    <p className="text-base text-card-foreground">{selectedUser.licenseNumber || '-'}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Medical Class</Label>
+                  {isEditing ? (
+                    <Input
+                      value={editForm.medicalClass}
+                      onChange={(e) => handleEditChange('medicalClass', e.target.value)}
+                      placeholder="Enter medical class"
+                      className="bg-background border-input"
+                    />
+                  ) : (
+                    <p className="text-base text-card-foreground">{selectedUser.medicalClass || '-'}</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Instructor Rating</Label>
+                  {isEditing ? (
+                    <Input
+                      value={editForm.instructorRating}
+                      onChange={(e) => handleEditChange('instructorRating', e.target.value)}
+                      placeholder="Enter instructor rating"
+                      className="bg-background border-input"
+                    />
+                  ) : (
+                    <p className="text-base text-card-foreground">{selectedUser.instructorRating || '-'}</p>
+                  )}
                 </div>
               </div>
             </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+
+            {/* System Information */}
+            <div className="bg-muted rounded-lg p-6">
+              <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
+                <Settings className="h-5 w-5 mr-2" />
+                System Information
+              </h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Account Created</Label>
+                  <p className="text-base text-card-foreground">{formatDate(selectedUser.createdAt)}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Last Updated</Label>
+                  <p className="text-base text-card-foreground">{formatDate(selectedUser.updatedAt)}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Last Login</Label>
+                  <p className="text-base text-card-foreground">
+                    {selectedUser.lastLoginAt ? formatDate(selectedUser.lastLoginAt) : 'Never'}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Created By</Label>
+                  <p className="text-base text-card-foreground">
+                    {selectedUser.createdBy ? `${selectedUser.createdBy.firstName} ${selectedUser.createdBy.lastName}` : 'System'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
 
       {/* Import Users Dialog */}
       <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>

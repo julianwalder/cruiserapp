@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Modal } from './ui/Modal';
 import { Progress } from '@/components/ui/progress';
 import { 
   Clock, 
@@ -1319,20 +1320,11 @@ export default function Usage() {
         )}
 
         {/* Client Details Modal */}
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogContent className="!max-w-[90vw] max-h-[90vh] flex flex-col" showCloseButton={false}>
-            <div className="flex-shrink-0 pb-2 flex justify-between">
-              <DialogTitle className="text-2xl flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Usage Details - {selectedClient?.client.name}
-              </DialogTitle>
-              <Button
-                variant="outline"
-                onClick={() => setIsModalOpen(false)}
-              >
-                Close
-              </Button>
-            </div>
+        <Modal
+          open={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          title={`Usage Details - ${selectedClient?.client.name}`}
+        >
 
             {/* Scrollable Content */}
             <div className="flex-1 overflow-y-auto pt-4 scrollbar-hide">
@@ -1669,18 +1661,15 @@ export default function Usage() {
                 </div>
               )}
             </div>
-          </DialogContent>
-        </Dialog>
+        </Modal>
 
         {/* Order Hours Modal */}
-        <Dialog open={isOrderModalOpen} onOpenChange={setIsOrderModalOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Order Hour Package</DialogTitle>
-              <DialogDescription>
-                Select a new hour package for {selectedClient?.client.name}
-              </DialogDescription>
-            </DialogHeader>
+        <Modal
+          open={isOrderModalOpen}
+          onClose={() => setIsOrderModalOpen(false)}
+          title="Order Hour Package"
+          description={`Select a new hour package for ${selectedClient?.client.name}`}
+        >
             
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -1711,7 +1700,7 @@ export default function Usage() {
               </div>
             </div>
 
-            <DialogFooter>
+            <div className="flex justify-end space-x-2 pt-6">
               <Button variant="outline" onClick={handleCloseOrderModal}>
                 Cancel
               </Button>
@@ -1722,10 +1711,9 @@ export default function Usage() {
                 <ShoppingCart className="h-4 w-4 mr-2" />
                 Place Order
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-    </TooltipProvider>
-  );
+            </div>
+          </Modal>
+        </div>
+      </TooltipProvider>
+    );
 } 

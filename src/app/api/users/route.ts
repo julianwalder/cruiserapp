@@ -284,26 +284,7 @@ async function createUser(request: NextRequest, currentUser: any) {
 }
 
 // Export the handlers with middleware
-export const GET = requireAuth(getUsers);
+export const GET = requireAnyRole(['BASE_MANAGER', 'ADMIN', 'SUPER_ADMIN'])(getUsers);
 
-// Temporarily bypass middleware for testing
-export const POST = async (request: NextRequest) => {
-  console.log('🔍 POST /api/users - Direct handler called');
-  
-  try {
-    // Create a mock current user for testing
-    const currentUser = { 
-      id: 'test-user-id', 
-      email: 'test@example.com',
-      user_roles: [{ roles: { name: 'ADMIN' } }]
-    };
-    
-    return await createUser(request, currentUser);
-  } catch (error: any) {
-    console.error('🔍 POST /api/users - Error in direct handler:', error);
-    return NextResponse.json(
-      { error: 'Internal server error', message: error.message },
-      { status: 500 }
-    );
-  }
-}; 
+// Export POST with proper middleware
+export const POST = requireAnyRole(['ADMIN', 'SUPER_ADMIN'])(createUser); 

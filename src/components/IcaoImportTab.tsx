@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Modal } from './ui/Modal';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Plane, 
@@ -926,9 +927,10 @@ export default function IcaoImportTab() {
       </Card>
 
       {/* Create Aircraft Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={(open) => {
-        setShowCreateDialog(open);
-        if (!open) {
+      <Modal
+        open={showCreateDialog}
+        onClose={() => {
+          setShowCreateDialog(false);
           setCreateForm({
             manufacturer: '',
             model: '',
@@ -939,27 +941,18 @@ export default function IcaoImportTab() {
             wtc: 'LIGHT',
           });
           setError('');
-        }
-      }}>
-        <DialogContent className="!max-w-[90vw] max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="pb-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <DialogTitle className="text-2xl">Create New ICAO Type Designator</DialogTitle>
-                <DialogDescription className="text-base">
-                  Add a new ICAO type designator to the reference database
-                </DialogDescription>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleCreateAircraft} disabled={createLoading}>
-                  {createLoading ? 'Creating...' : 'Create Type Designator'}
-                </Button>
-              </div>
-            </div>
-          </DialogHeader>
+        }}
+        title="Create New ICAO Type Designator"
+        description="Add a new ICAO type designator to the reference database"
+      >
+        <div className="flex items-center justify-end space-x-2 pb-6">
+          <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleCreateAircraft} disabled={createLoading}>
+            {createLoading ? 'Creating...' : 'Create Type Designator'}
+          </Button>
+        </div>
           
           <div className="space-y-8">
             {/* Basic Information */}
@@ -1063,8 +1056,7 @@ export default function IcaoImportTab() {
               </div>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+      </Modal>
     </div>
   );
 } 

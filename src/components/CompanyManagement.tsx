@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Modal } from './ui/Modal';
 import { 
   Building2, 
   Plus, 
@@ -221,17 +222,19 @@ export default function CompanyManagement({ className }: CompanyManagementProps)
                 <RefreshCw className={cn('h-4 w-4 mr-2', loading && 'animate-spin')} />
                 Refresh
               </Button>
-              <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Company
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Create New Company</DialogTitle>
-                  </DialogHeader>
+              <Button 
+                size="sm"
+                onClick={() => setIsCreateModalOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Add Company
+              </Button>
+              
+              <Modal
+                open={isCreateModalOpen}
+                onClose={() => setIsCreateModalOpen(false)}
+                title="Create New Company"
+              >
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="name">Company Name *</Label>
@@ -321,8 +324,7 @@ export default function CompanyManagement({ className }: CompanyManagementProps)
                       </Button>
                     </div>
                   </div>
-                </DialogContent>
-              </Dialog>
+              </Modal>
             </div>
           </CardTitle>
           <CardDescription>
@@ -463,14 +465,11 @@ export default function CompanyManagement({ className }: CompanyManagementProps)
       </Card>
 
       {/* Company Details Modal */}
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="!max-w-[90vw] max-h-[90vh] flex flex-col" showCloseButton={false}>
-          <div className="flex-shrink-0 pb-2 flex justify-between">
-            <DialogTitle className="text-2xl">Company Details - {selectedCompany?.name}</DialogTitle>
-            <Button variant="outline" onClick={handleCloseModal}>
-              Close
-            </Button>
-          </div>
+      <Modal
+        open={isModalOpen}
+        onClose={handleCloseModal}
+        title={`Company Details - ${selectedCompany?.name}`}
+      >
           <div className="flex-1 overflow-y-auto pt-4 scrollbar-hide">
           
           {selectedCompany && (
@@ -567,8 +566,7 @@ export default function CompanyManagement({ className }: CompanyManagementProps)
             </div>
           )}
             </div>
-        </DialogContent>
-      </Dialog>
+      </Modal>
     </div>
   );
 } 

@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Combobox } from '@/components/ui/combobox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Modal } from './ui/Modal';
 import { Progress } from '@/components/ui/progress';
 import { 
   Globe, 
@@ -637,14 +638,12 @@ export default function OperationalAreaManagement() {
       </Card>
 
       {/* Create Operational Area Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Create Operational Area</DialogTitle>
-            <DialogDescription>
-              Select continents and countries that define your operational area
-            </DialogDescription>
-          </DialogHeader>
+      <Modal
+        open={showCreateDialog}
+        onClose={() => setShowCreateDialog(false)}
+        title="Create Operational Area"
+        description="Select continents and countries that define your operational area"
+      >
           <div className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -719,33 +718,24 @@ export default function OperationalAreaManagement() {
               Create Area
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+      </Modal>
 
       {/* Import Dialog */}
-      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Import Airfields</DialogTitle>
-            <DialogDescription>
-              {selectedAreaForImport ? (
-                <>
-                  This will import airfields from OurAirports database for the selected operational area:
-                  <br />
-                  <strong>{CONTINENTS.find(c => c.code === selectedAreaForImport.continent)?.name}</strong> - {
-                    selectedAreaForImport.countries.map(countryCode => {
-                      const country = COUNTRIES.find(c => c.code === countryCode);
-                      return country?.name;
-                    }).join(', ')
-                  }
-                  <br />
-                  Select the types of airfields you want to import:
-                </>
-              ) : (
-                'This will import airfields from OurAirports database for your operational areas. This process may take a few minutes.'
-              )}
-            </DialogDescription>
-          </DialogHeader>
+      <Modal
+        open={showImportDialog}
+        onClose={() => {
+          setShowImportDialog(false);
+          setSelectedAreaForImport(null);
+        }}
+        title="Import Airfields"
+        description={
+          selectedAreaForImport 
+            ? `This will import airfields from OurAirports database for the selected operational area: ${CONTINENTS.find(c => c.code === selectedAreaForImport.continent)?.name} - ${selectedAreaForImport.countries.map(countryCode => {
+                const country = COUNTRIES.find(c => c.code === countryCode);
+                return country?.name;
+              }).join(', ')}. Select the types of airfields you want to import.`
+            : 'This will import airfields from OurAirports database for your operational areas. This process may take a few minutes.'
+        }
           
           {/* Airfield Type Selection */}
           <div className="space-y-4">
@@ -838,8 +828,7 @@ export default function OperationalAreaManagement() {
               {importing ? 'Importing...' : 'Start Import'}
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+      </Modal>
     </div>
   );
 } 

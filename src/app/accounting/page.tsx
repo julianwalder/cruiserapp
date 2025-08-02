@@ -1,131 +1,66 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { NewSidebar } from '@/components/NewSidebar';
+import { AppLayout } from '@/components/AppLayout';
 import SmartBillStatus from '@/components/SmartBillStatus';
 import ImportedXMLInvoices from '@/components/ImportedXMLInvoices';
-import { Button } from '@/components/ui/button';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import XMLInvoiceImport from '@/components/XMLInvoiceImport';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { DollarSign, FileText, Upload } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { DollarSign, FileText, Upload, Info, CheckCircle } from 'lucide-react';
+import { useState } from 'react';
+import type { XMLInvoice } from '@/lib/xml-invoice-parser';
 
 export default function AccountingPage() {
-  const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [importedCount, setImportedCount] = useState(0);
+  const [activeTab, setActiveTab] = useState('overview');
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        console.log('Accounting page - Token:', token ? 'exists' : 'missing');
-        
-        if (!token) {
-          console.log('Accounting page - No token, redirecting to login');
-          router.push('/login');
-          return;
-        }
-
-        const response = await fetch('/api/auth/me', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        console.log('Accounting page - Auth response status:', response.status);
-        
-        if (response.ok) {
-          const userData = await response.json();
-          console.log('Accounting page - User data:', userData);
-          
-          if (!userData) {
-            console.log('Accounting page - No user data, redirecting to login');
-            router.push('/login');
-            return;
-          }
-
-          // Check if user has access to accounting
-          const hasAccess = userData.userRoles?.some((ur: any) => 
-            ['SUPER_ADMIN', 'ADMIN'].includes(ur.roles.name)
-          );
-
-          if (!hasAccess) {
-            console.log('Accounting page - User does not have access to accounting, redirecting to dashboard');
-            router.push('/dashboard');
-            return;
-          }
-          
-          setUser(userData);
-          setLoading(false);
-        } else {
-          console.log('Accounting page - Auth failed, redirecting to login');
-          router.push('/login');
-        }
-      } catch (error) {
-        console.error('Accounting page - Error fetching user:', error);
-        router.push('/login');
-      }
-    };
-
-    fetchUser();
-  }, [router]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    router.push('/login');
+  const handleImportSuccess = (invoice: XMLInvoice) => {
+    setImportedCount(prev => prev + 1);
+    // Switch to the imported invoices tab after successful import
+    setActiveTab('invoices');
   };
 
-  if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
-  }
+  const handleRefresh = () => {
+    // This will trigger a refresh of the imported invoices list
+  };
 
   return (
-    <div className="flex h-screen bg-white dark:bg-gray-900">
-      <NewSidebar user={user} onLogout={handleLogout} />
-      
-      <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
-        <header className="bg-card shadow-sm border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 h-16 flex items-center">
-          <div className="flex items-center justify-between w-full">
-            <div className="flex items-center space-x-4">
-              <div className="lg:ml-0 ml-12">
-                <h1 className="text-xl sm:text-2xl font-semibold text-card-foreground">
-                  Accounting & Invoicing
-                </h1>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-4">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-card-foreground">
-                  {user?.firstName} {user?.lastName}
-                </p>
-                <p className="text-xs text-muted-foreground">{user?.email}</p>
-              </div>
-              <div className="h-8 w-8 bg-primary rounded-full flex items-center justify-center">
-                <span className="text-sm font-medium text-primary-foreground">
-                  {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
-                </span>
-              </div>
-              <ThemeToggle />
-            </div>
+    <AppLayout>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-card-foreground">Accounting & Invoicing</h2>
+            <p className="text-muted-foreground">Manage your SmartBill invoices and financial data</p>
           </div>
-        </header>
+        </div>
+        
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="overview" className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="import" className="flex items-center gap-2">
+              <Upload className="h-4 w-4" />
+              Import XML
+              {importedCount > 0 && (
+                <Badge variant="secondary" className="ml-1">
+                  {importedCount}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="invoices" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Invoices
+            </TabsTrigger>
+          </TabsList>
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-white dark:bg-gray-900">
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-card-foreground">Accounting & Invoicing</h2>
-                <p className="text-muted-foreground">Manage your SmartBill invoices and financial data</p>
-              </div>
-            </div>
-            
+          <TabsContent value="overview" className="space-y-6">
             <SmartBillStatus />
             
-            <ImportedXMLInvoices />
-          
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card className="card-hover">
                 <CardHeader>
@@ -206,18 +141,140 @@ export default function AccountingPage() {
                     <p className="text-sm text-muted-foreground">
                       Import XML invoices while waiting for API activation.
                     </p>
-                    <Button asChild className="w-full">
-                      <a href="/xml-import">
-                        Import XML Invoices
-                      </a>
+                    <Button 
+                      onClick={() => setActiveTab('import')}
+                      className="w-full"
+                    >
+                      Import XML Invoices
                     </Button>
                   </div>
                 </CardContent>
               </Card>
             </div>
-          </div>
-        </main>
+          </TabsContent>
+
+          <TabsContent value="import" className="space-y-6">
+            {/* Info Alert */}
+            <Alert className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950">
+              <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <AlertDescription className="text-blue-800 dark:text-blue-200">
+                This feature allows you to import SmartBill XML invoices manually. Once your SmartBill API account is activated, 
+                you can switch to the automatic API integration.
+              </AlertDescription>
+            </Alert>
+
+            <XMLInvoiceImport onImportSuccess={handleImportSuccess} />
+            
+            {/* Features Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                  Import Features
+                </CardTitle>
+                <CardDescription>
+                  What you can do with the XML import feature
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h4 className="font-medium">Import Methods</h4>
+                    <ul className="space-y-2 text-sm text-muted-foreground">
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        File upload (.xml files)
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        Direct XML content paste
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        Sample XML for testing
+                      </li>
+                    </ul>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <h4 className="font-medium">Validation & Preview</h4>
+                    <ul className="space-y-2 text-sm text-muted-foreground">
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        XML structure validation
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        Invoice preview before import
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        Duplicate detection
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="invoices" className="space-y-6">
+            <ImportedXMLInvoices onRefresh={handleRefresh} />
+            
+            {/* Export Features Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Export & Management
+                </CardTitle>
+                <CardDescription>
+                  Features available for imported invoices
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h4 className="font-medium">Search & Filter</h4>
+                    <ul className="space-y-2 text-sm text-muted-foreground">
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        Search by invoice number, client, or items
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        Date range filtering
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        Status-based filtering
+                      </li>
+                    </ul>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <h4 className="font-medium">Export Options</h4>
+                    <ul className="space-y-2 text-sm text-muted-foreground">
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        CSV export with all invoice data
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        Individual invoice download
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        Total calculations and summaries
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
-    </div>
+    </AppLayout>
   );
 } 

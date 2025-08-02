@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Modal } from './ui/Modal';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Search, Trash2, MapPin, Plane, Phone, Globe, Eye, ChevronsUpDown, Check } from 'lucide-react';
 import { useDateFormatUtils } from '@/hooks/use-date-format';
@@ -809,14 +810,12 @@ export default function AirfieldsManagement() {
       </div>
 
       {/* Create Airfield Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add New Airfield</DialogTitle>
-            <DialogDescription>
-              Add a new airfield to the Cruiser Aviation system
-            </DialogDescription>
-          </DialogHeader>
+      <Modal
+        open={showCreateDialog}
+        onClose={() => setShowCreateDialog(false)}
+        title="Add New Airfield"
+        description="Add a new airfield to the Cruiser Aviation system"
+      >
           <form onSubmit={handleSubmit(handleCreateAirfield)} className="space-y-6">
             {/* Basic Information */}
             <div className="space-y-4">
@@ -1039,18 +1038,15 @@ export default function AirfieldsManagement() {
               </Button>
             </div>
           </form>
-        </DialogContent>
-      </Dialog>
+      </Modal>
 
       {/* Airfield Details Dialog */}
-      <Dialog open={showAirfieldDialog} onOpenChange={setShowAirfieldDialog}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Airfield Details</DialogTitle>
-            <DialogDescription>
-              Complete airfield information and details
-            </DialogDescription>
-          </DialogHeader>
+      <Modal
+        open={showAirfieldDialog}
+        onClose={() => setShowAirfieldDialog(false)}
+        title="Airfield Details"
+        description="Complete airfield information and details"
+      >
           {selectedAirfield && (
             <div className="space-y-6">
               {/* Basic Information */}
@@ -1178,8 +1174,7 @@ export default function AirfieldsManagement() {
               </div>
             </div>
           )}
-        </DialogContent>
-      </Dialog>
+      </Modal>
     </div>
   );
 } 

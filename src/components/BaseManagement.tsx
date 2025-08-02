@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Combobox } from '@/components/ui/combobox';
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Modal } from './ui/Modal';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { OptimizedImage } from '@/components/ui/optimized-image';
@@ -426,20 +427,20 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
             <h2 className="text-2xl font-bold">Base Management</h2>
             <p className="text-muted-foreground">Manage airfield bases and assignments</p>
           </div>
-          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-            <DialogTrigger asChild>
-              <Button onClick={() => resetForm()}>
-                <Plus className="h-4 w-4 mr-2" />
-                Designate Base
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="!max-w-[90vw] max-h-[90vh] flex flex-col">
-              <DialogHeader className="flex-shrink-0 pb-4 border-b">
-                <DialogTitle className="text-2xl">Designate New Base</DialogTitle>
-                <DialogDescription className="text-base">
-                  Select an airfield to designate as a base and assign a base manager
-                </DialogDescription>
-              </DialogHeader>
+          <Button onClick={() => {
+            resetForm();
+            setShowCreateDialog(true);
+          }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Designate Base
+          </Button>
+          
+          <Modal
+            open={showCreateDialog}
+            onClose={() => setShowCreateDialog(false)}
+            title="Designate New Base"
+            description="Select an airfield to designate as a base and assign a base manager"
+          >
               <div className="flex-1 overflow-y-auto space-y-4 pt-4">
                 <div>
                   <Label htmlFor="airfieldId">Select Airfield</Label>
@@ -548,8 +549,7 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
                   Designate Base
                 </Button>
               </div>
-            </DialogContent>
-          </Dialog>
+          </Modal>
         </div>
       )}
 
@@ -714,14 +714,12 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
       )}
 
       {/* Edit Base Dialog */}
-      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="!max-w-[90vw] max-h-[90vh] flex flex-col">
-          <DialogHeader className="flex-shrink-0 pb-4 border-b">
-            <DialogTitle className="text-2xl">Edit Base</DialogTitle>
-            <DialogDescription className="text-base">
-              Update base information and management details
-            </DialogDescription>
-          </DialogHeader>
+      <Modal
+        open={showEditDialog}
+        onClose={() => setShowEditDialog(false)}
+        title="Edit Base"
+        description="Update base information and management details"
+      >
           <div className="flex-1 overflow-y-auto space-y-8 pt-4">
             {/* Base Management Information */}
             <div className="bg-muted rounded-lg p-6">
@@ -849,18 +847,14 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
               Update Base
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+      </Modal>
 
       {/* Base Details Dialog */}
-      <Dialog open={showBaseDetailsDialog} onOpenChange={setShowBaseDetailsDialog}>
-        <DialogContent className="!max-w-[90vw] max-h-[90vh] flex flex-col" showCloseButton={false}>
-          <div className="flex-shrink-0 pb-2 flex justify-between">
-            <DialogTitle className="text-2xl">Base Details</DialogTitle>
-              <Button variant="outline" onClick={() => setShowBaseDetailsDialog(false)}>
-                Close
-              </Button>
-          </div>
+      <Modal
+        open={showBaseDetailsDialog}
+        onClose={() => setShowBaseDetailsDialog(false)}
+        title="Base Details"
+      >
           <div className="flex-1 overflow-y-auto pt-4 scrollbar-hide">
             {selectedBase ? (
               <div key={selectedBase.id + selectedBase.updatedAt} className="space-y-8">
@@ -1053,8 +1047,7 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
               </div>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
+      </Modal>
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Modal } from './ui/Modal';
 import { 
   CalendarIcon, 
   Download, 
@@ -608,15 +609,11 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
       </Card>
 
       {/* Invoice Details Modal */}
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="!max-w-[90vw] max-h-[90vh] flex flex-col" showCloseButton={false}>
-          <div className="flex-shrink-0 pb-2 flex justify-between">
-            <DialogTitle className="text-2xl">Invoice Details - {selectedInvoice?.smartbill_id}</DialogTitle>
-            <Button variant="outline" onClick={handleCloseModal}>
-              Close
-            </Button>
-          </div>
-          <div className="flex-1 overflow-y-auto pt-4 scrollbar-hide">
+      <Modal
+        open={isModalOpen}
+        onClose={handleCloseModal}
+        title={`Invoice Details - ${selectedInvoice?.smartbill_id}`}
+      >
           
           {selectedInvoice && (
             <div key={selectedInvoice.id} className="space-y-8">
@@ -837,9 +834,7 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
               </div>
             </div>
           )}
-            </div>
-        </DialogContent>
-      </Dialog>
+      </Modal>
     </div>
   );
 } 
