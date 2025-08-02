@@ -94,6 +94,7 @@ interface FlightLog {
   flightType: string;
   role?: string;
   instructorId?: string;
+  isFerryFlight?: boolean;
 }
 
 interface PPLCourseTranche {
@@ -1010,7 +1011,10 @@ export default function Usage() {
                           ) : (
                             <div className="space-y-3">
                               {clientData.recentFlights.slice(0, 10).map((flight) => (
-                                <div key={flight.id} className="flex items-center justify-between p-3 border rounded-lg">
+                                <div key={flight.id} className={cn(
+                                  "flex items-center justify-between p-3 border rounded-lg",
+                                  flight.isFerryFlight && "bg-gray-50 dark:bg-gray-900/20 opacity-75"
+                                )}>
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2">
                                       <p className="text-sm font-medium">{formatDate(flight.date)}</p>
@@ -1019,13 +1023,26 @@ export default function Usage() {
                                           {flight.role}
                                         </Badge>
                                       )}
+                                      {flight.isFerryFlight && (
+                                        <Badge variant="outline" className="text-xs bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                          FERRY
+                                        </Badge>
+                                      )}
                                     </div>
                                     <p className="text-xs text-muted-foreground mt-1">
                                       {flight.flightType}
+                                      {flight.isFerryFlight && (
+                                        <span className="text-gray-500 ml-1">(excluded from hour calculation)</span>
+                                      )}
                                     </p>
                                   </div>
                                   <div className="text-right">
-                                    <p className="text-sm font-medium">{formatHours(flight.totalHours)}</p>
+                                    <p className={cn(
+                                      "text-sm font-medium",
+                                      flight.isFerryFlight && "text-gray-500 line-through"
+                                    )}>
+                                      {formatHours(flight.totalHours)}
+                                    </p>
                                     <p className="text-xs text-muted-foreground">hours</p>
                                   </div>
                                 </div>
@@ -1281,12 +1298,22 @@ export default function Usage() {
                     <TrendingUp className="h-4 w-4 mr-2" />
                     Recent Flights ({clientData.recentFlights.length})
                   </h4>
+                  {clientData.recentFlights.some(flight => flight.isFerryFlight) && (
+                    <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <p className="text-sm text-blue-800 dark:text-blue-200">
+                        <strong>Note:</strong> FERRY flights are excluded from hour calculations and are marked with a gray badge and strikethrough hours.
+                      </p>
+                    </div>
+                  )}
                   {clientData.recentFlights.length === 0 ? (
                     <p className="text-muted-foreground text-center py-4">No recent flights found</p>
                   ) : (
                     <div className="space-y-3">
-                      {clientData.recentFlights.slice(0, 10).map((flight) => (
-                                                 <div key={flight.id} className="flex items-center justify-between p-3 border rounded-lg">
+                                            {clientData.recentFlights.slice(0, 10).map((flight) => (
+                        <div key={flight.id} className={cn(
+                          "flex items-center justify-between p-3 border rounded-lg",
+                          flight.isFerryFlight && "bg-gray-50 dark:bg-gray-900/20 opacity-75"
+                        )}>
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <p className="text-sm font-medium">{formatDate(flight.date)}</p>
@@ -1295,13 +1322,26 @@ export default function Usage() {
                                   {flight.role}
                                 </Badge>
                               )}
+                              {flight.isFerryFlight && (
+                                <Badge variant="outline" className="text-xs bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                  FERRY
+                                </Badge>
+                              )}
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">
                               {flight.flightType}
+                              {flight.isFerryFlight && (
+                                <span className="text-gray-500 ml-1">(excluded from hour calculation)</span>
+                              )}
                             </p>
                           </div>
                           <div className="text-right">
-                            <span className="text-sm font-medium">{formatHours(flight.totalHours)}</span>
+                            <span className={cn(
+                              "text-sm font-medium",
+                              flight.isFerryFlight && "text-gray-500 line-through"
+                            )}>
+                              {formatHours(flight.totalHours)}
+                            </span>
                             <p className="text-xs text-muted-foreground">hours</p>
                           </div>
                         </div>
@@ -1625,12 +1665,22 @@ export default function Usage() {
                       <TrendingUp className="h-5 w-5 mr-2" />
                       Recent Flights ({selectedClient.recentFlights.length})
                     </h3>
+                    {selectedClient.recentFlights.some(flight => flight.isFerryFlight) && (
+                      <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <p className="text-sm text-blue-800 dark:text-blue-200">
+                          <strong>Note:</strong> FERRY flights are excluded from hour calculations and are marked with a gray badge and strikethrough hours.
+                        </p>
+                      </div>
+                    )}
                     {selectedClient.recentFlights.length === 0 ? (
                       <p className="text-muted-foreground text-center py-4">No recent flights found</p>
                     ) : (
                       <div className="space-y-3">
                         {selectedClient.recentFlights.slice(0, 10).map((flight) => (
-                          <div key={flight.id} className="flex items-center justify-between p-3 border rounded-lg bg-background">
+                          <div key={flight.id} className={cn(
+                            "flex items-center justify-between p-3 border rounded-lg bg-background",
+                            flight.isFerryFlight && "bg-gray-50 dark:bg-gray-900/20 opacity-75"
+                          )}>
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
                                 <p className="text-sm font-medium">{formatDate(flight.date)}</p>
@@ -1639,13 +1689,26 @@ export default function Usage() {
                                     {flight.role}
                                   </Badge>
                                 )}
+                                {flight.isFerryFlight && (
+                                  <Badge variant="outline" className="text-xs bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                    FERRY
+                                  </Badge>
+                                )}
                               </div>
                               <p className="text-xs text-muted-foreground mt-1">
                                 {flight.flightType}
+                                {flight.isFerryFlight && (
+                                  <span className="text-gray-500 ml-1">(excluded from hour calculation)</span>
+                                )}
                               </p>
                             </div>
                             <div className="text-right">
-                              <span className="text-sm font-medium">{formatHours(flight.totalHours)}</span>
+                              <span className={cn(
+                                "text-sm font-medium",
+                                flight.isFerryFlight && "text-gray-500 line-through"
+                              )}>
+                                {formatHours(flight.totalHours)}
+                              </span>
                               <p className="text-xs text-muted-foreground">hours</p>
                             </div>
                           </div>
