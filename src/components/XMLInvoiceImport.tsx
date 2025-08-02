@@ -202,13 +202,30 @@ export default function XMLInvoiceImport({ className, onImportSuccess }: XMLInvo
             <TabsContent value="upload" className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="file">Select XML File</Label>
-                <Input
-                  id="file"
-                  type="file"
-                  accept=".xml"
-                  onChange={handleFileChange}
-                  ref={fileInputRef}
-                />
+                <div className="flex items-center gap-4">
+                  <Input
+                    id="file"
+                    type="file"
+                    accept=".xml"
+                    onChange={handleFileChange}
+                    ref={fileInputRef}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="bg-background border border-input hover:bg-accent hover:text-accent-foreground"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Choose File
+                  </Button>
+                  {file && (
+                    <span className="text-sm text-muted-foreground">
+                      {file.name}
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground">
                   Upload a SmartBill XML invoice file
                 </p>
