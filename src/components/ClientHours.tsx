@@ -27,10 +27,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Building2,
-  MoreVertical
+  MoreVertical,
+  CheckCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 import {
   Tooltip,
   TooltipContent,
@@ -144,6 +146,7 @@ export default function ClientHours() {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderPackage, setOrderPackage] = useState<{ hours: number; price: number } | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
+  const [currentUserRole, setCurrentUserRole] = useState<string>('');
   const [pagination, setPagination] = useState({
     page: 1,
     limit: 10,
@@ -162,7 +165,12 @@ export default function ClientHours() {
 
       if (response.ok) {
         const userData = await response.json();
+        console.log('🔍 User data from /api/auth/me:', userData);
         setCurrentUserEmail(userData.email);
+        // Use the first role from the roles array, or fallback to userRoles
+        const userRole = userData.roles?.[0] || userData.userRoles?.[0]?.roles?.name || '';
+        console.log('🔍 Extracted user role:', userRole);
+        setCurrentUserRole(userRole);
       }
     } catch (error) {
       console.error('Failed to fetch current user:', error);
@@ -233,6 +241,13 @@ export default function ClientHours() {
     }));
   }, [filteredClients.length]);
 
+  // Helper functions for role-based display
+  const isPilotOrStudent = () => {
+    const isPilotStudent = currentUserRole === 'PILOT' || currentUserRole === 'STUDENT';
+    console.log('🔍 Role check:', { currentUserRole, isPilotStudent });
+    return isPilotStudent;
+  };
+
   // Reset to first page when filters change
   useEffect(() => {
     setPagination(prev => ({ ...prev, page: 1 }));
@@ -266,6 +281,48 @@ export default function ClientHours() {
     setIsOrderModalOpen(false);
     setSelectedClient(null);
     setOrderPackage(null);
+  };
+
+  const handleExportReport = (clientData: ClientHoursData) => {
+    // Create CSV content for the client report
+    const headers = [
+      'Client Name',
+      'Email',
+      'Total Bought Hours',
+      'Total Used Hours',
+      'Total Remaining Hours',
+      'Status',
+      'Package Count',
+      'Recent Flights Count'
+    ];
+
+    const csvContent = [
+      headers.join(','),
+      [
+        clientData.client.name,
+        clientData.client.email,
+        formatHours(clientData.totalBoughtHours),
+        formatHours(clientData.totalUsedHours),
+        formatHours(clientData.totalRemainingHours),
+        clientData.totalRemainingHours <= 0 ? 'Overdrawn' : 
+        clientData.totalRemainingHours <= 1 ? 'Low Hours' : 'In Progress',
+        clientData.packages.length,
+        clientData.recentFlights.length
+      ].join(',')
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `client-hours-report-${clientData.client.name.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    
+    toast.success('Report exported successfully!', {
+      description: `Client hours report for ${clientData.client.name} has been downloaded.`,
+      duration: 3000,
+    });
   };
 
   const handlePackageSelection = (hours: number, price: number) => {
@@ -346,9 +403,6 @@ export default function ClientHours() {
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                <span>Client Hours Management</span>
-                <Badge variant="outline">{filteredClients.length}</Badge>
               </div>
               <div className="flex gap-2">
                 <Button
@@ -362,66 +416,66 @@ export default function ClientHours() {
                 </Button>
               </div>
             </CardTitle>
-            <CardDescription>
-              Monitor client hour packages, usage, and remaining hours. Hours are calculated directly from flight logs.
-            </CardDescription>
+
           </CardHeader>
           <CardContent>
-            {/* Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="space-y-2">
-                <Label htmlFor="search">Search Clients</Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="search"
-                    placeholder="Search by name, email, VAT code, or company..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
+            {/* Filters - Hidden for Pilot/Student view */}
+            {!isPilotOrStudent() && (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="space-y-2">
+                  <Label htmlFor="search">Search Clients</Label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="search"
+                      placeholder="Search by name, email, VAT code, or company..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="status">Status Filter</Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All clients</SelectItem>
+                      <SelectItem value="in progress">In Progress</SelectItem>
+                      <SelectItem value="low hours">Low Hours (≤1h)</SelectItem>
+                      <SelectItem value="overdrawn">Overdrawn</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="clientType">Client Type Filter</Label>
+                  <Select value={clientTypeFilter} onValueChange={setClientTypeFilter}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Clients</SelectItem>
+                      <SelectItem value="company">Companies</SelectItem>
+                      <SelectItem value="individual">Individuals</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>&nbsp;</Label>
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="w-full">
+                      <TrendingUp className="h-4 w-4 mr-2" />
+                      Export Report
+                    </Button>
+                  </div>
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="status">Status Filter</Label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All clients</SelectItem>
-                    <SelectItem value="in progress">In Progress</SelectItem>
-                    <SelectItem value="low hours">Low Hours (≤1h)</SelectItem>
-                    <SelectItem value="overdrawn">Overdrawn</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="clientType">Client Type Filter</Label>
-                <Select value={clientTypeFilter} onValueChange={setClientTypeFilter}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Clients</SelectItem>
-                    <SelectItem value="company">Companies</SelectItem>
-                    <SelectItem value="individual">Individuals</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>&nbsp;</Label>
-                <div className="flex gap-2">
-                  <Button variant="outline" className="w-full">
-                    <TrendingUp className="h-4 w-4 mr-2" />
-                    Export Report
-                  </Button>
-                </div>
-              </div>
-            </div>
+            )}
 
             {/* Error Message */}
             {error && (
@@ -433,8 +487,8 @@ export default function ClientHours() {
               </Alert>
             )}
 
-            {/* Summary Stats */}
-            {filteredClients.length > 0 && (
+            {/* Summary Stats - Hidden for Pilot/Student view */}
+            {filteredClients.length > 0 && !isPilotOrStudent() && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <Card>
                   <CardContent className="p-4">
@@ -518,8 +572,10 @@ export default function ClientHours() {
                     {paginatedClients.map((clientData) => (
                       <TableRow 
                         key={clientData.client.id}
-                        className="cursor-pointer hover:bg-muted/50 transition-colors"
-                        onClick={() => handleViewDetails(clientData)}
+                        className={cn(
+                          !isPilotOrStudent() && "cursor-pointer hover:bg-muted/50 transition-colors"
+                        )}
+                        onClick={!isPilotOrStudent() ? () => handleViewDetails(clientData) : undefined}
                       >
                         <TableCell>
                           <div>
@@ -545,7 +601,22 @@ export default function ClientHours() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {getStatusBadge(clientData.totalRemainingHours)}
+                          <div className="flex items-center gap-2">
+                            {getStatusBadge(clientData.totalRemainingHours)}
+                            {clientData.packages.length > 1 && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                                    FIFO
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Multiple packages - FIFO method applied</p>
+                                  <p className="text-xs text-muted-foreground">Oldest packages consumed first</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           {formatHours(clientData.totalBoughtHours)}
@@ -592,16 +663,24 @@ export default function ClientHours() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => handleViewDetails(clientData)}>
-                                <Eye className="h-4 w-4 mr-2" />
-                                View Details
-                              </DropdownMenuItem>
-                              {clientData.totalRemainingHours <= 1 && (
-                                <DropdownMenuItem onClick={() => handleOrderHours(clientData)}>
-                                  <ShoppingCart className="h-4 w-4 mr-2" />
-                                  Order Hours
-                                </DropdownMenuItem>
+                              {!isPilotOrStudent() && (
+                                <>
+                                  <DropdownMenuItem onClick={() => handleViewDetails(clientData)}>
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    View Details
+                                  </DropdownMenuItem>
+                                  {clientData.totalRemainingHours <= 1 && (
+                                    <DropdownMenuItem onClick={() => handleOrderHours(clientData)}>
+                                      <ShoppingCart className="h-4 w-4 mr-2" />
+                                      Order Hours
+                                    </DropdownMenuItem>
+                                  )}
+                                </>
                               )}
+                              <DropdownMenuItem onClick={() => handleExportReport(clientData)}>
+                                <TrendingUp className="h-4 w-4 mr-2" />
+                                Export Report
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -614,17 +693,19 @@ export default function ClientHours() {
 
             {/* Pagination */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mt-6 gap-4">
-              <div className="text-sm text-muted-foreground">
-                {pagination.total > 0 ? (
-                  <>
-                    Showing <span className="font-medium">{((pagination.page - 1) * pagination.limit) + 1}</span> to{' '}
-                    <span className="font-medium">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of{' '}
-                    <span className="font-medium">{pagination.total}</span> clients
-                  </>
-                ) : (
-                  'No clients found'
-                )}
-              </div>
+              {!isPilotOrStudent() && (
+                <div className="text-sm text-muted-foreground">
+                  {pagination.total > 0 ? (
+                    <>
+                      Showing <span className="font-medium">{((pagination.page - 1) * pagination.limit) + 1}</span> to{' '}
+                      <span className="font-medium">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of{' '}
+                      <span className="font-medium">{pagination.total}</span> clients
+                    </>
+                  ) : (
+                    'No clients found'
+                  )}
+                </div>
+              )}
               {pagination.pages > 1 && (
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 w-full sm:w-auto">
                   <div className="flex items-center space-x-2">
@@ -700,6 +781,194 @@ export default function ClientHours() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Individual Cards for Pilot/Student View */}
+        {isPilotOrStudent() && filteredClients.length > 0 && (
+          <div className="mt-8 space-y-6">
+            {filteredClients.map((clientData) => (
+              <div key={clientData.client.id} className="space-y-6">
+                {/* PPL Course */}
+                {clientData.pplCourse && (
+                  <div className="bg-background rounded-lg p-6 border">
+                    <h4 className="text-lg font-semibold text-card-foreground mb-4 flex items-center">
+                      <Package className="h-4 w-4 mr-2" />
+                      PPL Course 45 Hours ({clientData.pplCourse.tranches.length} tranches)
+                    </h4>
+                    
+                                         {/* PPL Course Summary */}
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                       <div className="rounded-lg p-4 border">
+                         <h5 className="text-lg font-semibold text-card-foreground mb-2">Total Allocated</h5>
+                         <div className="text-2xl font-bold">{formatHours(clientData.pplCourse.summary.totalHoursAllocated)}</div>
+                         <p className="text-xs text-muted-foreground">Course hours</p>
+                       </div>
+                       
+                       <div className="rounded-lg p-4 border">
+                         <h5 className="text-lg font-semibold text-card-foreground mb-2">Used</h5>
+                         <div className="text-2xl font-bold">{formatHours(clientData.pplCourse.summary.totalHoursUsed)}</div>
+                         <p className="text-xs text-muted-foreground">Flown hours</p>
+                       </div>
+                       
+                       <div className="rounded-lg p-4 border">
+                         <h5 className="text-lg font-semibold text-card-foreground mb-2">Remaining</h5>
+                         <div className={cn(
+                           "text-2xl font-bold",
+                           clientData.pplCourse.summary.totalHoursRemaining <= 0 ? 'text-destructive' : 
+                           clientData.pplCourse.summary.totalHoursRemaining <= 5 ? 'text-orange-600' : 'text-green-600'
+                         )}>
+                           {formatHours(clientData.pplCourse.summary.totalHoursRemaining)}
+                         </div>
+                         <p className="text-xs text-muted-foreground">Available hours</p>
+                       </div>
+                     </div>
+                  </div>
+                )}
+
+                {/* Hour Packages */}
+                <div className="bg-background rounded-lg p-6 border">
+                  <h4 className="text-lg font-semibold text-card-foreground mb-4 flex items-center">
+                    <Package className="h-4 w-4 mr-2" />
+                    Hour Packages ({clientData.packages.length}) - FIFO Method
+                  </h4>
+                  <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      <strong>FIFO Method:</strong> Hours are consumed from the oldest packages first. 
+                      This ensures fair usage tracking and proper package expiration management.
+                    </p>
+                  </div>
+                  {clientData.packages.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-4">No hour packages found</p>
+                  ) : (
+                    <div className="space-y-4">
+                      {clientData.packages
+                        .sort((a, b) => new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime())
+                        .map((pkg, index) => (
+                                                 <div key={pkg.id} className={cn(
+                           "border-2 rounded-lg p-4",
+                           pkg.remainingHours <= 0 && "opacity-60",
+                           pkg.remainingHours <= 0 ? "border-gray-800" :
+                           pkg.remainingHours <= pkg.totalHours * 0.25 ? "border-orange-500" :
+                           "border-green-500"
+                         )}>
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <p className="font-medium text-lg">{formatHours(pkg.totalHours)} Package</p>
+                                {index === 0 && pkg.usedHours > 0 && (
+                                  <Badge variant="outline" className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                    <Clock className="h-3 w-3 mr-1" />
+                                    First Used
+                                  </Badge>
+                                )}
+                                {pkg.remainingHours <= 0 && (
+                                  <Badge variant="outline" className="text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
+                                    Consumed
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                Purchased: {formatDate(pkg.purchaseDate)}
+                                {pkg.expiryDate && ` • Expires: ${formatDate(pkg.expiryDate)}`}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Invoice: {pkg.invoiceId} • Price: {formatCurrency(pkg.price, pkg.currency)}
+                              </p>
+                            </div>
+                            <Badge className={
+                              pkg.status === 'in progress' ? 'bg-green-500 hover:bg-green-600 text-white' :
+                              pkg.status === 'low hours' ? 'bg-orange-500 hover:bg-orange-600 text-white' :
+                              pkg.status === 'overdrawn' ? 'bg-destructive text-white' :
+                              'bg-gray-500 hover:bg-gray-600 text-white'
+                            }>
+                              {pkg.status}
+                            </Badge>
+                          </div>
+                          
+                          <div className="space-y-3">
+                            <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div className="text-center">
+                                <p className="font-medium text-green-600 dark:text-green-400">Used</p>
+                                <p className="text-lg font-bold">{formatHours(pkg.usedHours)}</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="font-medium text-blue-600 dark:text-blue-400">Remaining</p>
+                                <p className="text-lg font-bold">{formatHours(pkg.remainingHours)}</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="font-medium text-gray-600 dark:text-gray-400">Total</p>
+                                <p className="text-lg font-bold">{formatHours(pkg.totalHours)}</p>
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-xs text-muted-foreground">
+                                <span>Usage Progress</span>
+                                <span>{Math.round((pkg.usedHours / pkg.totalHours) * 100)}%</span>
+                              </div>
+                              <Progress 
+                                value={(pkg.usedHours / pkg.totalHours) * 100}
+                                className={cn(
+                                  pkg.remainingHours <= 0 ? 'bg-green-500' :
+                                  pkg.remainingHours <= pkg.totalHours * 0.25 ? 'bg-orange-500' :
+                                  'bg-green-500'
+                                )}
+                              />
+                            </div>
+                            
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>Rate: {formatCurrency(pkg.price / pkg.totalHours, pkg.currency)}/hour</span>
+                              <span>{Math.round((pkg.remainingHours / pkg.totalHours) * 100)}% remaining</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Recent Flights */}
+                <div className="bg-background rounded-lg p-6 border">
+                  <h4 className="text-lg font-semibold text-card-foreground mb-4 flex items-center">
+                    <TrendingUp className="h-4 w-4 mr-2" />
+                    Recent Flights ({clientData.recentFlights.length})
+                  </h4>
+                  {clientData.recentFlights.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-4">No recent flights found</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {clientData.recentFlights.slice(0, 10).map((flight) => (
+                                                 <div key={flight.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium">{formatDate(flight.date)}</p>
+                              {flight.role && (
+                                <Badge variant="outline" className="text-xs">
+                                  {flight.role}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {flight.flightType}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-sm font-medium">{formatHours(flight.totalHours)}</span>
+                            <p className="text-xs text-muted-foreground">hours</p>
+                          </div>
+                        </div>
+                      ))}
+                      {clientData.recentFlights.length > 10 && (
+                        <p className="text-xs text-muted-foreground text-center">
+                          Showing last 10 flights of {clientData.recentFlights.length} total
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Client Details Modal */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
@@ -912,17 +1181,44 @@ export default function ClientHours() {
                   <div className="bg-muted rounded-lg p-6">
                     <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
                       <Package className="h-5 w-5 mr-2" />
-                      Hour Packages ({selectedClient.packages.length})
+                      Hour Packages ({selectedClient.packages.length}) - FIFO Method
                     </h3>
+                    <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <p className="text-sm text-blue-800 dark:text-blue-200">
+                        <strong>FIFO Method:</strong> Hours are consumed from the oldest packages first. 
+                        This ensures fair usage tracking and proper package expiration management.
+                      </p>
+                    </div>
                     {selectedClient.packages.length === 0 ? (
                       <p className="text-muted-foreground text-center py-4">No hour packages found</p>
                     ) : (
                       <div className="space-y-4">
-                        {selectedClient.packages.map((pkg) => (
-                          <div key={pkg.id} className="border rounded-lg p-4 bg-background">
+                        {selectedClient.packages
+                          .sort((a, b) => new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime())
+                          .map((pkg, index) => (
+                          <div key={pkg.id} className={cn(
+                            "border-2 rounded-lg p-4 bg-background",
+                            pkg.remainingHours <= 0 && "opacity-60",
+                            pkg.remainingHours <= 0 ? "border-gray-800" :
+                            pkg.remainingHours <= pkg.totalHours * 0.25 ? "border-orange-500" :
+                            "border-green-500"
+                          )}>
                             <div className="flex items-center justify-between mb-3">
-                              <div>
-                                <p className="font-medium text-lg">{formatHours(pkg.totalHours)} Package</p>
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <p className="font-medium text-lg">{formatHours(pkg.totalHours)} Package</p>
+                                  {index === 0 && pkg.usedHours > 0 && (
+                                    <Badge variant="outline" className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                      <Clock className="h-3 w-3 mr-1" />
+                                      First Used
+                                    </Badge>
+                                  )}
+                                  {pkg.remainingHours <= 0 && (
+                                    <Badge variant="outline" className="text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
+                                      Consumed
+                                    </Badge>
+                                  )}
+                                </div>
                                 <p className="text-sm text-muted-foreground">
                                   Purchased: {formatDate(pkg.purchaseDate)}
                                   {pkg.expiryDate && ` • Expires: ${formatDate(pkg.expiryDate)}`}
@@ -933,27 +1229,45 @@ export default function ClientHours() {
                               </div>
                               <Badge className={
                                 pkg.status === 'in progress' ? 'bg-green-500 hover:bg-green-600 text-white' :
-                                pkg.status === 'low hours' ? 'bg-destructive text-white' :
+                                pkg.status === 'low hours' ? 'bg-orange-500 hover:bg-orange-600 text-white' :
                                 pkg.status === 'overdrawn' ? 'bg-destructive text-white' :
-                                'bg-orange-500 hover:bg-orange-600 text-white'
+                                'bg-gray-500 hover:bg-gray-600 text-white'
                               }>
                                 {pkg.status}
                               </Badge>
                             </div>
                             
                             <div className="space-y-3">
-                              <div className="flex justify-between text-sm">
-                                <span>Used: {formatHours(pkg.usedHours)}</span>
-                                <span>Remaining: {formatHours(pkg.remainingHours)}</span>
+                              <div className="grid grid-cols-3 gap-4 text-sm">
+                                <div className="text-center">
+                                  <p className="font-medium text-green-600 dark:text-green-400">Used</p>
+                                  <p className="text-lg font-bold">{formatHours(pkg.usedHours)}</p>
+                                </div>
+                                <div className="text-center">
+                                  <p className="font-medium text-blue-600 dark:text-blue-400">Remaining</p>
+                                  <p className="text-lg font-bold">{formatHours(pkg.remainingHours)}</p>
+                                </div>
+                                <div className="text-center">
+                                  <p className="font-medium text-gray-600 dark:text-gray-400">Total</p>
+                                  <p className="text-lg font-bold">{formatHours(pkg.totalHours)}</p>
+                                </div>
                               </div>
-                              <Progress 
-                                value={(pkg.usedHours / pkg.totalHours) * 100}
-                                className={cn(
-                                  pkg.remainingHours <= 0 ? 'bg-destructive' :
-                                  pkg.remainingHours <= pkg.totalHours * 0.25 ? 'bg-orange-500' :
-                                  'bg-green-500'
-                                )}
-                              />
+                              
+                              <div className="space-y-2">
+                                <div className="flex justify-between text-xs text-muted-foreground">
+                                  <span>Usage Progress</span>
+                                  <span>{Math.round((pkg.usedHours / pkg.totalHours) * 100)}%</span>
+                                </div>
+                                <Progress 
+                                  value={(pkg.usedHours / pkg.totalHours) * 100}
+                                  className={cn(
+                                    pkg.remainingHours <= 0 ? 'bg-green-500' :
+                                    pkg.remainingHours <= pkg.totalHours * 0.25 ? 'bg-orange-500' :
+                                    'bg-green-500'
+                                  )}
+                                />
+                              </div>
+                              
                               <div className="flex justify-between text-xs text-muted-foreground">
                                 <span>Rate: {formatCurrency(pkg.price / pkg.totalHours, pkg.currency)}/hour</span>
                                 <span>{Math.round((pkg.remainingHours / pkg.totalHours) * 100)}% remaining</span>

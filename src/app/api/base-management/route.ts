@@ -21,16 +21,8 @@ export async function GET(request: NextRequest) {
     const payload = AuthService.verifyToken(token);
     const userRoles = payload?.roles || [];
     
-    // Check if user has appropriate permissions
-    if (!AuthService.hasRole(userRoles, 'SUPER_ADMIN') && 
-        !AuthService.hasRole(userRoles, 'ADMIN') && 
-        !AuthService.hasRole(userRoles, 'BASE_MANAGER') &&
-        !AuthService.hasRole(userRoles, 'PILOT')) {
-      return NextResponse.json(
-        { error: 'Insufficient permissions' },
-        { status: 403 }
-      );
-    }
+    // All authenticated users can read base management data
+    // No additional permission check needed for GET requests
 
     const supabase = getSupabaseClient();
     if (!supabase) {

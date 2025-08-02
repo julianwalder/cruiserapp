@@ -396,7 +396,7 @@ export default function FlightLogs() {
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedFlightLog, setSelectedFlightLog] = useState<FlightLog | null>(null);
   const [showPPLView, setShowPPLView] = useState(true);
-  const [viewMode, setViewMode] = useState<"personal" | "company">("company");
+  const [viewMode, setViewMode] = useState<"personal" | "company">("personal");
   const [activeTab, setActiveTab] = useState("all");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [pagination, setPagination] = useState<Pagination>({
@@ -497,7 +497,7 @@ export default function FlightLogs() {
           arrivalAirfieldId: flightLogToEdit.arrivalAirfieldId,
           arrivalTime: flightLogToEdit.arrivalTime,
           purpose: flightLogToEdit.purpose || undefined,
-          remarks: flightLogToEdit.remarks || undefined,
+          remarks: flightLogToEdit.remarks || '',
           route: flightLogToEdit.route || undefined,
           conditions: flightLogToEdit.conditions || undefined,
         });
@@ -571,6 +571,28 @@ export default function FlightLogs() {
         console.log('🔍 /api/auth/me response data:', data);
         console.log('🔍 Setting currentUser to:', data);
         setCurrentUser(data);
+        
+        // Set appropriate view mode based on user role
+        const userRoles = data.userRoles?.map((ur: any) => ur.role?.name || ur.roles?.name) || [];
+        const isPilot = userRoles.includes('PILOT');
+        const isStudent = userRoles.includes('STUDENT');
+        const isInstructor = userRoles.includes('INSTRUCTOR');
+        const isAdmin = userRoles.includes('ADMIN') || userRoles.includes('SUPER_ADMIN');
+        const isBaseManager = userRoles.includes('BASE_MANAGER');
+        
+        console.log('🔍 User roles detected:', userRoles);
+        console.log('🔍 Role flags:', { isPilot, isStudent, isInstructor, isAdmin, isBaseManager });
+        
+        // Admins, instructors, and base managers should default to company view (priority over pilot/student)
+        if (isAdmin || isInstructor || isBaseManager) {
+          console.log('🔍 Setting view mode to company (admin/instructor/base_manager)');
+          setViewMode('company');
+        }
+        // Pilots and students should ONLY see personal view (no toggle allowed)
+        else if (isPilot || isStudent) {
+          console.log('🔍 Setting view mode to personal (pilot/student)');
+          setViewMode('personal');
+        }
         
         // If user should not show pilot selection, automatically set them as the pilot
         if (!shouldShowPilotSelection()) {
@@ -731,12 +753,16 @@ export default function FlightLogs() {
         const data = await response.json();
         console.log('🔍 Flight logs data received:', data);
         console.log('🔍 Number of flight logs:', data.flightLogs?.length || 0);
+        console.log('🔍 Total records from API:', data.totalRecords);
+        console.log('🔍 Total pages from API:', data.totalPages);
         setFlightLogs(data.flightLogs || []);
-        setPagination({
+        const newPagination = {
           ...pagination,
           total: data.totalRecords || 0,
           pages: data.totalPages || 1,
-        });
+        };
+        console.log('🔍 Setting pagination to:', newPagination);
+        setPagination(newPagination);
       } else {
         console.error('Error fetching flight logs:', response.status);
         const errorText = await response.text();
@@ -1013,11 +1039,44 @@ export default function FlightLogs() {
     }
   };
 
-  const handleEditFlightLog = (flightLog: FlightLog) => {
+  const handleEditFlightLog = async (flightLog: FlightLog) => {
     console.log('✏️ Edit button clicked for flight log:', flightLog.id);
-    setFlightLogToEdit(flightLog);
-    setIsEditMode(true);
-    setShowCreateDialog(true);
+    console.log('📝 Flight log data:', flightLog);
+    
+    try {
+      // Fetch fresh flight log data from API to ensure we have the latest remarks
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Authentication required');
+        return;
+      }
+
+      const response = await fetch(`/api/flight-logs/${flightLog.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const freshFlightLog = await response.json();
+        console.log('🔄 Fresh flight log data:', freshFlightLog);
+        setFlightLogToEdit(freshFlightLog);
+        setIsEditMode(true);
+        setShowCreateDialog(true);
+      } else {
+        console.error('❌ Failed to fetch fresh flight log data');
+        // Fallback to using existing data
+        setFlightLogToEdit(flightLog);
+        setIsEditMode(true);
+        setShowCreateDialog(true);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching fresh flight log data:', error);
+      // Fallback to using existing data
+      setFlightLogToEdit(flightLog);
+      setIsEditMode(true);
+      setShowCreateDialog(true);
+    }
   };
 
   const handleCloseModal = () => {
@@ -1130,10 +1189,13 @@ export default function FlightLogs() {
     
     console.log('🔍 canToggleViewMode - currentUser.userRoles:', JSON.stringify(currentUser.userRoles, null, 2));
     
+    // Only allow view mode toggle for users who should see company-wide data
     const canToggle = currentUser.userRoles?.some((ur: any) => {
       const roleName = ur.role?.name || ur.roles?.name;
       console.log('🔍 Checking role:', roleName, 'from ur:', ur);
-      return roleName === 'PILOT' || roleName === 'STUDENT' || roleName === 'INSTRUCTOR' || roleName === 'ADMIN' || roleName === 'SUPER_ADMIN' || roleName === 'BASE_MANAGER';
+      // Only INSTRUCTOR, ADMIN, SUPER_ADMIN, and BASE_MANAGER can toggle view mode
+      // PILOT and STUDENT should only see their personal flights
+      return roleName === 'INSTRUCTOR' || roleName === 'ADMIN' || roleName === 'SUPER_ADMIN' || roleName === 'BASE_MANAGER';
     });
     
     console.log('🔍 canToggleViewMode check:', {
@@ -1972,7 +2034,6 @@ export default function FlightLogs() {
                                 {/* Column 12: Remarks and Endorsements */}
                                 <TableCell className="text-sm border-r border-gray-200 dark:border-gray-700 p-2">
                                   <div className="text-xs">
-                                    {log.remarks && <div>Remarks: {log.remarks}</div>}
                                     {log.purpose && <div>Purpose: {log.purpose}</div>}
                                     {log.departureHobbs && log.arrivalHobbs && (
                                       <div>Hobbs: {log.departureHobbs.toFixed(1)} → {log.arrivalHobbs.toFixed(1)}</div>
@@ -2037,17 +2098,20 @@ export default function FlightLogs() {
                     {/* Pagination */}
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mt-6 gap-4">
                       <div className="text-sm text-muted-foreground">
-                        {pagination.total > 0 ? (
-                          <>
-                            Showing <span className="font-medium">{((pagination.page - 1) * pagination.limit) + 1}</span> to{' '}
-                            <span className="font-medium">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of{' '}
-                            <span className="font-medium">{pagination.total}</span> flight logs
-                          </>
-                        ) : (
-                          'No flight logs found'
-                        )}
+                        {(() => {
+                          console.log('🔍 Pagination display - total:', pagination.total, 'page:', pagination.page, 'limit:', pagination.limit);
+                          return pagination.total > 0 ? (
+                            <>
+                              Showing <span className="font-medium">{((pagination.page - 1) * pagination.limit) + 1}</span> to{' '}
+                              <span className="font-medium">{Math.min(pagination.page * pagination.limit, pagination.total)}</span> of{' '}
+                              <span className="font-medium">{pagination.total}</span> flight logs
+                            </>
+                          ) : (
+                            'No flight logs found'
+                          );
+                        })()}
                       </div>
-                      {pagination.pages > 1 && (
+                      {pagination.total > 0 && (
                         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 w-full sm:w-auto">
                           <div className="flex items-center space-x-2">
                             <span className="text-sm text-muted-foreground">Show:</span>
@@ -2073,50 +2137,52 @@ export default function FlightLogs() {
                             </Select>
                             <span className="text-sm text-muted-foreground">per page</span>
                           </div>
-                          <div className="flex flex-col sm:flex-row items-center gap-3">
-                            <div className="flex items-center space-x-3">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={pagination.page === 1 || loading}
-                                onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
-                                className="h-8 px-3"
-                              >
-                                {loading ? 'Loading...' : 'Previous'}
-                              </Button>
-                              <div className="flex items-center space-x-2">
-                                <span className="text-sm text-muted-foreground">Page</span>
-                                <span className="text-sm font-medium">{pagination.page}</span>
-                                <span className="text-sm text-muted-foreground">of</span>
-                                <span className="text-sm font-medium">{pagination.pages}</span>
+                          {pagination.pages > 1 && (
+                            <div className="flex flex-col sm:flex-row items-center gap-3">
+                              <div className="flex items-center space-x-3">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={pagination.page === 1 || loading}
+                                  onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+                                  className="h-8 px-3"
+                                >
+                                  {loading ? 'Loading...' : 'Previous'}
+                                </Button>
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-sm text-muted-foreground">Page</span>
+                                  <span className="text-sm font-medium">{pagination.page}</span>
+                                  <span className="text-sm text-muted-foreground">of</span>
+                                  <span className="text-sm font-medium">{pagination.pages}</span>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={pagination.page === pagination.pages || loading}
+                                  onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+                                  className="h-8 px-3"
+                                >
+                                  {loading ? 'Loading...' : 'Next'}
+                                </Button>
                               </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={pagination.page === pagination.pages || loading}
-                                onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
-                                className="h-8 px-3"
-                              >
-                                {loading ? 'Loading...' : 'Next'}
-                              </Button>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-sm text-muted-foreground">Go to:</span>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  max={pagination.pages}
+                                  value={pagination.page}
+                                  onChange={(e) => {
+                                    const page = parseInt(e.target.value);
+                                    if (page >= 1 && page <= pagination.pages) {
+                                      setPagination(prev => ({ ...prev, page }));
+                                    }
+                                  }}
+                                  className="w-16 h-8 text-center"
+                                />
+                              </div>
                             </div>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-sm text-muted-foreground">Go to:</span>
-                              <Input
-                                type="number"
-                                min={1}
-                                max={pagination.pages}
-                                value={pagination.page}
-                                onChange={(e) => {
-                                  const page = parseInt(e.target.value);
-                                  if (page >= 1 && page <= pagination.pages) {
-                                    setPagination(prev => ({ ...prev, page }));
-                                  }
-                                }}
-                                className="w-16 h-8 text-center"
-                              />
-                            </div>
-                          </div>
+                          )}
                         </div>
                       )}
                     </div>

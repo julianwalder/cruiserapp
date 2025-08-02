@@ -163,6 +163,10 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
       if (response.ok) {
         const data = await response.json();
         setBaseManagers(data.users || []);
+      } else if (response.status === 403) {
+        // User doesn't have permission to fetch base managers
+        setBaseManagers([]);
+        console.log('User does not have permission to fetch base managers');
       } else {
         console.error('Failed to fetch base managers:', response.status);
       }

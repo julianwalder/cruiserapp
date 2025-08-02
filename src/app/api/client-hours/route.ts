@@ -397,7 +397,7 @@ export async function GET(request: NextRequest) {
           const packages = clientPackages.get(client.id) || [];
           const totalUsedHours = clientFlightHours.get(client.id) || 0;
           
-          // Calculate remaining hours for each package
+          // Calculate remaining hours for each package using FIFO method
           let totalBoughtHours = 0;
           let totalRemainingHours = 0;
 
@@ -450,18 +450,34 @@ export async function GET(request: NextRequest) {
           // Add PPL course hours to total bought hours
           totalBoughtHours += pplBoughtHours;
 
-          // Simple calculation: remaining = bought - used
-          totalRemainingHours = totalBoughtHours - totalUsedHours;
+          // FIFO calculation: consume packages in chronological order
+          let remainingUsedHours = totalUsedHours;
+          
+          // Sort packages by purchase date (oldest first for FIFO)
+          const sortedPackages = [...packages].sort((a, b) => 
+            new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime()
+          );
 
-          // Update package details for display (simplified)
-          packages.forEach(pkg => {
-            // For display purposes, we'll show proportional usage
-            const packageUsageRatio = totalBoughtHours > 0 ? pkg.totalHours / totalBoughtHours : 0;
-            pkg.usedHours = totalUsedHours * packageUsageRatio;
-            pkg.remainingHours = pkg.totalHours - pkg.usedHours;
+          // Apply FIFO logic to each package
+          sortedPackages.forEach(pkg => {
+            if (remainingUsedHours <= 0) {
+              // No more hours to consume
+              pkg.usedHours = 0;
+              pkg.remainingHours = pkg.totalHours;
+            } else if (remainingUsedHours >= pkg.totalHours) {
+              // Consume entire package
+              pkg.usedHours = pkg.totalHours;
+              pkg.remainingHours = 0;
+              remainingUsedHours -= pkg.totalHours;
+            } else {
+              // Partially consume package
+              pkg.usedHours = remainingUsedHours;
+              pkg.remainingHours = pkg.totalHours - remainingUsedHours;
+              remainingUsedHours = 0;
+            }
             
-            // Update package status - ensure overdrawn when used >= total
-            if (pkg.usedHours >= pkg.totalHours || pkg.remainingHours <= 0) {
+            // Update package status based on remaining hours
+            if (pkg.remainingHours <= 0) {
               pkg.status = 'overdrawn';
             } else if (pkg.remainingHours <= 1) {
               pkg.status = 'low hours';
@@ -469,6 +485,9 @@ export async function GET(request: NextRequest) {
               pkg.status = 'in progress';
             }
           });
+
+          // Calculate total remaining hours
+          totalRemainingHours = totalBoughtHours - totalUsedHours;
 
 
 

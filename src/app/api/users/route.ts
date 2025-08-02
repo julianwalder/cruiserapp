@@ -284,7 +284,7 @@ async function createUser(request: NextRequest, currentUser: any) {
 }
 
 // Export the handlers with middleware
-export const GET = requireAnyRole(['ADMIN', 'BASE_MANAGER'])(getUsers);
+export const GET = requireAuth(getUsers);
 
 // Temporarily bypass middleware for testing
 export const POST = async (request: NextRequest) => {

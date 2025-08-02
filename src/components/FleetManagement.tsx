@@ -37,9 +37,11 @@ import {
   List
 } from 'lucide-react';
 import { useDateFormatUtils } from '@/hooks/use-date-format';
+import { cn } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { OptimizedImage } from "@/components/ui/optimized-image";
+import { Progress } from "@/components/ui/progress";
 
 // Aircraft creation schema
 const createAircraftSchema = z.object({
@@ -118,6 +120,8 @@ interface Aircraft {
   insuranceExpiry?: string;
   registrationExpiry?: string;
   notes?: string;
+  latestHobbs?: number;
+  latestHobbsDate?: string;
 }
 
 interface Airfield {
@@ -257,6 +261,57 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
     resolver: zodResolver(fleetManagementSchema),
   });
 
+  const fetchAircraftHobbsData = async (aircraftList: Aircraft[]) => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      if (aircraftList.length === 0) return aircraftList;
+
+      // Fetch aircraft Hobbs data from the dedicated table
+      const response = await fetch('/api/fleet/aircraft-hobbs', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const hobbsData = data.aircraftHobbs || [];
+        
+        console.log(`🔍 Fetched Hobbs data for ${hobbsData.length} aircraft`);
+        
+        // Create a map of Hobbs data by aircraft ID
+        const aircraftHobbsMap = new Map<string, { hobbs: number; date: string }>();
+        
+        hobbsData.forEach((item: any) => {
+          if (item.aircraft_id && item.last_hobbs_reading && item.last_hobbs_date) {
+            aircraftHobbsMap.set(item.aircraft_id, {
+              hobbs: item.last_hobbs_reading,
+              date: item.last_hobbs_date
+            });
+            console.log(`📊 Found Hobbs data for ${item.aircraft?.callSign || item.aircraft_id}: ${item.last_hobbs_reading} hours on ${item.last_hobbs_date}`);
+          }
+        });
+
+        // Add Hobbs data to aircraft
+        return aircraftList.map(aircraft => {
+          const hobbsData = aircraftHobbsMap.get(aircraft.id);
+          console.log(`✈️ Aircraft ${aircraft.callSign} (${aircraft.id}): ${hobbsData ? `${hobbsData.hobbs} hours on ${hobbsData.date}` : 'No Hobbs data'}`);
+          
+          return {
+            ...aircraft,
+            latestHobbs: hobbsData?.hobbs || undefined,
+            latestHobbsDate: hobbsData?.date || undefined
+          };
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching aircraft Hobbs data:', error);
+    }
+    
+    return aircraftList;
+  };
+
   const fetchAircraft = async () => {
     try {
       setLoading(true);
@@ -279,7 +334,11 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
 
       const data = await response.json();
       console.log('Fetched aircraft data:', data.aircraft);
-      setAircraft(data.aircraft);
+      
+      // Fetch Hobbs data for aircraft
+      const aircraftWithHobbs = await fetchAircraftHobbsData(data.aircraft);
+      setAircraft(aircraftWithHobbs);
+      
       setPagination({
         ...pagination,
         total: data.pagination?.total || data.aircraft.length,
@@ -287,7 +346,7 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
       });
       
       // Preload critical images for faster loading
-      preloadAircraftImages(data.aircraft);
+      preloadAircraftImages(aircraftWithHobbs);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -684,6 +743,33 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
     return status.replace('_', ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
   };
 
+  const calculateMaintenanceProgress = (lastMaintenance?: string, nextMaintenance?: string) => {
+    if (!lastMaintenance || !nextMaintenance) return null;
+    
+    const lastDate = new Date(lastMaintenance);
+    const nextDate = new Date(nextMaintenance);
+    const currentDate = new Date();
+    
+    // Calculate total maintenance cycle duration
+    const totalCycle = nextDate.getTime() - lastDate.getTime();
+    
+    // Calculate elapsed time since last maintenance
+    const elapsed = currentDate.getTime() - lastDate.getTime();
+    
+    // Calculate progress percentage
+    const progress = Math.min(Math.max((elapsed / totalCycle) * 100, 0), 100);
+    
+    // Calculate days remaining
+    const daysRemaining = Math.ceil((nextDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    return {
+      progress,
+      daysRemaining,
+      isOverdue: currentDate > nextDate,
+      totalCycleDays: Math.ceil(totalCycle / (1000 * 60 * 60 * 24))
+    };
+  };
+
   const openFleetDialog = (aircraft: Aircraft) => {
     setSelectedAircraft(aircraft);
     if (aircraft.fleetManagement) {
@@ -803,7 +889,14 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
       ) : viewMode === 'card' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {aircraft.map((aircraft) => (
-            <Card key={aircraft.id} className="hover:shadow-lg transition-shadow h-full flex flex-col p-0 relative">
+            <Card 
+              key={aircraft.id} 
+              className="hover:shadow-lg transition-shadow h-full flex flex-col p-0 relative cursor-pointer"
+              onClick={() => {
+                setSelectedAircraft(aircraft);
+                setShowAircraftDialog(true);
+              }}
+            >
               {/* Aircraft Image */}
               <OptimizedImage
                 src={aircraft.imagePath}
@@ -813,42 +906,33 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
                 placeholder={<Plane className="h-8 w-8 text-muted-foreground" />}
               />
 
-              {/* Action Menu - Top Right Corner */}
-              <div className="absolute top-2 right-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="h-8 w-8 p-0 bg-white/30 dark:bg-black/30 backdrop-blur-md hover:bg-white/50 dark:hover:bg-black/50 text-black dark:text-white border border-white/30 dark:border-white/30 shadow-lg">
-                      <span className="sr-only">Open menu</span>
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => {
-                      setSelectedAircraft(aircraft);
-                      setShowAircraftDialog(true);
-                    }}>
-                      <Eye className="mr-2 h-4 w-4" />
-                      View
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => openFleetDialog(aircraft)}>
-                      <Settings className="mr-2 h-4 w-4" />
-                      Fleet Management
-                    </DropdownMenuItem>
-                    {canEdit && (
-                      <>
-                        <DropdownMenuItem onClick={() => handleEditClick(aircraft)}>
-                          <Edit className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDeleteAircraft(aircraft.id)} className="text-destructive">
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
-                      </>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-            </div>
+              {/* Action Menu - Top Right Corner (Only for editors) */}
+              {canEdit && (
+                <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="h-8 w-8 p-0 bg-white/30 dark:bg-black/30 backdrop-blur-md hover:bg-white/50 dark:hover:bg-black/50 text-black dark:text-white border border-white/30 dark:border-white/30 shadow-lg">
+                        <span className="sr-only">Open menu</span>
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => openFleetDialog(aircraft)}>
+                        <Settings className="mr-2 h-4 w-4" />
+                        Fleet Management
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleEditClick(aircraft)}>
+                        <Edit className="mr-2 h-4 w-4" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDeleteAircraft(aircraft.id)} className="text-destructive">
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              )}
               <CardHeader className="pb-3">
                 <div className="grid grid-cols-3 gap-4">
                                     <div className="space-y-1">
@@ -924,7 +1008,14 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
                 </TableHeader>
                 <TableBody>
                   {aircraft.map((aircraft) => (
-                    <TableRow key={aircraft.id}>
+                    <TableRow 
+                      key={aircraft.id} 
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => {
+                        setSelectedAircraft(aircraft);
+                        setShowAircraftDialog(true);
+                      }}
+                    >
                       <TableCell>
                     <div className="font-medium">{aircraft.callSign}</div>
                     <div className="text-sm text-muted-foreground">{aircraft.icaoReferenceType?.typeDesignator || 'UNKNOWN'}</div>
@@ -951,40 +1042,31 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
                       : '-'
                     }
                       </TableCell>
-                      <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <span className="sr-only">Open menu</span>
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => {
-                              setSelectedAircraft(aircraft);
-                              setShowAircraftDialog(true);
-                        }}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          View
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => openFleetDialog(aircraft)}>
-                          <Settings className="mr-2 h-4 w-4" />
-                          Fleet Management
-                        </DropdownMenuItem>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         {canEdit && (
-                          <>
-                            <DropdownMenuItem onClick={() => handleEditClick(aircraft)}>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleDeleteAircraft(aircraft.id)} className="text-destructive">
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Open menu</span>
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openFleetDialog(aircraft)}>
+                                <Settings className="mr-2 h-4 w-4" />
+                                Fleet Management
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleEditClick(aircraft)}>
+                                <Edit className="mr-2 h-4 w-4" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDeleteAircraft(aircraft.id)} className="text-destructive">
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1285,17 +1367,14 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
 
       {/* Aircraft Details Dialog */}
       <Dialog open={showAircraftDialog} onOpenChange={setShowAircraftDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <div className="flex items-center justify-between">
-              <div>
-            <DialogTitle>Aircraft Details</DialogTitle>
-            <DialogDescription>
-              Complete aircraft information and fleet management details
-            </DialogDescription>
-              </div>
-              {selectedAircraft && (
-                <div className="flex space-x-2">
+        <DialogContent className="!max-w-[90vw] max-h-[90vh] flex flex-col" showCloseButton={false}>
+          <div className="flex-shrink-0 pb-2 flex justify-between">
+            <DialogTitle className="text-2xl">
+              {selectedAircraft?.callSign}
+            </DialogTitle>
+            <div className="flex items-center gap-2">
+              {selectedAircraft && canEdit && (
+                <>
                   {!isEditMode ? (
                     <Button onClick={enterEditMode} variant="outline" size="sm">
                       <Edit className="h-4 w-4 mr-2" />
@@ -1306,10 +1385,19 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
                       Cancel
                     </Button>
                   )}
-                </div>
+                </>
               )}
+              <Button
+                variant="outline"
+                onClick={() => setShowAircraftDialog(false)}
+              >
+                Close
+              </Button>
             </div>
-          </DialogHeader>
+          </div>
+
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto pt-4 scrollbar-hide">
           {selectedAircraft && (
             <div className="space-y-6">
               {isEditMode ? (
@@ -1474,72 +1562,97 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
                 // View Mode
                 <>
               {/* Basic Information */}
-              <div className="bg-muted/50 rounded-lg p-6">
+              {/* Aircraft Overview */}
+              <div className="bg-muted rounded-lg p-6">
                 <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
                   <Plane className="h-5 w-5 mr-2" />
-                  Basic Information
+                  Aircraft Overview
                 </h3>
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium text-muted-foreground">Aircraft Image</Label>
-                        {selectedAircraft.imagePath && getImageUrl(selectedAircraft.imagePath) ? (
-                          <img
-                            src={getImageUrl(selectedAircraft.imagePath)!}
-                            alt={selectedAircraft.callSign}
-                            className="w-32 h-32 object-cover rounded-lg"
-                          />
-                        ) : (
-                          <div className="w-32 h-32 bg-gray-200 flex items-center justify-center rounded-lg text-gray-500">
-                            <Plane className="h-12 w-12" />
-                          </div>
-                        )}
+                <div className="flex flex-col lg:flex-row gap-8">
+                  {/* Aircraft Image */}
+                  <div className="flex-shrink-0">
+                    {selectedAircraft.imagePath && getImageUrl(selectedAircraft.imagePath) ? (
+                      <img
+                        src={getImageUrl(selectedAircraft.imagePath)!}
+                        alt={selectedAircraft.callSign}
+                        className="w-64 h-40 object-cover rounded-lg border"
+                      />
+                    ) : (
+                      <div className="w-64 h-40 bg-gray-200 flex items-center justify-center rounded-lg text-gray-500 border">
+                        <Plane className="h-16 w-16" />
                       </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Registration</Label>
-                        <p className="text-base font-medium text-card-foreground">{selectedAircraft.callSign}</p>
+                    )}
                   </div>
-                                      <div className="space-y-2">
-                      <Label className="text-sm font-medium text-muted-foreground">ICAO Type</Label>
-                                                                    <Badge className={getTypeBadgeColor(selectedAircraft.icaoReferenceType?.typeDesignator || 'UNKNOWN')}>
+                  
+                  {/* Basic Information */}
+                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {/* Column 1: Registration, ICAO Type, Model */}
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-muted-foreground">Registration</Label>
+                        <p className="text-lg font-semibold text-card-foreground">{selectedAircraft.callSign}</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-muted-foreground">ICAO Type</Label>
+                        <Badge className={getTypeBadgeColor(selectedAircraft.icaoReferenceType?.typeDesignator || 'UNKNOWN')}>
                           {selectedAircraft.icaoReferenceType?.typeDesignator || 'UNKNOWN'}
                         </Badge>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-muted-foreground">Engine</Label>
-                                            <div className="text-sm">
-                        <span className="font-medium">{selectedAircraft.icaoReferenceType?.typeDesignator || 'UNKNOWN'}</span>
-                        <span className="text-muted-foreground ml-2">({selectedAircraft.icaoReferenceType?.model || 'Unknown Model'})</span>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-muted-foreground">Model</Label>
+                        <p className="text-base text-card-foreground">{selectedAircraft.icaoReferenceType?.model || 'Unknown Model'}</p>
                       </div>
                     </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Status</Label>
-                    <Badge className={getStatusBadgeColor(selectedAircraft.status)}>
-                      {getStatusLabel(selectedAircraft.status)}
-                    </Badge>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Model</Label>
-                        <p className="text-base text-card-foreground">{selectedAircraft.icaoReferenceType?.model || 'Unknown Model'}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Manufacturer</Label>
+
+                    {/* Column 2: Manufacturer, Year of Manufacture, Serial Number */}
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-muted-foreground">Manufacturer</Label>
                         <p className="text-base text-card-foreground">{selectedAircraft.icaoReferenceType?.manufacturer || 'Unknown Manufacturer'}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Year</Label>
-                    <p className="text-base text-card-foreground">{selectedAircraft.yearOfManufacture || '-'}</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-muted-foreground">Year of Manufacture</Label>
+                        <p className="text-base text-card-foreground">{selectedAircraft.yearOfManufacture || '-'}</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-muted-foreground">Serial Number</Label>
+                        <p className="text-base text-card-foreground">{selectedAircraft.serialNumber || '-'}</p>
+                      </div>
+                    </div>
+
+                    {/* Column 3: Status, Total Flight Hours, Updated At */}
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-muted-foreground">Status</Label>
+                        <Badge className={getStatusBadgeColor(selectedAircraft.status)}>
+                          {getStatusLabel(selectedAircraft.status)}
+                        </Badge>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-muted-foreground">Last Recorded Hobbs</Label>
+                        <p className="text-lg font-semibold text-card-foreground">
+                          {selectedAircraft.latestHobbs ? `${selectedAircraft.latestHobbs.toFixed(1)} hours` : 'No data'}
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-muted-foreground">Recorded on</Label>
+                        <p className="text-base text-card-foreground">
+                          {selectedAircraft.latestHobbsDate ? formatDate(selectedAircraft.latestHobbsDate) : 'No data'}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Fleet Management Information */}
               {selectedAircraft.fleetManagement && (
-                <div className="bg-muted/50 rounded-lg p-6">
+                <div className="bg-muted rounded-lg p-6">
                   <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
-                    <Settings className="h-5 w-5 mr-2" />
+                    <User className="h-5 w-5 mr-2" />
                     Fleet Management
                   </h3>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground">Assigned Pilot</Label>
                       <p className="text-base text-card-foreground">
@@ -1593,45 +1706,187 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
                 </div>
               )}
 
-              {/* Maintenance Information */}
-              <div className="bg-muted/50 rounded-lg p-6">
+              {/* Maintenance Cycles */}
+              <div className="bg-muted rounded-lg p-6">
                 <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
                   <CheckCircle className="h-5 w-5 mr-2" />
-                  Maintenance Information
+                  Maintenance Cycles
                 </h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Total Flight Hours</Label>
-                        <p className="text-base text-card-foreground">{selectedAircraft.totalFlightHours?.toFixed(1)} hours</p>
+                <div className="space-y-4">
+                  {/* Mock Maintenance Cycle 1 - Annual Inspection */}
+                  <div className={cn(
+                    "border-2 rounded-lg p-4 bg-background",
+                    "border-green-500"
+                  )}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-medium text-lg">Annual Inspection</p>
+                          <Badge variant="outline" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Active
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Last: {formatDate(new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString())}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Cycle: 365 days • Next: {formatDate(new Date(Date.now() + 165 * 24 * 60 * 60 * 1000).toISOString())}
+                        </p>
+                      </div>
+                      <Badge className="bg-green-500 hover:bg-green-600 text-white">
+                        In Progress
+                      </Badge>
+                    </div>
+                    
+                    <div className="space-y-3">
+                                              <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div className="text-center">
+                            <p className="font-medium text-gray-600 dark:text-gray-400">Total</p>
+                            <p className="text-lg font-bold">365 days</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="font-medium text-gray-600 dark:text-gray-400">Elapsed</p>
+                            <p className="text-lg font-bold">200 days</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="font-medium text-gray-600 dark:text-gray-400">Remaining</p>
+                            <p className="text-lg font-bold text-green-600 dark:text-green-400">165 days</p>
+                          </div>
+                        </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>Cycle Progress</span>
+                          <span>55%</span>
+                        </div>
+                        <Progress 
+                          value={55}
+                          className="bg-green-500"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Last Maintenance</Label>
-                    <p className="text-base text-card-foreground">
-                      {selectedAircraft.lastMaintenance ? formatDate(selectedAircraft.lastMaintenance) : '-'}
-                    </p>
+
+                  {/* Mock Maintenance Cycle 2 - 100-Hour Inspection */}
+                  <div className={cn(
+                    "border-2 rounded-lg p-4 bg-background",
+                    "border-orange-500"
+                  )}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-medium text-lg">100-Hour Inspection</p>
+                          <Badge variant="outline" className="text-xs bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            Due Soon
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Last: {formatDate(new Date(Date.now() - 85 * 24 * 60 * 60 * 1000).toISOString())}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Cycle: 100 hours • Next: {formatDate(new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString())}
+                        </p>
+                      </div>
+                      <Badge className="bg-orange-500 hover:bg-orange-600 text-white">
+                        Due Soon
+                      </Badge>
+                    </div>
+                    
+                    <div className="space-y-3">
+                                              <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div className="text-center">
+                            <p className="font-medium text-gray-600 dark:text-gray-400">Total</p>
+                            <p className="text-lg font-bold">100 hours</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="font-medium text-gray-600 dark:text-gray-400">Used</p>
+                            <p className="text-lg font-bold">85 hours</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="font-medium text-gray-600 dark:text-gray-400">Remaining</p>
+                            <p className="text-lg font-bold text-orange-600 dark:text-orange-400">15 hours</p>
+                          </div>
+                        </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>Cycle Progress</span>
+                          <span>85%</span>
+                        </div>
+                        <Progress 
+                          value={85}
+                          className="bg-orange-500"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Next Maintenance</Label>
-                    <p className="text-base text-card-foreground">
-                      {selectedAircraft.nextMaintenance ? formatDate(selectedAircraft.nextMaintenance) : '-'}
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Base Airfield</Label>
-                    <p className="text-base text-card-foreground">
-                      {selectedAircraft.baseAirfield ? `${selectedAircraft.baseAirfield.code} - ${selectedAircraft.baseAirfield.name}` : '-'}
-                    </p>
+
+                  {/* Mock Maintenance Cycle 3 - Oil Change */}
+                  <div className={cn(
+                    "border-2 rounded-lg p-4 bg-background",
+                    "border-green-500"
+                  )}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-medium text-lg">Oil Change</p>
+                          <Badge variant="outline" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Active
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Last: {formatDate(new Date(Date.now() - 42 * 24 * 60 * 60 * 1000).toISOString())}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Cycle: 50 hours • Next: {formatDate(new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString())}
+                        </p>
+                      </div>
+                      <Badge className="bg-green-500 hover:bg-green-600 text-white">
+                        In Progress
+                      </Badge>
+                    </div>
+                    
+                    <div className="space-y-3">
+                                              <div className="grid grid-cols-3 gap-4 text-sm">
+                          <div className="text-center">
+                            <p className="font-medium text-gray-600 dark:text-gray-400">Total</p>
+                            <p className="text-lg font-bold">50 hours</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="font-medium text-gray-600 dark:text-gray-400">Used</p>
+                            <p className="text-lg font-bold">42 hours</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="font-medium text-gray-600 dark:text-gray-400">Remaining</p>
+                            <p className="text-lg font-bold text-green-600 dark:text-green-400">8 hours</p>
+                          </div>
+                        </div>
+                      
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>Cycle Progress</span>
+                          <span>84%</span>
+                        </div>
+                        <Progress 
+                          value={84}
+                          className="bg-green-500"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Financial Information */}
-              <div className="bg-muted/50 rounded-lg p-6">
+              <div className="bg-muted rounded-lg p-6">
                 <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
                   <DollarSign className="h-5 w-5 mr-2" />
-                  Financial Information
+                  Financial & Legal Information
                 </h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Purchase Date</Label>
                     <p className="text-base text-card-foreground">
@@ -1660,12 +1915,12 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
               </div>
 
               {/* System Information */}
-              <div className="bg-muted/50 rounded-lg p-6">
+              <div className="bg-muted rounded-lg p-6">
                 <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
-                  <Settings className="h-5 w-5 mr-2" />
+                  <Clock className="h-5 w-5 mr-2" />
                   System Information
                 </h3>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Created</Label>
                     <p className="text-base text-card-foreground">{formatDate(selectedAircraft.createdAt)}</p>
@@ -1678,18 +1933,21 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
               </div>
 
               {selectedAircraft.notes && (
-                <div className="bg-muted/50 rounded-lg p-6">
+                <div className="bg-muted rounded-lg p-6">
                   <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
                     <FileText className="h-5 w-5 mr-2" />
-                    Notes
+                    Additional Notes
                   </h3>
-                  <p className="text-base text-card-foreground">{selectedAircraft.notes}</p>
+                  <div className="bg-background rounded-lg p-4 border">
+                    <p className="text-base text-card-foreground leading-relaxed">{selectedAircraft.notes}</p>
+                  </div>
                 </div>
-                  )}
+              )}
                 </>
               )}
             </div>
           )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

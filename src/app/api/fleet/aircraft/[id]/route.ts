@@ -300,6 +300,6 @@ async function deleteAircraft(request: NextRequest, currentUser: any) {
 }
 
 // Export handlers with middleware
-export const GET = requireAnyRole(['ADMIN', 'BASE_MANAGER'])(getAircraft);
+export const GET = requireAnyRole(['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER', 'PILOT', 'STUDENT', 'INSTRUCTOR', 'PROSPECT'])(getAircraft);
 export const PUT = requireAnyRole(['ADMIN', 'BASE_MANAGER'])(updateAircraft);
 export const DELETE = requireAnyRole(['ADMIN', 'BASE_MANAGER'])(deleteAircraft); 

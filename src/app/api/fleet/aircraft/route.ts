@@ -45,7 +45,9 @@ export async function GET(request: NextRequest) {
         userRole.roles.name === 'ADMIN' ||
         userRole.roles.name === 'BASE_MANAGER' ||
         userRole.roles.name === 'INSTRUCTOR' ||
-        userRole.roles.name === 'PILOT'
+        userRole.roles.name === 'PILOT' ||
+        userRole.roles.name === 'STUDENT' ||
+        userRole.roles.name === 'PROSPECT'
     );
 
     console.log('User roles:', user.user_roles.map((ur: any) => ur.roles.name));

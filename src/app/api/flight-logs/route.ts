@@ -96,14 +96,10 @@ export async function GET(request: NextRequest) {
         query = query.eq('pilotId', user.id);
       }
     }
-    // In company view, admins, base managers, and instructors can see all logs
-    // Regular pilots still only see their own logs
+    // In company view, all users can see all logs (for fleet management purposes)
     else if (viewMode === 'company') {
-      if (isPilot && !isInstructor && !isAdmin && !isBaseManager) {
-        // Regular pilots can only see their own flight logs even in company view
-        query = query.eq('pilotId', user.id);
-      }
-      // Admins, base managers, and instructors can see all logs in company view
+      // All users can see all logs in company view for fleet management
+      console.log('✅ Company view - allowing access to all flight logs');
       // No additional filtering needed - they can see everything
     }
     
@@ -162,22 +158,89 @@ export async function GET(request: NextRequest) {
       query = query.lte('date', dateTo);
     }
 
-    // Get total count for pagination
-    const { count: total } = await supabase
-      .from(tableName)
-      .select('*', { count: 'exact', head: true });
-
-    console.log('📊 Total flight logs in database:', total);
-
     // Get flight logs with related data, sorted by date (descending) then by departure time (descending)
     const { data: flightLogs, error: flightLogsError } = await query
       .order('date', { ascending: false })
       .order('departureTime', { ascending: false })
       .range(skip, skip + limit - 1);
 
-    // For SUPER_ADMIN and BASE_MANAGER users, always use manual joins to get full relationship data
-    if (userRoles.includes('SUPER_ADMIN') || userRoles.includes('BASE_MANAGER')) {
-      console.log('🔍 Admin user detected, applying manual joins...');
+    // Get total count for pagination (after applying filters)
+    // Create a separate query for counting (without range/limit)
+    let countQuery = supabase
+      .from(tableName)
+      .select('*', { count: 'exact', head: true });
+
+    // Apply the same filters to the count query
+    // TEMPORARY: For debugging, let's bypass all filtering for SUPER_ADMIN in count query too
+    if (userRoles.includes('SUPER_ADMIN')) {
+      console.log('🔧 TEMPORARY: Bypassing all filtering for SUPER_ADMIN in count query');
+      // Reset the count query to show all records
+      countQuery = supabase
+        .from(tableName)
+        .select('*', { count: 'exact', head: true });
+    } else {
+      if (viewMode === 'personal') {
+        if (isPilot && !isInstructor && !isAdmin && !isBaseManager) {
+          countQuery.eq('pilotId', user.id);
+        } else if (isInstructor && !isAdmin && !isBaseManager) {
+          countQuery.or(`instructorId.eq.${user.id},pilotId.eq.${user.id}`);
+        } else if (isBaseManager && !isAdmin) {
+          countQuery.eq('pilotId', user.id);
+        } else if (isAdmin) {
+          countQuery.eq('pilotId', user.id);
+        }
+      }
+    }
+
+    if (search) {
+      countQuery.or(`pilot.firstName.ilike.%${search}%,pilot.lastName.ilike.%${search}%,aircraft.callSign.ilike.%${search}%,purpose.ilike.%${search}%`);
+    }
+
+    if (flightType) {
+      countQuery.eq('flightType', flightType);
+    }
+
+    if (pilotId) {
+      countQuery.eq('pilotId', pilotId);
+    }
+
+    if (aircraftId) {
+      countQuery.eq('aircraftId', aircraftId);
+    }
+
+    if (instructorId) {
+      countQuery.eq('instructorId', instructorId);
+    }
+
+    if (departureAirfieldId) {
+      countQuery.eq('departureAirfieldId', departureAirfieldId);
+    }
+
+    if (arrivalAirfieldId) {
+      countQuery.eq('arrivalAirfieldId', arrivalAirfieldId);
+    }
+
+    if (dateFrom) {
+      countQuery.gte('date', dateFrom);
+    }
+
+    if (dateTo) {
+      countQuery.lte('date', dateTo);
+    }
+
+    const { count: total } = await countQuery;
+
+    console.log('📊 Total flight logs after filtering:', total);
+
+    console.log('🔍 Flight logs query result:', {
+      dataCount: flightLogs?.length || 0,
+      error: flightLogsError?.message || 'No error',
+      hasError: !!flightLogsError
+    });
+
+    // For all users, use manual joins to get full relationship data
+    if (true) {
+      console.log('🔍 User detected, applying manual joins...');
       
       // Get the flight logs data (either from complex query or simple query)
       let flightLogsData = flightLogs;
@@ -218,6 +281,15 @@ export async function GET(request: NextRequest) {
           ...(flightLogsData?.map(log => log.arrivalAirfieldId) || [])
         ])];
         const createdByIds = [...new Set(flightLogsData?.map(log => log.createdById) || [])];
+
+        console.log('🔍 Manual joins - IDs found:', {
+          aircraftIds: aircraftIds.length,
+          pilotIds: pilotIds.length,
+          instructorIds: instructorIds.length,
+          airfieldIds: airfieldIds.length,
+          createdByIds: createdByIds.length
+        });
+        console.log('🔍 Aircraft IDs in flight logs:', aircraftIds);
 
         console.log('🔍 Fetching related data for:', {
           aircraftIds: aircraftIds.length,

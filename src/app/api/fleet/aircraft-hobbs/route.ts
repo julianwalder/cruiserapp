@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
     const decoded = AuthService.verifyToken(token);
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
     }
 
-    // Allow all authenticated users to read ICAO reference types
+    // Allow all authenticated users to read aircraft Hobbs data
     const { data: user, error: userError } = await supabase
       .from('users')
       .select(`
@@ -36,27 +37,42 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // All authenticated users can read ICAO reference types
-    console.log('✅ User authenticated, allowing access to ICAO reference types');
+    // Get query parameters
+    const { searchParams } = new URL(request.url);
+    const aircraftId = searchParams.get('aircraftId');
 
-    const { data: icaoTypes, error: icaoError } = await supabase
-      .from('icao_reference_type')
+    // Build query
+    let query = supabase
+      .from('aircraft_hobbs')
       .select(`
         id,
-        "typeDesignator",
-        model,
-        manufacturer
-      `)
-      .order('typeDesignator', { ascending: true });
+        aircraft_id,
+        last_hobbs_reading,
+        last_hobbs_date,
+        last_flight_log_id,
+        updated_at
+      `);
 
-    if (icaoError) {
-      console.error('Error fetching ICAO reference types:', icaoError);
+    // Filter by aircraft ID if provided
+    if (aircraftId) {
+      query = query.eq('aircraft_id', aircraftId);
+    }
+
+    // Execute query
+    const { data: hobbsData, error: hobbsError } = await query;
+
+    if (hobbsError) {
+      console.error('Error fetching aircraft Hobbs data:', hobbsError);
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 
-    return NextResponse.json({ icaoTypes });
+    return NextResponse.json({
+      aircraftHobbs: hobbsData || [],
+      total: hobbsData?.length || 0
+    });
+
   } catch (error) {
-    console.error('Error fetching ICAO reference types:', error);
+    console.error('Error in aircraft Hobbs API:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 } 

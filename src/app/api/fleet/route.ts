@@ -195,5 +195,5 @@ async function createAircraft(request: NextRequest, currentUser: any) {
 }
 
 // Export handlers with middleware
-export const GET = requireAnyRole(['ADMIN', 'BASE_MANAGER'])(getAircraft);
+export const GET = requireAnyRole(['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER', 'PILOT', 'STUDENT', 'INSTRUCTOR', 'PROSPECT'])(getAircraft);
 export const POST = requireAnyRole(['ADMIN', 'BASE_MANAGER'])(createAircraft); 

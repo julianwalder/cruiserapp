@@ -2,6 +2,90 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
 import { AuthService } from '@/lib/auth';
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    console.log('🔧 GET request received for flight log');
+    
+    const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    if (!token) {
+      console.log('❌ No token provided');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const user = await AuthService.validateSession(token);
+    if (!user) {
+      console.log('❌ Invalid token or user not found');
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    console.log('✅ Token verified, user ID:', user.id);
+
+    const { id } = await params;
+    console.log('📝 Flight log ID to fetch:', id);
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+    }
+
+    console.log('👤 User found:', user.email);
+    console.log('🔑 User roles:', user.user_roles.map((ur: any) => ur.roles.name));
+
+    const userRoles = user.user_roles.map((ur: any) => ur.roles.name);
+    const isAdmin = userRoles.includes('SUPER_ADMIN') || userRoles.includes('ADMIN');
+    const isBaseManager = userRoles.includes('BASE_MANAGER');
+    const isInstructor = userRoles.includes('INSTRUCTOR');
+    const isPilot = userRoles.includes('PILOT');
+
+    // Fetch the flight log with basic data (avoid complex joins)
+    const { data: flightLog, error: flightLogError } = await supabase
+      .from('flight_logs')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (flightLogError || !flightLog) {
+      console.log('❌ Flight log not found:', flightLogError);
+      return NextResponse.json(
+        { error: 'Flight log not found' },
+        { status: 404 }
+      );
+    }
+
+    // Check permissions based on user role
+    let hasAccess = false;
+
+    if (isAdmin || isBaseManager || isInstructor) {
+      // Admins, base managers, and instructors can view all flight logs
+      hasAccess = true;
+    } else if (isPilot) {
+      // Pilots can only view their own flight logs
+      hasAccess = flightLog.pilotId === user.id;
+    }
+
+    if (!hasAccess) {
+      console.log('❌ Insufficient permissions to view this flight log');
+      return NextResponse.json(
+        { error: 'Insufficient permissions' },
+        { status: 403 }
+      );
+    }
+
+    console.log('✅ Flight log fetched successfully');
+    return NextResponse.json(flightLog);
+
+  } catch (error) {
+    console.error('❌ Error fetching flight log:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -15,13 +99,13 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = await AuthService.verifyToken(token);
-    if (!decoded) {
-      console.log('❌ Invalid token');
+    const user = await AuthService.validateSession(token);
+    if (!user) {
+      console.log('❌ Invalid token or user not found');
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    console.log('✅ Token verified, user ID:', decoded.userId);
+    console.log('✅ Token verified, user ID:', user.id);
 
     const { id } = await params;
     console.log('📝 Flight log ID to update:', id);
@@ -31,35 +115,15 @@ export async function PUT(
       return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
     }
 
-    // Check if user has permission to update flight logs
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select(`
-        id,
-        email,
-        userRoles (
-          role (
-            name
-          )
-        )
-      `)
-      .eq('id', decoded.userId)
-      .single();
-
-    if (userError || !user) {
-      console.log('❌ User not found');
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
     console.log('👤 User found:', user.email);
-    console.log('🔑 User roles:', user.userRoles.map((ur: any) => ur.role.name));
+    console.log('🔑 User roles:', user.user_roles.map((ur: any) => ur.roles.name));
 
-    const hasPermission = user.userRoles.some(
+    const hasPermission = user.user_roles.some(
       (userRole: any) =>
-        userRole.role.name === 'SUPER_ADMIN' ||
-        userRole.role.name === 'ADMIN' ||
-        userRole.role.name === 'BASE_MANAGER' ||
-        userRole.role.name === 'INSTRUCTOR'
+        userRole.roles.name === 'SUPER_ADMIN' ||
+        userRole.roles.name === 'ADMIN' ||
+        userRole.roles.name === 'BASE_MANAGER' ||
+        userRole.roles.name === 'INSTRUCTOR'
     );
 
     console.log('🔐 Has permission:', hasPermission);
@@ -73,24 +137,24 @@ export async function PUT(
     }
 
     // Check if flight log exists
+    console.log('🔍 Looking for flight log with ID:', id);
     const { data: existingFlightLog, error: existingError } = await supabase
       .from('flight_logs')
-      .select(`
-        *,
-        pilot (
-          id,
-          totalFlightHours
-        )
-      `)
+      .select('*')
       .eq('id', id)
       .single();
 
+    console.log('🔍 Flight log lookup result:', { existingFlightLog, existingError });
+
     if (existingError || !existingFlightLog) {
+      console.log('❌ Flight log not found or error:', existingError);
       return NextResponse.json(
         { error: 'Flight log not found' },
         { status: 404 }
       );
     }
+
+    console.log('✅ Flight log found:', existingFlightLog.id);
 
     const body = await request.json();
     console.log('📦 Request body received:', body);
@@ -104,6 +168,8 @@ export async function PUT(
       arrivalTime,
       departureAirfieldId,
       arrivalAirfieldId,
+      departureHobbs,
+      arrivalHobbs,
       flightType,
       purpose,
       remarks,
@@ -132,18 +198,24 @@ export async function PUT(
     }
 
     // Validate aircraft exists
+    console.log('🔍 Validating aircraft with ID:', aircraftId);
     const { data: aircraft, error: aircraftError } = await supabase
       .from('aircraft')
       .select('id')
       .eq('id', aircraftId)
       .single();
 
+    console.log('🔍 Aircraft validation result:', { aircraft, aircraftError });
+
     if (aircraftError || !aircraft) {
+      console.log('❌ Aircraft not found:', aircraftError);
       return NextResponse.json(
         { error: 'Aircraft not found' },
         { status: 404 }
       );
     }
+
+    console.log('✅ Aircraft validation passed');
 
     // Validate pilot exists
     const { data: pilot, error: pilotError } = await supabase
@@ -177,7 +249,7 @@ export async function PUT(
 
     // Validate airfields exist
     const { data: departureAirfield, error: departureError } = await supabase
-      .from('airfield')
+      .from('airfields')
       .select('id')
       .eq('id', departureAirfieldId)
       .single();
@@ -190,7 +262,7 @@ export async function PUT(
     }
 
     const { data: arrivalAirfield, error: arrivalError } = await supabase
-      .from('airfield')
+      .from('airfields')
       .select('id')
       .eq('id', arrivalAirfieldId)
       .single();
@@ -214,7 +286,11 @@ export async function PUT(
     const newTotalHours = calculateFlightHours(departureTime, arrivalTime);
     const hoursDifference = newTotalHours - existingFlightLog.totalHours;
 
+    // Use the remarks as provided by the frontend
+    const updatedRemarks = remarks === '' ? null : remarks;
+
     // Update flight log
+    console.log('🔄 Updating flight log with ID:', id);
     const { data: flightLog, error: updateError } = await supabase
       .from('flight_logs')
       .update({
@@ -226,9 +302,11 @@ export async function PUT(
         arrivalTime,
         departureAirfieldId,
         arrivalAirfieldId,
+        departureHobbs,
+        arrivalHobbs,
         flightType,
         purpose,
-        remarks,
+        remarks: updatedRemarks,
         totalHours: newTotalHours,
         pilotInCommand,
         secondInCommand,
@@ -246,30 +324,7 @@ export async function PUT(
         fuelAdded,
       })
       .eq('id', id)
-      .select(`
-        *,
-        aircraft (
-          *,
-          icaoReferenceType (
-            *
-          )
-        ),
-        pilot (
-          *
-        ),
-        instructor (
-          *
-        ),
-        departureAirfield (
-          *
-        ),
-        arrivalAirfield (
-          *
-        ),
-        createdBy (
-          *
-        )
-      `)
+      .select('*')
       .single();
 
     if (updateError) {

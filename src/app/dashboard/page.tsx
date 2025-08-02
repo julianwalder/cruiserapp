@@ -16,10 +16,12 @@ import SmartBillInvoices from '@/components/SmartBillInvoices';
 import ImportedXMLInvoices from '@/components/ImportedXMLInvoices';
 import ClientHours from '@/components/ClientHours';
 import SmartBillStatus from '@/components/SmartBillStatus';
+import PilotOverview from '@/components/PilotOverview';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Users, 
   Plane, 
@@ -53,6 +55,7 @@ function DashboardContent() {
   const searchParams = useSearchParams();
   const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [viewMode, setViewMode] = useState<'personal' | 'company'>('company');
   const [stats, setStats] = useState({
     totalUsers: 0,
     newUsersThisMonth: 0,
@@ -68,6 +71,24 @@ function DashboardContent() {
     const tab = searchParams.get('tab') || 'dashboard';
     setActiveTab(tab);
   }, [searchParams]);
+
+  const fetchStats = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/dashboard/stats?viewMode=${viewMode}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+  
+      if (response.ok) {
+        const data = await response.json();
+        setStats(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch dashboard stats:', error);
+    }
+  };
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -87,6 +108,34 @@ function DashboardContent() {
         if (response.ok) {
           const userData = await response.json();
           setUser(userData);
+          
+          // Set appropriate view mode based on user role
+          const userRoles = userData.userRoles?.map((ur: any) => ur.roles?.name) || [];
+          const isPilot = userRoles.includes('PILOT');
+          const isStudent = userRoles.includes('STUDENT');
+          const isInstructor = userRoles.includes('INSTRUCTOR');
+          const isAdmin = userRoles.includes('ADMIN') || userRoles.includes('SUPER_ADMIN');
+          const isBaseManager = userRoles.includes('BASE_MANAGER');
+          
+          console.log('🔍 Dashboard: User roles detected:', {
+            userRoles,
+            isPilot,
+            isStudent,
+            isInstructor,
+            isAdmin,
+            isBaseManager
+          });
+          
+          // Admins, instructors, and base managers should default to company view (priority over pilot/student)
+          if (isAdmin || isInstructor || isBaseManager) {
+            console.log('🔍 Dashboard: Setting view mode to company (admin/instructor/base_manager)');
+            setViewMode('company');
+          }
+          // Pilots and students should ONLY see personal view
+          else if (isPilot || isStudent) {
+            console.log('🔍 Dashboard: Setting view mode to personal (pilot/student)');
+            setViewMode('personal');
+          }
         } else {
           router.push('/login');
         }
@@ -96,27 +145,16 @@ function DashboardContent() {
       }
     };
 
-    const fetchStats = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const response = await fetch('/api/dashboard/stats', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-    
-        if (response.ok) {
-          const data = await response.json();
-          setStats(data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch dashboard stats:', error);
-      }
-    };
-
     fetchUser();
     fetchStats();
   }, [router]);
+
+  // Refetch stats when viewMode changes
+  useEffect(() => {
+    if (user && activeTab === 'dashboard' && isAdminOrManager()) {
+      fetchStats();
+    }
+  }, [viewMode, user, activeTab]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -150,7 +188,7 @@ function DashboardContent() {
       case 'accounting':
         return 'Accounting';
       case 'client-hours':
-        return 'Client Hours';
+        return 'Packages';
       case 'reports':
         return 'Reports';
       case 'settings':
@@ -174,7 +212,7 @@ function DashboardContent() {
   };
 
   const canAccessFleet = () => {
-    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT') || hasRole('PROSPECT') || hasRole('INSTRUCTOR');
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT') || hasRole('STUDENT') || hasRole('INSTRUCTOR') || hasRole('PROSPECT');
   };
 
   const canEditFleet = () => {
@@ -182,7 +220,7 @@ function DashboardContent() {
   };
 
   const canAccessBaseManagement = () => {
-    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT') || hasRole('PROSPECT') || hasRole('INSTRUCTOR');
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT') || hasRole('STUDENT') || hasRole('INSTRUCTOR') || hasRole('PROSPECT');
   };
 
   const canEditBaseManagement = () => {
@@ -191,6 +229,18 @@ function DashboardContent() {
 
   const canAccessReports = () => {
     return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER');
+  };
+
+  const canAccessAccounting = () => {
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN');
+  };
+
+  const isPilotOrStudent = () => {
+    return hasRole('PILOT') || hasRole('STUDENT');
+  };
+
+  const isAdminOrManager = () => {
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('INSTRUCTOR');
   };
 
   return (
@@ -208,8 +258,9 @@ function DashboardContent() {
                 <h1 className="text-xl sm:text-2xl font-semibold text-card-foreground">
                   {getTabTitle(activeTab)}
                 </h1>
-
               </div>
+              
+
             </div>
             
             <div className="flex items-center space-x-4">
@@ -230,9 +281,41 @@ function DashboardContent() {
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-white dark:bg-gray-900">
-          {activeTab === 'dashboard' && (
+          {activeTab === 'dashboard' && isPilotOrStudent() && !isAdminOrManager() && (
+            <PilotOverview />
+          )}
+          
+          {activeTab === 'dashboard' && isAdminOrManager() && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+              {/* View Mode Toggle */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-card-foreground">
+                    {viewMode === 'personal' ? 'Personal Overview' : 'Company Overview'}
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    {viewMode === 'personal' 
+                      ? 'Your personal statistics and activities' 
+                      : 'Company-wide statistics and overview'
+                    }
+                  </p>
+                </div>
+                <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as 'personal' | 'company')}>
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="personal" className="text-xs">Personal</TabsTrigger>
+                    <TabsTrigger value="company" className="text-xs">Company</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+              
+              {/* Content based on view mode */}
+              {viewMode === 'personal' && (
+                <PilotOverview />
+              )}
+              
+              {viewMode === 'company' && (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                 <Card className="card-hover">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -397,7 +480,7 @@ function DashboardContent() {
               </div>
             </div>
           )}
-          {activeTab === 'accounting' && (
+          {activeTab === 'accounting' && canAccessAccounting() && (
                           <div className="space-y-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -498,6 +581,17 @@ function DashboardContent() {
                     </div>
                   </CardContent>
                 </Card>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {activeTab === 'accounting' && !canAccessAccounting() && (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <DollarSign className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-card-foreground mb-2">Access Denied</h3>
+                <p className="text-muted-foreground">You don't have permission to access accounting features.</p>
               </div>
             </div>
           )}

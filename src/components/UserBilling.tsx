@@ -22,7 +22,6 @@ import {
   FileText,
   Search,
   MoreVertical,
-  X,
   User,
   Package,
   Database,
@@ -31,21 +30,23 @@ import {
   Unlink,
   ChevronUp,
   ChevronDown,
-  ChevronsUpDown
+  ChevronsUpDown,
+  DollarSign
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { ImportedInvoice } from '@/lib/invoice-import-service';
 
-interface ImportedXMLInvoicesProps {
+interface UserBillingProps {
   className?: string;
+  userId?: string;
   onRefresh?: () => void;
 }
 
 type SortField = 'smartbill_id' | 'issue_date' | 'client.name' | 'status' | 'total_amount' | 'total_hours';
 type SortDirection = 'asc' | 'desc';
 
-export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXMLInvoicesProps) {
+export default function UserBilling({ className, userId, onRefresh }: UserBillingProps) {
   const [invoices, setInvoices] = useState<ImportedInvoice[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,8 +58,16 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [sortField, setSortField] = useState<SortField>('issue_date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
+  const [summary, setSummary] = useState<{
+    totalInvoices: number;
+    totalAmount: number;
+    totalHours: number;
+    currency: string;
+  } | null>(null);
 
   const fetchInvoices = async () => {
+    if (!userId) return;
+    
     setLoading(true);
     setError(null);
 
@@ -73,8 +82,20 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
       if (status && status !== 'all') {
         params.append('status', status);
       }
+      if (searchTerm) {
+        params.append('search', searchTerm);
+      }
 
-      const response = await fetch(`/api/smartbill/import-xml?${params.toString()}`);
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch(`/api/users/${userId}/invoices?${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
       
       if (!response.ok) {
         throw new Error('Failed to fetch invoices');
@@ -82,6 +103,7 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
 
       const data = await response.json();
       setInvoices(data.invoices || []);
+      setSummary(data.summary || null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -91,9 +113,9 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
 
   useEffect(() => {
     fetchInvoices();
-  }, []);
+  }, [userId]);
 
-  // Filter invoices by search term
+  // Filter invoices by search term (client-side filtering for better UX)
   const filteredInvoices = invoices.filter(invoice => {
     if (!searchTerm) return true;
     
@@ -237,7 +259,6 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
       'Currency',
       'VAT Total',
       'Client Name',
-
       'Client Email',
       'Client Address',
       'Linked User',
@@ -257,7 +278,6 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
         invoice.currency,
         invoice.vat_amount,
         `"${invoice.client.name}"`,
-  
         invoice.client.email || '',
         `"${invoice.client.address || ''}"`,
         invoice.client.user_id ? 'Yes' : 'No',
@@ -270,21 +290,29 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `imported-invoices-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+    a.download = `user-invoices-${format(new Date(), 'yyyy-MM-dd')}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
+
+  if (!userId) {
+    return (
+      <div className={cn('space-y-6', className)}>
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            No user ID provided. Please select a user to view their invoices.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className={cn('space-y-6', className)}>
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              <span>Imported XML Invoices</span>
-              <Badge variant="outline">{sortedInvoices.length}</Badge>
-            </div>
+          <CardTitle className="flex items-center justify-end">
             <div className="flex gap-2">
               <Button
                 onClick={handleRefresh}
@@ -306,27 +334,10 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
               </Button>
             </div>
           </CardTitle>
-          <CardDescription>
-            View and manage your imported XML invoices with company-user relationships
-          </CardDescription>
         </CardHeader>
         <CardContent>
           {/* Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-            <div className="space-y-2">
-              <Label htmlFor="search">Search</Label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="search"
-                  placeholder="Search invoices..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             <div className="space-y-2">
               <Label htmlFor="start-date">Start Date</Label>
               <Popover>
@@ -423,7 +434,7 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
             </div>
           ) : sortedInvoices.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              {invoices.length === 0 ? 'No imported invoices yet' : 'No invoices match your filters'}
+              {invoices.length === 0 ? 'No invoices found for this user' : 'No invoices match your filters'}
             </div>
           ) : (
             <div className="rounded-md border overflow-x-auto">
@@ -515,8 +526,8 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                       <TableCell>{getStatusBadge(invoice.status)}</TableCell>
                       <TableCell className="text-right">
                         {(() => {
-                              const totalHours = calculateTotalHours(invoice);
-    return totalHours > 0 ? formatHours(totalHours) : '-';
+                          const totalHours = calculateTotalHours(invoice);
+                          return totalHours > 0 ? formatHours(totalHours) : '-';
                         })()}
                       </TableCell>
                       <TableCell className="text-right">
@@ -575,24 +586,18 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
           )}
 
           {/* Summary */}
-          {sortedInvoices.length > 0 && (
+          {sortedInvoices.length > 0 && summary && (
             <div className="mt-4 p-4 bg-muted/50 rounded-md">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-muted-foreground">
-                  Showing {sortedInvoices.length} of {invoices.length} imported invoices
+                  Showing {sortedInvoices.length} of {summary.totalInvoices} invoices
                 </span>
                 <div className="flex space-x-4">
                   <span className="text-sm font-medium">
-                    Total Hours: {(() => {
-                          const totalHours = sortedInvoices.reduce((sum, invoice) => sum + calculateTotalHours(invoice), 0);
-    return totalHours > 0 ? formatHours(totalHours) : '00:00';
-                    })()}
+                    Total Hours: {formatHours(summary.totalHours)}
                   </span>
                   <span className="text-sm font-medium">
-                    Total: {formatCurrency(
-                      sortedInvoices.reduce((sum, invoice) => sum + invoice.total_amount, 0),
-                      sortedInvoices[0]?.currency || 'RON'
-                    )}
+                    Total: {formatCurrency(summary.totalAmount, summary.currency)}
                   </span>
                   <span className="text-sm font-medium">
                     Linked Users: {new Set(sortedInvoices.filter(invoice => invoice.client.user_id).map(invoice => invoice.client.user_id)).size}

@@ -97,10 +97,10 @@ const navigationItems = [
     description: 'Financial management'
   },
   {
-    title: 'Client Hours',
+    title: 'Packages',
     url: '/dashboard?tab=client-hours',
     icon: Clock,
-    description: 'Client hour packages and usage'
+    description: 'Hour packages and usage tracking'
   },
   {
     title: 'Reports',
@@ -172,11 +172,11 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
   };
 
   const canAccessBaseManagement = () => {
-    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT') || hasRole('PROSPECT') || hasRole('INSTRUCTOR');
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT') || hasRole('STUDENT') || hasRole('INSTRUCTOR') || hasRole('PROSPECT');
   };
 
   const canAccessFleet = () => {
-    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT') || hasRole('PROSPECT') || hasRole('INSTRUCTOR');
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT') || hasRole('STUDENT') || hasRole('INSTRUCTOR') || hasRole('PROSPECT');
   };
 
   const canAccessUsers = () => {
@@ -189,6 +189,10 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
 
   const canAccessReports = () => {
     return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER');
+  };
+
+  const canAccessAccounting = () => {
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN');
   };
 
   // Filter navigation items based on user permissions
@@ -204,6 +208,8 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
         return canAccessSettings();
       case 'Reports':
         return canAccessReports();
+      case 'Accounting':
+        return canAccessAccounting();
       default:
         return true; // Show other items to all users
     }
@@ -354,6 +360,8 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
                 );
               })}
               
+
+              
               {/* Role Management for Super Admin */}
               {user?.userRoles.some(userRole => userRole.roles.name === 'SUPER_ADMIN') && (
                 <Button
@@ -436,7 +444,7 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
                       <User className="mr-2 h-4 w-4" />
                       Account
                     </DropdownMenuItem>
-                    <DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleNavigation('/billing')}>
                       <DollarSign className="mr-2 h-4 w-4" />
                       Billing
                     </DropdownMenuItem>
