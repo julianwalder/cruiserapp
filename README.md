@@ -217,3 +217,4 @@ For support and questions:
 - Airfield management
 - Role-based access control
 - Real-time data synchronization with Supabase
+# Force redeploy Sat Aug  2 13:40:12 CEST 2025
