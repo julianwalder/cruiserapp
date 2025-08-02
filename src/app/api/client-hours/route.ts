@@ -361,17 +361,18 @@ export async function GET(request: NextRequest) {
       const pilot = userMap.get(log.pilotId) as any;
       const instructor = log.instructorId ? userMap.get(log.instructorId) as any : null;
       
-      // Skip FERRY flights when calculating used hours
+      // Skip FERRY and DEMO flights when calculating used hours
       const isFerryFlight = log.flightType && log.flightType.toUpperCase().includes('FERRY');
+      const isDemoFlight = log.flightType && log.flightType.toUpperCase().includes('DEMO');
       
-      // If there's a pilot, count their hours (excluding FERRY flights)
+      // If there's a pilot, count their hours (excluding FERRY and DEMO flights)
       if (pilot?.email) {
-        if (!isFerryFlight) {
+        if (!isFerryFlight && !isDemoFlight) {
           const currentHours = clientFlightHours.get(pilot.email) || 0;
           clientFlightHours.set(pilot.email, currentHours + log.totalHours);
         }
         
-        // Store flight log for this client (including FERRY flights for display purposes)
+        // Store flight log for this client (including FERRY and DEMO flights for display purposes)
         if (!clientFlightLogs.has(pilot.email)) {
           clientFlightLogs.set(pilot.email, []);
         }
@@ -382,7 +383,8 @@ export async function GET(request: NextRequest) {
           date: log.date,
           flightType: log.flightType,
           role: 'PIC',
-          isFerryFlight: isFerryFlight
+          isFerryFlight: isFerryFlight,
+          isDemoFlight: isDemoFlight
         });
       }
       
