@@ -353,9 +353,23 @@ export async function GET(request: NextRequest) {
 
     // Process flight logs to calculate used hours for each client
     // Consider all records where the client is involved (as pilot or receiving dual training)
-    // Exclude FERRY flights from hour calculations
+    // Exclude FERRY, DEMO, and CHARTER flights from hour calculations
     const clientFlightHours = new Map<string, number>();
     const clientFlightLogs = new Map<string, any[]>();
+    
+    // Calculate current year and previous year data dynamically
+    const currentYear = new Date().getFullYear();
+    const previousYear = currentYear - 1;
+    const clientFlightHoursCurrentYear = new Map<string, number>();
+    const clientFlightHoursPreviousYear = new Map<string, number>();
+    
+    // Calculate year-specific data for different flight types
+    const ferryHoursCurrentYear = new Map<string, number>();
+    const ferryHoursPreviousYear = new Map<string, number>();
+    const charterHoursCurrentYear = new Map<string, number>();
+    const charterHoursPreviousYear = new Map<string, number>();
+    const demoHoursCurrentYear = new Map<string, number>();
+    const demoHoursPreviousYear = new Map<string, number>();
 
     flightLogs?.forEach((log: any) => {
       const pilot = userMap.get(log.pilotId) as any;
@@ -368,9 +382,51 @@ export async function GET(request: NextRequest) {
       
       // If there's a pilot, count their hours (excluding FERRY, DEMO, and CHARTER flights)
       if (pilot?.email) {
+        const flightYear = new Date(log.date).getFullYear();
+        
         if (!isFerryFlight && !isDemoFlight && !isCharterFlight) {
           const currentHours = clientFlightHours.get(pilot.email) || 0;
           clientFlightHours.set(pilot.email, currentHours + log.totalHours);
+          
+          // Calculate year-specific hours for regular flights
+          if (flightYear === currentYear) {
+            const currentYearHours = clientFlightHoursCurrentYear.get(pilot.email) || 0;
+            clientFlightHoursCurrentYear.set(pilot.email, currentYearHours + log.totalHours);
+          } else if (flightYear === previousYear) {
+            const previousYearHours = clientFlightHoursPreviousYear.get(pilot.email) || 0;
+            clientFlightHoursPreviousYear.set(pilot.email, previousYearHours + log.totalHours);
+          }
+        }
+        
+        // Calculate year-specific hours for special flight types
+        if (isFerryFlight) {
+          if (flightYear === currentYear) {
+            const currentYearHours = ferryHoursCurrentYear.get(pilot.email) || 0;
+            ferryHoursCurrentYear.set(pilot.email, currentYearHours + log.totalHours);
+          } else if (flightYear === previousYear) {
+            const previousYearHours = ferryHoursPreviousYear.get(pilot.email) || 0;
+            ferryHoursPreviousYear.set(pilot.email, previousYearHours + log.totalHours);
+          }
+        }
+        
+        if (isCharterFlight) {
+          if (flightYear === currentYear) {
+            const currentYearHours = charterHoursCurrentYear.get(pilot.email) || 0;
+            charterHoursCurrentYear.set(pilot.email, currentYearHours + log.totalHours);
+          } else if (flightYear === previousYear) {
+            const previousYearHours = charterHoursPreviousYear.get(pilot.email) || 0;
+            charterHoursPreviousYear.set(pilot.email, previousYearHours + log.totalHours);
+          }
+        }
+        
+        if (isDemoFlight) {
+          if (flightYear === currentYear) {
+            const currentYearHours = demoHoursCurrentYear.get(pilot.email) || 0;
+            demoHoursCurrentYear.set(pilot.email, currentYearHours + log.totalHours);
+          } else if (flightYear === previousYear) {
+            const previousYearHours = demoHoursPreviousYear.get(pilot.email) || 0;
+            demoHoursPreviousYear.set(pilot.email, previousYearHours + log.totalHours);
+          }
         }
         
         // Store flight log for this client (including FERRY, DEMO, and CHARTER flights for display purposes)
@@ -521,6 +577,18 @@ export async function GET(request: NextRequest) {
           // Get recent flights for this client (all records where they were involved)
           const recentFlights = clientFlightLogs.get(client.id) || [];
 
+          // Get year-specific data for this client
+          const currentYearHours = clientFlightHoursCurrentYear.get(client.id) || 0;
+          const previousYearHours = clientFlightHoursPreviousYear.get(client.id) || 0;
+          
+          // Get year-specific data for special flight types
+          const clientFerryHoursCurrentYear = ferryHoursCurrentYear.get(client.id) || 0;
+          const clientFerryHoursPreviousYear = ferryHoursPreviousYear.get(client.id) || 0;
+          const clientCharterHoursCurrentYear = charterHoursCurrentYear.get(client.id) || 0;
+          const clientCharterHoursPreviousYear = charterHoursPreviousYear.get(client.id) || 0;
+          const clientDemoHoursCurrentYear = demoHoursCurrentYear.get(client.id) || 0;
+          const clientDemoHoursPreviousYear = demoHoursPreviousYear.get(client.id) || 0;
+
           return {
             client,
             packages,
@@ -528,17 +596,45 @@ export async function GET(request: NextRequest) {
             totalBoughtHours,
             totalUsedHours,
             totalRemainingHours,
+            currentYearHours,
+            previousYearHours,
+            ferryHoursCurrentYear: clientFerryHoursCurrentYear,
+            ferryHoursPreviousYear: clientFerryHoursPreviousYear,
+            charterHoursCurrentYear: clientCharterHoursCurrentYear,
+            charterHoursPreviousYear: clientCharterHoursPreviousYear,
+            demoHoursCurrentYear: clientDemoHoursCurrentYear,
+            demoHoursPreviousYear: clientDemoHoursPreviousYear,
             recentFlights: recentFlights.slice(0, 5) // Show last 5 flights
           };
         })
     );
+
+    // Calculate year-specific totals
+    const totalCurrentYearHours = clientsData.reduce((sum, c) => sum + (c.currentYearHours || 0), 0);
+    const totalPreviousYearHours = clientsData.reduce((sum, c) => sum + (c.previousYearHours || 0), 0);
+    
+    // Calculate year-specific totals for special flight types
+    const totalFerryHoursCurrentYear = clientsData.reduce((sum, c) => sum + (c.ferryHoursCurrentYear || 0), 0);
+    const totalFerryHoursPreviousYear = clientsData.reduce((sum, c) => sum + (c.ferryHoursPreviousYear || 0), 0);
+    const totalCharterHoursCurrentYear = clientsData.reduce((sum, c) => sum + (c.charterHoursCurrentYear || 0), 0);
+    const totalCharterHoursPreviousYear = clientsData.reduce((sum, c) => sum + (c.charterHoursPreviousYear || 0), 0);
+    const totalDemoHoursCurrentYear = clientsData.reduce((sum, c) => sum + (c.demoHoursCurrentYear || 0), 0);
+    const totalDemoHoursPreviousYear = clientsData.reduce((sum, c) => sum + (c.demoHoursPreviousYear || 0), 0);
 
     return NextResponse.json({
       clients: clientsData,
       totalClients: clientsData.length,
       totalBoughtHours: clientsData.reduce((sum, c) => sum + c.totalBoughtHours, 0),
       totalUsedHours: clientsData.reduce((sum, c) => sum + c.totalUsedHours, 0),
-      totalRemainingHours: clientsData.reduce((sum, c) => sum + c.totalRemainingHours, 0)
+      totalRemainingHours: clientsData.reduce((sum, c) => sum + c.totalRemainingHours, 0),
+      totalCurrentYearHours,
+      totalPreviousYearHours,
+      totalFerryHoursCurrentYear,
+      totalFerryHoursPreviousYear,
+      totalCharterHoursCurrentYear,
+      totalCharterHoursPreviousYear,
+      totalDemoHoursCurrentYear,
+      totalDemoHoursPreviousYear
     });
 
   } catch (error) {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -30,7 +30,9 @@ import {
   ChevronRight,
   Building2,
   MoreVertical,
-  CheckCircle
+  CheckCircle,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -137,6 +139,14 @@ interface ClientHoursData {
   totalBoughtHours: number;
   totalUsedHours: number;
   totalRemainingHours: number;
+  currentYearHours: number;
+  previousYearHours: number;
+  ferryHoursCurrentYear: number;
+  ferryHoursPreviousYear: number;
+  charterHoursCurrentYear: number;
+  charterHoursPreviousYear: number;
+  demoHoursCurrentYear: number;
+  demoHoursPreviousYear: number;
   recentFlights: FlightLog[];
 }
 
@@ -160,6 +170,18 @@ export default function Usage() {
     pages: 0
   });
   const [viewMode, setViewMode] = useState<'personal' | 'company'>('company');
+  const [totalCurrentYearHours, setTotalCurrentYearHours] = useState(0);
+  const [totalPreviousYearHours, setTotalPreviousYearHours] = useState(0);
+  const [totalFerryHoursCurrentYear, setTotalFerryHoursCurrentYear] = useState(0);
+  const [totalFerryHoursPreviousYear, setTotalFerryHoursPreviousYear] = useState(0);
+  const [totalCharterHoursCurrentYear, setTotalCharterHoursCurrentYear] = useState(0);
+  const [totalCharterHoursPreviousYear, setTotalCharterHoursPreviousYear] = useState(0);
+  const [totalDemoHoursCurrentYear, setTotalDemoHoursCurrentYear] = useState(0);
+  const [totalDemoHoursPreviousYear, setTotalDemoHoursPreviousYear] = useState(0);
+  
+  // Get current and previous year dynamically
+  const currentYear = new Date().getFullYear();
+  const previousYear = currentYear - 1;
 
   const fetchCurrentUser = async () => {
     try {
@@ -209,6 +231,14 @@ export default function Usage() {
 
       const data = await response.json();
       setClients(data.clients || []);
+      setTotalCurrentYearHours(data.totalCurrentYearHours || 0);
+      setTotalPreviousYearHours(data.totalPreviousYearHours || 0);
+      setTotalFerryHoursCurrentYear(data.totalFerryHoursCurrentYear || 0);
+      setTotalFerryHoursPreviousYear(data.totalFerryHoursPreviousYear || 0);
+      setTotalCharterHoursCurrentYear(data.totalCharterHoursCurrentYear || 0);
+      setTotalCharterHoursPreviousYear(data.totalCharterHoursPreviousYear || 0);
+      setTotalDemoHoursCurrentYear(data.totalDemoHoursCurrentYear || 0);
+      setTotalDemoHoursPreviousYear(data.totalDemoHoursPreviousYear || 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       toast.error('Failed to load usage data');
@@ -538,44 +568,267 @@ export default function Usage() {
               </Alert>
             )}
 
-            {/* Summary Stats - Hidden for Pilot/Student view and Personal mode */}
-            {filteredClients.length > 0 && !isPilotOrStudent() && viewMode === 'company' && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Total Bought</p>
-                        <p className="text-2xl font-bold">{formatHours(filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0))}</p>
-                      </div>
-                      <Package className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Total Used</p>
-                        <p className="text-2xl font-bold">{formatHours(filteredClients.reduce((sum, client) => sum + client.totalUsedHours, 0))}</p>
-                      </div>
-                      <Clock className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Total Remaining</p>
-                        <p className="text-2xl font-bold">{formatHours(filteredClients.reduce((sum, client) => sum + client.totalRemainingHours, 0))}</p>
-                      </div>
-                      <TrendingDown className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                  </CardContent>
-                </Card>
+            {/* Flight Hours Summary Cards */}
+            {filteredClients.length > 0 && (
+              <div className="space-y-6 mb-6">
+                {/* Cards in Logical Groups - Main Business Metrics (1-3) and Special Flight Types (4-6) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                                     <Card>
+                     <CardContent className="p-2">
+                       <CardTitle className="text-sm font-medium text-muted-foreground">Total Purchased</CardTitle>
+                       <div className="mt-0.5">
+                         <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0))}</p>
+                         <p className="text-xs text-muted-foreground">All flight hours acquired by users</p>
+                       </div>
+                     </CardContent>
+                                            <CardFooter className="px-2 py-1.5">
+                         <div className="w-full border-t pt-1.5">
+                           <div className="flex items-center space-x-1">
+                             <span className="text-xs text-muted-foreground">{formatHours(totalPreviousYearHours)}</span>
+                           {(() => {
+                             const currentBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
+                             const previousBought = totalPreviousYearHours;
+                             const trend = currentBought > previousBought ? 'up' : currentBought < previousBought ? 'down' : 'same';
+                             return trend === 'up' ? (
+                               <ArrowUp className="h-3 w-3 text-green-600" />
+                             ) : trend === 'down' ? (
+                               <ArrowDown className="h-3 w-3 text-red-600" />
+                             ) : null;
+                           })()}
+                         </div>
+                       </div>
+                     </CardFooter>
+                   </Card>
+                  
+                                                        <Card>
+                     <CardContent className="p-2">
+                       <CardTitle className="text-sm font-medium text-muted-foreground">Used by Clients</CardTitle>
+                       <div className="mt-0.5">
+                         <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => sum + client.totalUsedHours, 0))}</p>
+                         <p className="text-xs text-muted-foreground">Hours used by clients during regular flights</p>
+                       </div>
+                     </CardContent>
+                     <CardFooter className="px-3 pb-3 pt-0">
+                       <div className="w-full border-t pt-2">
+                         <div className="flex items-center justify-between">
+                           <div className="flex items-center space-x-1">
+                             <span className="text-xs text-muted-foreground">{formatHours(totalPreviousYearHours)}</span>
+                             {(() => {
+                               const currentUsed = filteredClients.reduce((sum, client) => sum + client.totalUsedHours, 0);
+                               const previousUsed = totalPreviousYearHours;
+                               const trend = currentUsed > previousUsed ? 'up' : currentUsed < previousUsed ? 'down' : 'same';
+                               return trend === 'up' ? (
+                                 <ArrowUp className="h-3 w-3 text-green-600" />
+                               ) : trend === 'down' ? (
+                                 <ArrowDown className="h-3 w-3 text-red-600" />
+                               ) : null;
+                             })()}
+                           </div>
+                           <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                             {(() => {
+                               const totalBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
+                               const totalUsed = filteredClients.reduce((sum, client) => sum + client.totalUsedHours, 0);
+                               const percentage = totalBought > 0 ? (totalUsed / totalBought) * 100 : 0;
+                               return `${percentage.toFixed(1)}%`;
+                             })()}
+                           </p>
+                         </div>
+                       </div>
+                     </CardFooter>
+                   </Card>
+                   
+                   <Card>
+                     <CardContent className="p-2">
+                       <CardTitle className="text-sm font-medium text-muted-foreground">Remaining Hours</CardTitle>
+                       <div className="mt-0.5">
+                         <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => sum + client.totalRemainingHours, 0))}</p>
+                         <p className="text-xs text-muted-foreground">Unused flight hours still available</p>
+                       </div>
+                     </CardContent>
+                     <CardFooter className="px-3 pb-3 pt-0">
+                       <div className="w-full border-t pt-2">
+                         <div className="flex items-center justify-between">
+                           <div className="flex items-center space-x-1">
+                             <span className="text-xs text-muted-foreground">{formatHours(totalPreviousYearHours)}</span>
+                             {(() => {
+                               const currentRemaining = filteredClients.reduce((sum, client) => sum + client.totalRemainingHours, 0);
+                               const previousRemaining = totalPreviousYearHours;
+                               const trend = currentRemaining > previousRemaining ? 'up' : currentRemaining < previousRemaining ? 'down' : 'same';
+                               return trend === 'up' ? (
+                                 <ArrowUp className="h-3 w-3 text-green-600" />
+                               ) : trend === 'down' ? (
+                                 <ArrowDown className="h-3 w-3 text-red-600" />
+                               ) : null;
+                             })()}
+                           </div>
+                           <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                             {(() => {
+                               const totalBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
+                               const totalRemaining = filteredClients.reduce((sum, client) => sum + client.totalRemainingHours, 0);
+                               const percentage = totalBought > 0 ? (totalRemaining / totalBought) * 100 : 0;
+                               return `${percentage.toFixed(1)}%`;
+                             })()}
+                           </p>
+                         </div>
+                       </div>
+                     </CardFooter>
+                   </Card>
+                   
+                   <Card>
+                     <CardContent className="p-2">
+                       <CardTitle className="text-sm font-medium text-muted-foreground">Ferry Flights</CardTitle>
+                       <div className="mt-0.5">
+                         <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => 
+                           sum + client.recentFlights.reduce((flightSum, flight) => 
+                             flightSum + (flight.isFerryFlight ? flight.totalHours : 0), 0
+                           ), 0
+                         ))}</p>
+                         <p className="text-xs text-muted-foreground">Non-revenue positioning flights</p>
+                       </div>
+                     </CardContent>
+                     <CardFooter className="px-2 py-1.5">
+                       <div className="w-full border-t pt-1.5">
+                         <div className="flex items-center justify-between">
+                           <div className="flex items-center space-x-1">
+                             <span className="text-xs text-muted-foreground">{formatHours(totalFerryHoursPreviousYear)}</span>
+                             {(() => {
+                               const currentFerry = filteredClients.reduce((sum, client) => 
+                                 sum + client.recentFlights.reduce((flightSum, flight) => 
+                                   flightSum + (flight.isFerryFlight ? flight.totalHours : 0), 0
+                                 ), 0
+                               );
+                               const previousFerry = totalFerryHoursPreviousYear;
+                               const trend = currentFerry > previousFerry ? 'up' : currentFerry < previousFerry ? 'down' : 'same';
+                               return trend === 'up' ? (
+                                 <ArrowUp className="h-3 w-3 text-green-600" />
+                               ) : trend === 'down' ? (
+                                 <ArrowDown className="h-3 w-3 text-red-600" />
+                               ) : null;
+                             })()}
+                           </div>
+                           <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                             {(() => {
+                               const totalBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
+                               const ferryHours = filteredClients.reduce((sum, client) => 
+                                 sum + client.recentFlights.reduce((flightSum, flight) => 
+                                   flightSum + (flight.isFerryFlight ? flight.totalHours : 0), 0
+                                 ), 0
+                               );
+                               const percentage = totalBought > 0 ? (ferryHours / totalBought) * 100 : 0;
+                               return `${percentage.toFixed(1)}%`;
+                             })()}
+                           </p>
+                         </div>
+                       </div>
+                     </CardFooter>
+                   </Card>
+                  
+                                     <Card>
+                     <CardContent className="p-2">
+                       <CardTitle className="text-sm font-medium text-muted-foreground">Charter Flights</CardTitle>
+                       <div className="mt-0.5">
+                         <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => 
+                           sum + client.recentFlights.reduce((flightSum, flight) => 
+                             flightSum + (flight.isCharterFlight ? flight.totalHours : 0), 0
+                           ), 0
+                         ))}</p>
+                         <p className="text-xs text-muted-foreground">Commercial flights with paying passengers</p>
+                       </div>
+                     </CardContent>
+                     <CardFooter className="px-2 py-1.5">
+                       <div className="w-full border-t pt-1.5">
+                         <div className="flex items-center justify-between">
+                           <div className="flex items-center space-x-1">
+                             <span className="text-xs text-muted-foreground">{formatHours(totalCharterHoursPreviousYear)}</span>
+                             {(() => {
+                               const currentCharter = filteredClients.reduce((sum, client) => 
+                                 sum + client.recentFlights.reduce((flightSum, flight) => 
+                                   flightSum + (flight.isCharterFlight ? flight.totalHours : 0), 0
+                                 ), 0
+                               );
+                               const previousCharter = totalCharterHoursPreviousYear;
+                               const trend = currentCharter > previousCharter ? 'up' : currentCharter < previousCharter ? 'down' : 'same';
+                               return trend === 'up' ? (
+                                 <ArrowUp className="h-3 w-3 text-green-600" />
+                               ) : trend === 'down' ? (
+                                 <ArrowDown className="h-3 w-3 text-red-600" />
+                               ) : null;
+                             })()}
+                           </div>
+                           <p className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                             {(() => {
+                               const totalBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
+                               const charterHours = filteredClients.reduce((sum, client) => 
+                                 sum + client.recentFlights.reduce((flightSum, flight) => 
+                                   flightSum + (flight.isCharterFlight ? flight.totalHours : 0), 0
+                                 ), 0
+                               );
+                               const percentage = totalBought > 0 ? (charterHours / totalBought) * 100 : 0;
+                               return `${percentage.toFixed(1)}%`;
+                             })()}
+                           </p>
+                         </div>
+                       </div>
+                     </CardFooter>
+                   </Card>
+                  
+                                                        <Card>
+                     <CardContent className="p-2">
+                       <CardTitle className="text-sm font-medium text-muted-foreground">Demo Flights</CardTitle>
+                       <div className="mt-0.5">
+                         <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => 
+                           sum + client.recentFlights.reduce((flightSum, flight) => 
+                             flightSum + (flight.isDemoFlight ? flight.totalHours : 0), 0
+                           ), 0
+                         ))}</p>
+                         <p className="text-xs text-muted-foreground">Trial, marketing & introductory flights</p>
+                       </div>
+                     </CardContent>
+                     <CardFooter className="px-2 py-1.5">
+                       <div className="w-full border-t pt-1.5">
+                         <div className="flex items-center justify-between">
+                           <div className="flex items-center space-x-1">
+                             <span className="text-xs text-muted-foreground">{formatHours(totalDemoHoursPreviousYear)}</span>
+                             {(() => {
+                               const currentDemo = filteredClients.reduce((sum, client) => 
+                                 sum + client.recentFlights.reduce((flightSum, flight) => 
+                                   flightSum + (flight.isDemoFlight ? flight.totalHours : 0), 0
+                                 ), 0
+                               );
+                               const previousDemo = totalDemoHoursPreviousYear;
+                               const trend = currentDemo > previousDemo ? 'up' : currentDemo < previousDemo ? 'down' : 'same';
+                               return trend === 'up' ? (
+                                 <ArrowUp className="h-3 w-3 text-green-600" />
+                               ) : trend === 'down' ? (
+                                 <ArrowDown className="h-3 w-3 text-red-600" />
+                               ) : null;
+                             })()}
+                           </div>
+                           <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
+                             {(() => {
+                               const totalBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
+                               const demoHours = filteredClients.reduce((sum, client) => 
+                                 sum + client.recentFlights.reduce((flightSum, flight) => 
+                                   flightSum + (flight.isDemoFlight ? flight.totalHours : 0), 0
+                                 ), 0
+                               );
+                               const percentage = totalBought > 0 ? (demoHours / totalBought) * 100 : 0;
+                               return `${percentage.toFixed(1)}%`;
+                             })()}
+                           </p>
+                         </div>
+                       </div>
+                     </CardFooter>
+                   </Card>
+                </div>
+
+                {/* Subtotals and Percentages */}
+                {(() => {
+                  const totalBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
+                  const totalUsed = filteredClients.reduce((sum, client) => sum + client.totalUsedHours, 0);
+                  const totalRemaining = filteredClients.reduce((sum, client) => sum + client.totalRemainingHours, 0);
+                  return null;
+                })()}
               </div>
             )}
 
@@ -610,7 +863,9 @@ export default function Usage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Client</TableHead>
+                      <TableHead className="w-48">Client</TableHead>
+                      <TableHead>Last 90 days</TableHead>
+                      <TableHead>Last 12 months</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Bought Hours</TableHead>
                       <TableHead className="text-right">Used Hours</TableHead>
@@ -628,7 +883,7 @@ export default function Usage() {
                         )}
                         onClick={(!isPilotOrStudent() && viewMode === 'company') ? () => handleViewDetails(clientData) : undefined}
                       >
-                        <TableCell>
+                        <TableCell className="w-48">
                           <div>
                             <div className="flex items-center gap-2">
                               <p className="font-medium">{clientData.client.name}</p>
@@ -650,6 +905,50 @@ export default function Usage() {
                             <p className="text-sm text-muted-foreground">{clientData.client.email}</p>
 
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const ninetyDaysAgo = new Date();
+                            ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+                            
+                            const recentFlights = clientData.recentFlights.filter(flight => 
+                              new Date(flight.date) >= ninetyDaysAgo
+                            );
+                            
+                            const flightCount = recentFlights.length;
+                            const isActive = flightCount >= 3;
+                            
+                            return (
+                              <span className={cn(
+                                "font-medium",
+                                isActive ? "text-green-600" : "text-red-600"
+                              )}>
+                                {flightCount}/3
+                              </span>
+                            );
+                          })()}
+                        </TableCell>
+                        <TableCell>
+                          {(() => {
+                            const twelveMonthsAgo = new Date();
+                            twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+                            
+                            const yearFlights = clientData.recentFlights.filter(flight => 
+                              new Date(flight.date) >= twelveMonthsAgo
+                            );
+                            
+                            const flightCount = yearFlights.length;
+                            const isActive = flightCount >= 12;
+                            
+                            return (
+                              <span className={cn(
+                                "font-medium",
+                                isActive ? "text-green-600" : "text-red-600"
+                              )}>
+                                {flightCount}/12
+                              </span>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
