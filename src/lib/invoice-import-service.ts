@@ -33,6 +33,9 @@ export interface ImportedInvoice {
   import_date: string;
   is_ppl?: boolean;
   ppl_hours_paid?: number;
+  xml_content?: string; // Current content (edited JSON or original XML)
+  original_xml_content?: string; // Original XML before any edits
+  has_edits?: boolean; // Whether this invoice was edited during import
   client: {
     name: string;
     email?: string;
@@ -68,25 +71,25 @@ export class InvoiceImportService {
   /**
    * Import a SmartBill XML invoice into the database
    */
-  static async importInvoice(xmlContent: string): Promise<InvoiceImportResult> {
+  static async importInvoice(xmlContent: string, editedInvoice?: any): Promise<InvoiceImportResult> {
     try {
-      // Parse the XML
-      const parsedInvoice = await XMLInvoiceParser.parseXMLInvoice(xmlContent);
+      // Use edited invoice data if provided, otherwise parse the XML
+      const invoiceToImport = editedInvoice || await XMLInvoiceParser.parseXMLInvoice(xmlContent);
       
       // Check if invoice already exists
-      const existingInvoice = await this.checkExistingInvoice(parsedInvoice.id);
+      const existingInvoice = await this.checkExistingInvoice(invoiceToImport.id);
       if (existingInvoice) {
         return {
           success: false,
-          message: `Invoice ${parsedInvoice.id} already exists in the database`
+          message: `Invoice ${invoiceToImport.id} already exists in the database`
         };
       }
 
       // Find user by email if client email exists
-      const userId = await this.findUserByEmail(parsedInvoice.client.email);
+      const userId = await this.findUserByEmail(invoiceToImport.client.email);
 
       // Find or create company by VAT code or name
-      const companyId = await this.findOrCreateCompany(parsedInvoice.client);
+      const companyId = await this.findOrCreateCompany(invoiceToImport.client);
 
       // If we found a user, ensure they have a relationship with the company
       if (userId && companyId) {
@@ -97,16 +100,17 @@ export class InvoiceImportService {
       const { data: invoiceData, error: invoiceError } = await supabase
         .from('invoices')
         .insert({
-          smartbill_id: parsedInvoice.id, // Full SmartBill ID (e.g., "CA0766")
-          series: parsedInvoice.series, // Series (e.g., "CA")
-          number: parsedInvoice.number, // Numeric part only (e.g., "0766")
-          issue_date: parsedInvoice.date,
-          due_date: parsedInvoice.dueDate,
-          status: parsedInvoice.status,
-          total_amount: parsedInvoice.total,
-          vat_amount: parsedInvoice.vatTotal,
-          currency: parsedInvoice.currency,
-          xml_content: xmlContent
+          smartbill_id: invoiceToImport.id, // Full SmartBill ID (e.g., "CA0766")
+          series: invoiceToImport.series, // Series (e.g., "CA")
+          number: invoiceToImport.number, // Numeric part only (e.g., "0766")
+          issue_date: invoiceToImport.date,
+          due_date: invoiceToImport.dueDate,
+          status: invoiceToImport.status,
+          total_amount: invoiceToImport.total,
+          vat_amount: invoiceToImport.vatTotal,
+          currency: invoiceToImport.currency,
+          xml_content: editedInvoice ? JSON.stringify(editedInvoice) : xmlContent,
+          original_xml_content: xmlContent
         })
         .select()
         .single();
@@ -120,13 +124,13 @@ export class InvoiceImportService {
         .from('invoice_clients')
         .insert({
           invoice_id: invoiceData.id,
-          name: parsedInvoice.client.name,
-          email: parsedInvoice.client.email,
-          phone: parsedInvoice.client.phone,
-          vat_code: parsedInvoice.client.vatCode,
-          address: parsedInvoice.client.address,
-          city: parsedInvoice.client.city,
-          country: parsedInvoice.client.country,
+          name: invoiceToImport.client.name,
+          email: invoiceToImport.client.email,
+          phone: invoiceToImport.client.phone,
+          vat_code: invoiceToImport.client.vatCode,
+          address: invoiceToImport.client.address,
+          city: invoiceToImport.client.city,
+          country: invoiceToImport.client.country,
           user_id: userId || undefined,
           company_id: companyId || undefined
         });
@@ -139,8 +143,8 @@ export class InvoiceImportService {
       const invoiceItems = [];
       const flightHours = [];
 
-      for (let i = 0; i < parsedInvoice.items.length; i++) {
-        const item = parsedInvoice.items[i];
+      for (let i = 0; i < invoiceToImport.items.length; i++) {
+        const item = invoiceToImport.items[i];
         
         // Insert invoice item
         const { data: itemData, error: itemError } = await supabase
@@ -176,7 +180,7 @@ export class InvoiceImportService {
               user_id: userId,
               company_id: companyId || undefined, // Link to company that paid for the hours
               invoice_item_id: itemData.id,
-              flight_date: parsedInvoice.date,
+              flight_date: invoiceToImport.date,
               hours_regular: isPromotional ? 0 : item.quantity,
               hours_promotional: isPromotional ? item.quantity : 0,
               total_hours: item.quantity,
@@ -196,7 +200,7 @@ export class InvoiceImportService {
       }
 
       // Check if this is a PPL course invoice
-      const pplInfo = PPLDetectionService.getPPLInfo(parsedInvoice.items.map(item => ({
+      const pplInfo = PPLDetectionService.getPPLInfo(invoiceToImport.items.map((item: any) => ({
         name: item.name,
         description: item.description,
         total_amount: item.total
@@ -214,8 +218,6 @@ export class InvoiceImportService {
 
         if (updateError) {
           console.error('Error updating invoice with PPL info:', updateError.message);
-        } else {
-          console.log(`Marked invoice as PPL course with ${pplInfo.hoursPaid} hours paid`);
         }
       }
 
@@ -224,7 +226,7 @@ export class InvoiceImportService {
         invoiceId: invoiceData.id,
         userId: userId || undefined,
         companyId: companyId || undefined,
-        message: `Successfully imported invoice ${parsedInvoice.number}`,
+        message: `Successfully imported invoice ${invoiceToImport.number}`,
         flightHoursId: flightHours.length > 0 ? flightHours[0].id : undefined,
         isPPL: pplInfo.isPPL,
         pplHoursPaid: pplInfo.hoursPaid
@@ -341,7 +343,7 @@ export class InvoiceImportService {
 
     // If no VAT code, don't create a company - treat as individual
     if (!companyId && !client.vatCode) {
-      console.log(`No company created for ${client.name} - no VAT code provided (treating as individual)`);
+      
       return null;
     }
 
@@ -465,6 +467,10 @@ export class InvoiceImportService {
       import_date: invoice.import_date,
       is_ppl: invoice.is_ppl || false,
       ppl_hours_paid: invoice.ppl_hours_paid || 0,
+      xml_content: invoice.xml_content,
+      original_xml_content: invoice.original_xml_content,
+      edited_xml_content: invoice.edited_xml_content,
+      has_edits: !!invoice.edited_xml_content,
       client: invoice.invoice_clients[0] || {},
       items: invoice.invoice_items || [],
       flight_hours: invoice.flight_hours || []
@@ -530,10 +536,86 @@ export class InvoiceImportService {
       import_date: invoice.import_date,
       is_ppl: invoice.is_ppl || false,
       ppl_hours_paid: invoice.ppl_hours_paid || 0,
+      xml_content: invoice.xml_content,
+      original_xml_content: invoice.original_xml_content,
+      edited_xml_content: invoice.edited_xml_content,
+      has_edits: !!invoice.edited_xml_content,
       client: invoice.invoice_clients[0] || {},
       items: invoice.invoice_items || [],
       flight_hours: invoice.flight_hours || []
     }));
+  }
+
+  /**
+   * Get a single invoice with full XML details
+   */
+  static async getInvoiceById(invoiceId: string): Promise<ImportedInvoice | null> {
+    const { data: invoice, error: invoiceError } = await supabase
+      .from('invoices')
+      .select(`
+        *,
+        invoice_clients (
+          name,
+          email,
+          phone,
+          vat_code,
+          address,
+          city,
+          country,
+          user_id,
+          company_id
+        ),
+        invoice_items (
+          line_id,
+          name,
+          description,
+          quantity,
+          unit,
+          unit_price,
+          total_amount,
+          vat_rate
+        ),
+        flight_hours (
+          hours_regular,
+          hours_promotional,
+          total_hours,
+          rate_per_hour,
+          total_amount,
+          notes
+        )
+      `)
+      .eq('id', invoiceId)
+      .single();
+
+    if (invoiceError) {
+      if (invoiceError.code === 'PGRST116') {
+        return null; // Invoice not found
+      }
+      throw new Error(`Failed to fetch invoice: ${invoiceError.message}`);
+    }
+
+    return {
+      id: invoice.id,
+      smartbill_id: invoice.smartbill_id,
+      series: invoice.series,
+      number: invoice.number,
+      issue_date: invoice.issue_date,
+      due_date: invoice.due_date,
+      status: invoice.status,
+      total_amount: invoice.total_amount,
+      vat_amount: invoice.vat_amount,
+      currency: invoice.currency,
+      import_date: invoice.import_date,
+      is_ppl: invoice.is_ppl || false,
+      ppl_hours_paid: invoice.ppl_hours_paid || 0,
+      xml_content: invoice.xml_content,
+      original_xml_content: invoice.original_xml_content,
+      edited_xml_content: invoice.edited_xml_content,
+      has_edits: !!invoice.edited_xml_content,
+      client: invoice.invoice_clients[0] || {},
+      items: invoice.invoice_items || [],
+      flight_hours: invoice.flight_hours || []
+    };
   }
 
   /**

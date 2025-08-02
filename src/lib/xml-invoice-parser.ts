@@ -279,14 +279,23 @@ class XMLInvoiceParser {
     if (!element || !element[tagName]) return null;
     
     const tag = element[tagName];
+    
+    // Handle xml2js format where attributes are in the $ property
     if (tag && tag.$ && tag.$[attributeName]) {
       return tag.$[attributeName];
     }
     
-    // Handle direct attribute access for xml2js format
-    if (tag && tag.$ && tag.$[attributeName]) {
+    // Handle case where the tag might be an array
+    if (Array.isArray(tag) && tag[0] && tag[0].$ && tag[0].$[attributeName]) {
+      return tag[0].$[attributeName];
+    }
+    
+    // Handle case where the tag might be a string with attributes
+    if (typeof tag === 'object' && tag.$ && tag.$[attributeName]) {
       return tag.$[attributeName];
     }
+    
+
     
     return null;
   }

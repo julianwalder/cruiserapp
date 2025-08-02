@@ -6,6 +6,8 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const xmlContent = formData.get('xmlContent') as string;
+    const editedInvoiceJson = formData.get('editedInvoice') as string;
+    const hasEdits = formData.get('hasEdits') === 'true';
 
     if (!file && !xmlContent) {
       return NextResponse.json(
@@ -31,8 +33,23 @@ export async function POST(request: NextRequest) {
       xmlString = xmlContent;
     }
 
+    // Parse edited invoice if provided
+    let editedInvoice = null;
+    
+    if (editedInvoiceJson && hasEdits) {
+      try {
+        editedInvoice = JSON.parse(editedInvoiceJson);
+      } catch (parseError) {
+        console.error('Failed to parse edited invoice:', parseError);
+        return NextResponse.json(
+          { error: 'Failed to parse edited invoice data' },
+          { status: 400 }
+        );
+      }
+    }
+
     // Import invoice using the database service
-    const result = await InvoiceImportService.importInvoice(xmlString);
+    const result = await InvoiceImportService.importInvoice(xmlString, editedInvoice);
 
     if (!result.success) {
       return NextResponse.json(
