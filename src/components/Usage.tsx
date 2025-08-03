@@ -142,6 +142,7 @@ interface ClientHoursData {
   currentYearHours: number;
   previousYearHours: number;
   flightCountLast12Months: number;
+  flightCountLast90Days: number;
 
   ferryHoursCurrentYear: number;
   ferryHoursPreviousYear: number;
@@ -866,11 +867,21 @@ export default function Usage() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-48">Client</TableHead>
-                      <TableHead>Last 90 days</TableHead>
-                      <TableHead>Last 12 months</TableHead>
+                      <TableHead>
+                        <div className="text-left">
+                          <div>Last</div>
+                          <div>90 days</div>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="text-left">
+                          <div>Last</div>
+                          <div>12 months</div>
+                        </div>
+                      </TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Bought Hours</TableHead>
-                      <TableHead className="text-right">Used Hours</TableHead>
+                      <TableHead className="text-right">Purchased</TableHead>
+                      <TableHead className="text-right">Used</TableHead>
                       <TableHead className="text-right">Remaining</TableHead>
                       <TableHead className="text-center">Progress</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -910,14 +921,8 @@ export default function Usage() {
                         </TableCell>
                         <TableCell>
                           {(() => {
-                            const ninetyDaysAgo = new Date();
-                            ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-                            
-                            const recentFlights = clientData.recentFlights.filter(flight => 
-                              new Date(flight.date) >= ninetyDaysAgo
-                            );
-                            
-                            const flightCount = recentFlights.length;
+                            // Use the actual flight count from the API (calculated from ALL flight logs)
+                            const flightCount = clientData.flightCountLast90Days || 0;
                             const isActive = flightCount >= 3;
                             
                             return (

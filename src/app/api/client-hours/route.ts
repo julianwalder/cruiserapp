@@ -374,6 +374,9 @@ export async function GET(request: NextRequest) {
     // Calculate flight counts for the last 12 months (rolling period)
     const flightCountLast12Months = new Map<string, number>();
     
+    // Calculate flight counts for the last 90 days (rolling period)
+    const flightCountLast90Days = new Map<string, number>();
+    
 
 
     flightLogs?.forEach((log: any) => {
@@ -391,11 +394,19 @@ export async function GET(request: NextRequest) {
         const flightDate = new Date(log.date);
         const twelveMonthsAgo = new Date();
         twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
         
         // Count flights for the last 12 months (all flight types)
         if (flightDate >= twelveMonthsAgo) {
           const currentCount = flightCountLast12Months.get(pilot.email) || 0;
           flightCountLast12Months.set(pilot.email, currentCount + 1);
+        }
+        
+        // Count flights for the last 90 days (all flight types)
+        if (flightDate >= ninetyDaysAgo) {
+          const currentCount = flightCountLast90Days.get(pilot.email) || 0;
+          flightCountLast90Days.set(pilot.email, currentCount + 1);
         }
 
         
@@ -596,6 +607,7 @@ export async function GET(request: NextRequest) {
           const currentYearHours = clientFlightHoursCurrentYear.get(client.id) || 0;
           const previousYearHours = clientFlightHoursPreviousYear.get(client.id) || 0;
           const clientFlightCountLast12Months = flightCountLast12Months.get(client.id) || 0;
+          const clientFlightCountLast90Days = flightCountLast90Days.get(client.id) || 0;
 
           
           // Get year-specific data for special flight types
@@ -616,6 +628,7 @@ export async function GET(request: NextRequest) {
             currentYearHours,
             previousYearHours,
             flightCountLast12Months: clientFlightCountLast12Months,
+            flightCountLast90Days: clientFlightCountLast90Days,
 
             ferryHoursCurrentYear: clientFerryHoursCurrentYear,
             ferryHoursPreviousYear: clientFerryHoursPreviousYear,
