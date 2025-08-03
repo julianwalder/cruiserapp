@@ -187,6 +187,7 @@ export default function UserManagement() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<any>({});
+  const [saveLoading, setSaveLoading] = useState(false);
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
@@ -665,6 +666,7 @@ export default function UserManagement() {
   // Save user changes
   const handleSaveUser = async () => {
     try {
+      setSaveLoading(true);
       const token = localStorage.getItem('token');
       
       console.log('Sending update data:', editForm); // Debug log
@@ -778,6 +780,8 @@ export default function UserManagement() {
         description: error.message,
         duration: 4000,
       });
+    } finally {
+      setSaveLoading(false);
     }
   };
 
@@ -1421,6 +1425,40 @@ export default function UserManagement() {
         onClose={() => setShowUserDialog(false)}
         title="User Details"
         description="Complete user information and profile details"
+        headerActions={
+          selectedUser && (
+            <div className="flex items-center gap-2">
+              {isEditing ? (
+                <>
+                  <Button 
+                    variant="default" 
+                    size="sm"
+                    onClick={handleSaveUser}
+                    disabled={saveLoading}
+                  >
+                    {saveLoading ? 'Saving...' : 'Save'}
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setIsEditing(false)}
+                  >
+                    Cancel
+                  </Button>
+                </>
+              ) : (
+                <Button 
+                  variant="default" 
+                  size="sm"
+                  onClick={() => setIsEditing(true)}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+              )}
+            </div>
+          )
+        }
       >
         {selectedUser ? (
           <div key={selectedUser.id + selectedUser.updatedAt} className="space-y-8">
