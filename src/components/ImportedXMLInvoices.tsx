@@ -151,6 +151,16 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
       invoice.smartbill_id.toLowerCase().includes(searchLower) ||
       invoice.client.name.toLowerCase().includes(searchLower) ||
       invoice.client.email?.toLowerCase().includes(searchLower) ||
+      // Search by user name (first name, last name, or full name)
+      (invoice.client.user?.firstName?.toLowerCase().includes(searchLower) ||
+       invoice.client.user?.lastName?.toLowerCase().includes(searchLower) ||
+       `${invoice.client.user?.firstName || ''} ${invoice.client.user?.lastName || ''}`.toLowerCase().includes(searchLower)) ||
+      // Search by company name
+      invoice.client.company?.name?.toLowerCase().includes(searchLower) ||
+      // Search by user email
+      invoice.client.user?.email?.toLowerCase().includes(searchLower) ||
+      // Search by company email
+      invoice.client.company?.email?.toLowerCase().includes(searchLower) ||
       invoice.items.some(item => item.name.toLowerCase().includes(searchLower))
     );
   });
@@ -527,7 +537,7 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="search"
-                  placeholder="Search invoices..."
+                  placeholder="Search by invoice number, client name, user name, or company..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
