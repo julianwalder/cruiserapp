@@ -370,6 +370,11 @@ export async function GET(request: NextRequest) {
     const charterHoursPreviousYear = new Map<string, number>();
     const demoHoursCurrentYear = new Map<string, number>();
     const demoHoursPreviousYear = new Map<string, number>();
+    
+    // Calculate flight counts for the last 12 months (rolling period)
+    const flightCountLast12Months = new Map<string, number>();
+    
+
 
     flightLogs?.forEach((log: any) => {
       const pilot = userMap.get(log.pilotId) as any;
@@ -383,6 +388,16 @@ export async function GET(request: NextRequest) {
       // If there's a pilot, count their hours (excluding FERRY, DEMO, and CHARTER flights)
       if (pilot?.email) {
         const flightYear = new Date(log.date).getFullYear();
+        const flightDate = new Date(log.date);
+        const twelveMonthsAgo = new Date();
+        twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+        
+        // Count flights for the last 12 months (all flight types)
+        if (flightDate >= twelveMonthsAgo) {
+          const currentCount = flightCountLast12Months.get(pilot.email) || 0;
+          flightCountLast12Months.set(pilot.email, currentCount + 1);
+        }
+
         
         if (!isFerryFlight && !isDemoFlight && !isCharterFlight) {
           const currentHours = clientFlightHours.get(pilot.email) || 0;
@@ -580,6 +595,8 @@ export async function GET(request: NextRequest) {
           // Get year-specific data for this client
           const currentYearHours = clientFlightHoursCurrentYear.get(client.id) || 0;
           const previousYearHours = clientFlightHoursPreviousYear.get(client.id) || 0;
+          const clientFlightCountLast12Months = flightCountLast12Months.get(client.id) || 0;
+
           
           // Get year-specific data for special flight types
           const clientFerryHoursCurrentYear = ferryHoursCurrentYear.get(client.id) || 0;
@@ -598,6 +615,8 @@ export async function GET(request: NextRequest) {
             totalRemainingHours,
             currentYearHours,
             previousYearHours,
+            flightCountLast12Months: clientFlightCountLast12Months,
+
             ferryHoursCurrentYear: clientFerryHoursCurrentYear,
             ferryHoursPreviousYear: clientFerryHoursPreviousYear,
             charterHoursCurrentYear: clientCharterHoursCurrentYear,

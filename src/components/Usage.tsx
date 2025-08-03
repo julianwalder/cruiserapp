@@ -141,6 +141,8 @@ interface ClientHoursData {
   totalRemainingHours: number;
   currentYearHours: number;
   previousYearHours: number;
+  flightCountLast12Months: number;
+
   ferryHoursCurrentYear: number;
   ferryHoursPreviousYear: number;
   charterHoursCurrentYear: number;
@@ -930,14 +932,8 @@ export default function Usage() {
                         </TableCell>
                         <TableCell>
                           {(() => {
-                            const twelveMonthsAgo = new Date();
-                            twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-                            
-                            const yearFlights = clientData.recentFlights.filter(flight => 
-                              new Date(flight.date) >= twelveMonthsAgo
-                            );
-                            
-                            const flightCount = yearFlights.length;
+                            // Use the actual flight count from the API (calculated from ALL flight logs)
+                            const flightCount = clientData.flightCountLast12Months || 0;
                             const isActive = flightCount >= 12;
                             
                             return (
