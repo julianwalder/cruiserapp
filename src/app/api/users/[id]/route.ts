@@ -68,7 +68,13 @@ async function getUser(request: NextRequest, currentUser: any) {
       );
     }
     
-    return NextResponse.json({ user });
+    // Map roles to array of strings
+    const userWithRoles = {
+      ...user,
+      roles: user.user_roles.map((ur: any) => ur.roles.name),
+    };
+    
+    return NextResponse.json({ user: userWithRoles });
     
   } catch (error) {
     console.error('Get user error:', error);
@@ -84,6 +90,9 @@ async function updateUser(request: NextRequest, currentUser: any) {
   try {
     const userId = request.nextUrl.pathname.split('/').pop();
     const body = await request.json();
+    
+    console.log('API received body:', body); // Debug log
+    console.log('API received personalNumber:', body.personalNumber); // Debug log
 
     // Check if user has admin role or is updating their own profile
     const hasAdminRole = currentUser.user_roles?.some((userRole: any) => 
@@ -110,6 +119,9 @@ async function updateUser(request: NextRequest, currentUser: any) {
 
     // Prepare update data
     const updateData: any = { ...validatedData };
+    
+    console.log('Update data before processing:', updateData); // Debug log
+    console.log('Personal Number in updateData:', updateData.personalNumber); // Debug log
     
     // Remove roles from update data since they're handled separately
     delete updateData.roles;

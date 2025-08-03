@@ -670,6 +670,7 @@ export default function UserManagement() {
       const token = localStorage.getItem('token');
       
       console.log('Sending update data:', editForm); // Debug log
+      console.log('Personal Number in editForm:', editForm.personalNumber); // Debug log
       
       const response = await fetch(`/api/users/${selectedUser?.id}`, {
         method: 'PUT',
@@ -689,6 +690,7 @@ export default function UserManagement() {
       const result = await response.json();
       
       console.log('API Response:', result); // Debug log
+      console.log('API Response personalNumber:', result.user?.personalNumber); // Debug log
       
       // Update the selectedUser state with the updated data
       if (result.user) {
@@ -701,19 +703,19 @@ export default function UserManagement() {
           email: result.user.email,
           firstName: result.user.firstName,
           lastName: result.user.lastName,
-          personalNumber: result.user.personalNumber || null,
-          phone: result.user.phone || null,
+          personalNumber: result.user.personalNumber || '',
+          phone: result.user.phone || '',
           dateOfBirth: result.user.dateOfBirth,
-          address: result.user.address || null,
-          city: result.user.city || null,
-          state: result.user.state || null,
-          zipCode: result.user.zipCode || null,
-          country: result.user.country || null,
+          address: result.user.address || '',
+          city: result.user.city || '',
+          state: result.user.state || '',
+          zipCode: result.user.zipCode || '',
+          country: result.user.country || '',
           status: result.user.status,
           totalFlightHours: result.user.totalFlightHours,
-          licenseNumber: result.user.licenseNumber || null,
-          medicalClass: result.user.medicalClass || null,
-          instructorRating: result.user.instructorRating || null,
+          licenseNumber: result.user.licenseNumber || '',
+          medicalClass: result.user.medicalClass || '',
+          instructorRating: result.user.instructorRating || '',
           roles: result.user.roles || [],
           createdAt: result.user.createdAt,
           updatedAt: result.user.updatedAt,
@@ -977,8 +979,28 @@ export default function UserManagement() {
                       <TableRow 
                         key={user.id} 
                         className="hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer"
-                        onClick={() => {
-                          setSelectedUser(user);
+                        onClick={async () => {
+                          // Fetch complete user details
+                          try {
+                            const token = localStorage.getItem('token');
+                            const response = await fetch(`/api/users/${user.id}`, {
+                              headers: {
+                                'Authorization': `Bearer ${token}`,
+                              },
+                            });
+                            
+                            if (response.ok) {
+                              const data = await response.json();
+                              setSelectedUser(data.user);
+                            } else {
+                              // Fallback to the user from the list
+                              setSelectedUser(user);
+                            }
+                          } catch (error) {
+                            console.error('Error fetching user details:', error);
+                            // Fallback to the user from the list
+                            setSelectedUser(user);
+                          }
                           setShowUserDialog(true);
                         }}
                       >
@@ -1023,8 +1045,28 @@ export default function UserManagement() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => {
-                                setSelectedUser(user);
+                              <DropdownMenuItem onClick={async () => {
+                                // Fetch complete user details
+                                try {
+                                  const token = localStorage.getItem('token');
+                                  const response = await fetch(`/api/users/${user.id}`, {
+                                    headers: {
+                                      'Authorization': `Bearer ${token}`,
+                                    },
+                                  });
+                                  
+                                  if (response.ok) {
+                                    const data = await response.json();
+                                    setSelectedUser(data.user);
+                                  } else {
+                                    // Fallback to the user from the list
+                                    setSelectedUser(user);
+                                  }
+                                } catch (error) {
+                                  console.error('Error fetching user details:', error);
+                                  // Fallback to the user from the list
+                                  setSelectedUser(user);
+                                }
                                 setShowUserDialog(true);
                               }}>
                                 <Edit className="h-4 w-4 mr-2" /> Edit User
@@ -1643,12 +1685,12 @@ export default function UserManagement() {
                           <input
                             type="checkbox"
                             id={`role-${role}`}
-                            checked={editForm.roles.includes(role)}
+                            checked={editForm.roles?.includes(role) || false}
                             onChange={(e) => {
                               if (e.target.checked) {
-                                handleEditChange('roles', [...editForm.roles, role]);
+                                handleEditChange('roles', [...(editForm.roles || []), role]);
                               } else {
-                                handleEditChange('roles', editForm.roles.filter((r: string) => r !== role));
+                                handleEditChange('roles', (editForm.roles || []).filter((r: string) => r !== role));
                               }
                             }}
                             className="rounded"
@@ -1661,7 +1703,7 @@ export default function UserManagement() {
                     </div>
                   ) : (
                     <div className="flex flex-wrap gap-2">
-                      {selectedUser.roles.map((role) => (
+                      {selectedUser.roles?.map((role) => (
                         <Badge key={role} className={getRoleBadgeColor(role)}>
                           {getRoleDisplayName(role)}
                         </Badge>
