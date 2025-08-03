@@ -682,9 +682,7 @@ export default function Usage() {
                        <CardTitle className="text-sm font-medium text-muted-foreground">Ferry Flights</CardTitle>
                        <div className="mt-0.5">
                          <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => 
-                           sum + client.recentFlights.reduce((flightSum, flight) => 
-                             flightSum + (flight.isFerryFlight ? flight.totalHours : 0), 0
-                           ), 0
+                           sum + client.ferryHoursCurrentYear + client.ferryHoursPreviousYear, 0
                          ))}</p>
                          <p className="text-xs text-muted-foreground">Non-revenue positioning flights</p>
                        </div>
@@ -696,9 +694,7 @@ export default function Usage() {
                              <span className="text-xs text-muted-foreground">{formatHours(totalFerryHoursPreviousYear)}</span>
                              {(() => {
                                const currentFerry = filteredClients.reduce((sum, client) => 
-                                 sum + client.recentFlights.reduce((flightSum, flight) => 
-                                   flightSum + (flight.isFerryFlight ? flight.totalHours : 0), 0
-                                 ), 0
+                                 sum + client.ferryHoursCurrentYear, 0
                                );
                                const previousFerry = totalFerryHoursPreviousYear;
                                const trend = currentFerry > previousFerry ? 'up' : currentFerry < previousFerry ? 'down' : 'same';
@@ -713,9 +709,7 @@ export default function Usage() {
                              {(() => {
                                const totalBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
                                const ferryHours = filteredClients.reduce((sum, client) => 
-                                 sum + client.recentFlights.reduce((flightSum, flight) => 
-                                   flightSum + (flight.isFerryFlight ? flight.totalHours : 0), 0
-                                 ), 0
+                                 sum + client.ferryHoursCurrentYear + client.ferryHoursPreviousYear, 0
                                );
                                const percentage = totalBought > 0 ? (ferryHours / totalBought) * 100 : 0;
                                return `${percentage.toFixed(1)}%`;
@@ -731,9 +725,7 @@ export default function Usage() {
                        <CardTitle className="text-sm font-medium text-muted-foreground">Charter Flights</CardTitle>
                        <div className="mt-0.5">
                          <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => 
-                           sum + client.recentFlights.reduce((flightSum, flight) => 
-                             flightSum + (flight.isCharterFlight ? flight.totalHours : 0), 0
-                           ), 0
+                           sum + client.charterHoursCurrentYear + client.charterHoursPreviousYear, 0
                          ))}</p>
                          <p className="text-xs text-muted-foreground">Commercial flights with paying passengers</p>
                        </div>
@@ -745,9 +737,7 @@ export default function Usage() {
                              <span className="text-xs text-muted-foreground">{formatHours(totalCharterHoursPreviousYear)}</span>
                              {(() => {
                                const currentCharter = filteredClients.reduce((sum, client) => 
-                                 sum + client.recentFlights.reduce((flightSum, flight) => 
-                                   flightSum + (flight.isCharterFlight ? flight.totalHours : 0), 0
-                                 ), 0
+                                 sum + client.charterHoursCurrentYear, 0
                                );
                                const previousCharter = totalCharterHoursPreviousYear;
                                const trend = currentCharter > previousCharter ? 'up' : currentCharter < previousCharter ? 'down' : 'same';
@@ -762,9 +752,7 @@ export default function Usage() {
                              {(() => {
                                const totalBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
                                const charterHours = filteredClients.reduce((sum, client) => 
-                                 sum + client.recentFlights.reduce((flightSum, flight) => 
-                                   flightSum + (flight.isCharterFlight ? flight.totalHours : 0), 0
-                                 ), 0
+                                 sum + client.charterHoursCurrentYear + client.charterHoursPreviousYear, 0
                                );
                                const percentage = totalBought > 0 ? (charterHours / totalBought) * 100 : 0;
                                return `${percentage.toFixed(1)}%`;
@@ -780,9 +768,7 @@ export default function Usage() {
                        <CardTitle className="text-sm font-medium text-muted-foreground">Demo Flights</CardTitle>
                        <div className="mt-0.5">
                          <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => 
-                           sum + client.recentFlights.reduce((flightSum, flight) => 
-                             flightSum + (flight.isDemoFlight ? flight.totalHours : 0), 0
-                           ), 0
+                           sum + client.demoHoursCurrentYear + client.demoHoursPreviousYear, 0
                          ))}</p>
                          <p className="text-xs text-muted-foreground">Trial, marketing & introductory flights</p>
                        </div>
@@ -794,9 +780,7 @@ export default function Usage() {
                              <span className="text-xs text-muted-foreground">{formatHours(totalDemoHoursPreviousYear)}</span>
                              {(() => {
                                const currentDemo = filteredClients.reduce((sum, client) => 
-                                 sum + client.recentFlights.reduce((flightSum, flight) => 
-                                   flightSum + (flight.isDemoFlight ? flight.totalHours : 0), 0
-                                 ), 0
+                                 sum + client.demoHoursCurrentYear, 0
                                );
                                const previousDemo = totalDemoHoursPreviousYear;
                                const trend = currentDemo > previousDemo ? 'up' : currentDemo < previousDemo ? 'down' : 'same';
@@ -811,9 +795,7 @@ export default function Usage() {
                              {(() => {
                                const totalBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
                                const demoHours = filteredClients.reduce((sum, client) => 
-                                 sum + client.recentFlights.reduce((flightSum, flight) => 
-                                   flightSum + (flight.isDemoFlight ? flight.totalHours : 0), 0
-                                 ), 0
+                                 sum + client.demoHoursCurrentYear + client.demoHoursPreviousYear, 0
                                );
                                const percentage = totalBought > 0 ? (demoHours / totalBought) * 100 : 0;
                                return `${percentage.toFixed(1)}%`;
