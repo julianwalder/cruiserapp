@@ -33,20 +33,33 @@ export interface ImportedInvoice {
   import_date: string;
   is_ppl?: boolean;
   ppl_hours_paid?: number;
-  xml_content?: string; // Current content (edited JSON or original XML)
-  original_xml_content?: string; // Original XML before any edits
-  has_edits?: boolean; // Whether this invoice was edited during import
-  client: {
-    name: string;
-    email?: string;
-    phone?: string;
-    vat_code?: string;
-    address?: string;
-    city?: string;
-    country?: string;
-    user_id?: string;
-    company_id?: string;
-  };
+        xml_content?: string; // Current content (edited JSON or original XML)
+      original_xml_content?: string; // Original XML before any edits
+      edited_xml_content?: string; // Edited XML content
+      has_edits?: boolean; // Whether this invoice was edited during import
+      client: {
+        name: string;
+        email?: string;
+        phone?: string;
+        vat_code?: string;
+        address?: string;
+        city?: string;
+        country?: string;
+        user_id?: string;
+        company_id?: string;
+        user?: {
+          id: string;
+          firstName: string;
+          lastName: string;
+          email: string;
+        };
+        company?: {
+          id: string;
+          name: string;
+          vat_code?: string;
+          email?: string;
+        };
+      };
   items: Array<{
     line_id: number;
     name: string;
@@ -453,6 +466,34 @@ export class InvoiceImportService {
       throw new Error(`Failed to fetch invoices: ${invoicesError.message}`);
     }
 
+    // Get all unique user IDs and company IDs
+    const userIds = Array.from(new Set(
+      invoices.flatMap(invoice => 
+        invoice.invoice_clients?.map((client: any) => client.user_id).filter(Boolean) || []
+      )
+    ));
+    
+    const companyIds = Array.from(new Set(
+      invoices.flatMap(invoice => 
+        invoice.invoice_clients?.map((client: any) => client.company_id).filter(Boolean) || []
+      )
+    ));
+
+    // Fetch user and company information
+    const { data: users } = await supabase
+      .from('users')
+      .select('id, firstName, lastName, email')
+      .in('id', userIds);
+
+    const { data: companies } = await supabase
+      .from('companies')
+      .select('id, name, vat_code, email')
+      .in('id', companyIds);
+
+    // Create lookup maps
+    const userMap = new Map(users?.map(user => [user.id, user]) || []);
+    const companyMap = new Map(companies?.map(company => [company.id, company]) || []);
+
     return invoices.map(invoice => ({
       id: invoice.id,
       smartbill_id: invoice.smartbill_id,
@@ -471,7 +512,11 @@ export class InvoiceImportService {
       original_xml_content: invoice.original_xml_content,
       edited_xml_content: invoice.edited_xml_content,
       has_edits: !!invoice.edited_xml_content,
-      client: invoice.invoice_clients[0] || {},
+      client: {
+        ...invoice.invoice_clients[0] || {},
+        user: invoice.invoice_clients[0]?.user_id ? userMap.get(invoice.invoice_clients[0].user_id) : undefined,
+        company: invoice.invoice_clients[0]?.company_id ? companyMap.get(invoice.invoice_clients[0].company_id) : undefined
+      },
       items: invoice.invoice_items || [],
       flight_hours: invoice.flight_hours || []
     }));

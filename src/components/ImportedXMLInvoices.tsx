@@ -11,6 +11,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Modal } from './ui/Modal';
@@ -228,8 +234,8 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
 
   const formatCurrency = (amount: number, currency: string) => {
     return new Intl.NumberFormat('ro-RO', {
-      style: 'currency',
-      currency: currency || 'RON',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(amount);
   };
 
@@ -633,7 +639,7 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                 <TableHeader>
                   <TableRow>
                     <TableHead 
-                      className="w-[120px] cursor-pointer hover:bg-muted/50 transition-colors"
+                      className="w-[100px] cursor-pointer hover:bg-muted/50 transition-colors"
                       onClick={() => handleSort('smartbill_id')}
                     >
                       <div className="flex items-center gap-1">
@@ -651,7 +657,7 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="w-[250px] cursor-pointer hover:bg-muted/50 transition-colors"
+                      className="w-[350px] cursor-pointer hover:bg-muted/50 transition-colors"
                       onClick={() => handleSort('client.name')}
                     >
                       <div className="flex items-center gap-1">
@@ -682,7 +688,7 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                       onClick={() => handleSort('total_amount')}
                     >
                       <div className="flex items-center justify-end gap-1">
-                        Total
+                        Total lei
                         {getSortIcon('total_amount')}
                       </div>
                     </TableHead>
@@ -691,16 +697,37 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sortedInvoices.map((invoice) => (
-                    <TableRow key={invoice.id}>
+                  <TooltipProvider>
+                    {sortedInvoices.map((invoice) => (
+                    <TableRow 
+                      key={invoice.id}
+                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => handleViewInvoice(invoice)}
+                    >
                       <TableCell className="font-medium">
                         <span className="truncate block" title={invoice.smartbill_id}>{invoice.smartbill_id}</span>
                       </TableCell>
                       <TableCell>{formatDate(invoice.issue_date)}</TableCell>
                       <TableCell>
-                        <div className="max-w-[230px]">
+                        <div className="max-w-[320px]">
                           <div className="flex items-center gap-2 mb-1">
-                            <p className="font-medium truncate" title={invoice.client.name}>{invoice.client.name}</p>
+                            <p className="font-medium truncate" title={invoice.client.user ? `${invoice.client.user.firstName} ${invoice.client.user.lastName}` : invoice.client.name}>
+                              {invoice.client.user ? `${invoice.client.user.firstName} ${invoice.client.user.lastName}` : invoice.client.name}
+                            </p>
+                            {invoice.client.company && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="outline" className="text-xs">
+                                    <Building2 className="h-3 w-3 mr-1" />
+                                    Billed as Company
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Billed by: {invoice.client.company.name}</p>
+                                  <p className="text-muted-foreground text-xs">Company billing</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
                             {invoice.is_ppl && (
                               <Badge variant="default" className="text-xs bg-blue-600">
                                 <Package className="h-3 w-3 mr-1" />
@@ -709,7 +736,10 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                             )}
                           </div>
 
-                          {invoice.client.email && (
+                          {invoice.client.user?.email && (
+                            <p className="text-sm text-muted-foreground truncate" title={invoice.client.user.email}>{invoice.client.user.email}</p>
+                          )}
+                          {!invoice.client.user?.email && invoice.client.email && (
                             <p className="text-sm text-muted-foreground truncate" title={invoice.client.email}>{invoice.client.email}</p>
                           )}
                         </div>
@@ -750,7 +780,7 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm">
@@ -777,6 +807,7 @@ export default function ImportedXMLInvoices({ className, onRefresh }: ImportedXM
                       </TableCell>
                     </TableRow>
                   ))}
+                  </TooltipProvider>
                 </TableBody>
               </Table>
             </div>
