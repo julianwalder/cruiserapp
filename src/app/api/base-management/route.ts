@@ -33,15 +33,15 @@ export async function GET(request: NextRequest) {
       .from('base_management')
       .select(`
         *,
-        airfields!base_management_airfieldId_fkey (
+        airfields (
           *
         ),
-        baseManager:users!base_management_baseManagerId_fkey (
+        baseManager:users (
           id,
           "firstName",
           "lastName",
           email,
-          user_roles!user_roles_userId_fkey (
+          user_roles (
             roles (
               name
             )

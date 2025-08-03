@@ -4,6 +4,8 @@ import { userRegistrationSchema } from '@/lib/validations';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
 import crypto from 'crypto';
+import { UUID } from '@/types/uuid-types';
+
 
 // GET /api/users - List users (ADMIN+ only)
 async function getUsers(request: NextRequest, currentUser: any) {
@@ -34,7 +36,7 @@ async function getUsers(request: NextRequest, currentUser: any) {
         status,
         "createdAt",
         "updatedAt",
-        user_roles!user_roles_userId_fkey (
+        user_roles (
           roles (
             name
           )

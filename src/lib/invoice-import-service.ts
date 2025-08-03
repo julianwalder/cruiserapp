@@ -494,32 +494,65 @@ export class InvoiceImportService {
     const userMap = new Map(users?.map(user => [user.id, user]) || []);
     const companyMap = new Map(companies?.map(company => [company.id, company]) || []);
 
-    return invoices.map(invoice => ({
-      id: invoice.id,
-      smartbill_id: invoice.smartbill_id,
-      series: invoice.series,
-      number: invoice.number,
-      issue_date: invoice.issue_date,
-      due_date: invoice.due_date,
-      status: invoice.status,
-      total_amount: invoice.total_amount,
-      vat_amount: invoice.vat_amount,
-      currency: invoice.currency,
-      import_date: invoice.import_date,
-      is_ppl: invoice.is_ppl || false,
-      ppl_hours_paid: invoice.ppl_hours_paid || 0,
-      xml_content: invoice.xml_content,
-      original_xml_content: invoice.original_xml_content,
-      edited_xml_content: invoice.edited_xml_content,
-      has_edits: !!invoice.edited_xml_content,
-      client: {
-        ...invoice.invoice_clients[0] || {},
-        user: invoice.invoice_clients[0]?.user_id ? userMap.get(invoice.invoice_clients[0].user_id) : undefined,
-        company: invoice.invoice_clients[0]?.company_id ? companyMap.get(invoice.invoice_clients[0].company_id) : undefined
-      },
-      items: invoice.invoice_items || [],
-      flight_hours: invoice.flight_hours || []
-    }));
+    return invoices.map(invoice => {
+      // Try to get client data from invoice_clients first
+      let clientData = invoice.invoice_clients?.[0] || {};
+      
+      // If no client data exists in invoice_clients, extract from XML content
+      if (!clientData.name || clientData.name === '') {
+        try {
+          const xmlContent = invoice.original_xml_content || invoice.xml_content;
+          if (xmlContent) {
+            // Simple XML parsing to extract customer (client) name from AccountingCustomerParty section
+            const customerPartyMatch = xmlContent.match(/<cac:AccountingCustomerParty[^>]*>([\s\S]*?)<\/cac:AccountingCustomerParty>/);
+            if (customerPartyMatch) {
+              const customerPartyXml = customerPartyMatch[1];
+              const clientNameMatch = customerPartyXml.match(/<cbc:RegistrationName[^>]*>([^<]+)<\/cbc:RegistrationName>/);
+              const clientEmailMatch = customerPartyXml.match(/<cbc:ElectronicMail[^>]*>([^<]+)<\/cbc:ElectronicMail>/);
+              const clientVatMatch = customerPartyXml.match(/<cbc:CompanyID[^>]*>([^<]+)<\/cbc:CompanyID>/);
+            
+            if (clientNameMatch) {
+              clientData = {
+                name: clientNameMatch[1].trim(),
+                email: clientEmailMatch ? clientEmailMatch[1].trim() : undefined,
+                vat_code: clientVatMatch ? clientVatMatch[1].trim() : undefined,
+                country: 'Romania'
+              };
+            }
+          }
+        }
+        } catch (error) {
+          console.warn(`Failed to extract client data from XML for invoice ${invoice.smartbill_id}:`, error instanceof Error ? error.message : 'Unknown error');
+        }
+      }
+
+      return {
+        id: invoice.id,
+        smartbill_id: invoice.smartbill_id,
+        series: invoice.series,
+        number: invoice.number,
+        issue_date: invoice.issue_date,
+        due_date: invoice.due_date,
+        status: invoice.status,
+        total_amount: invoice.total_amount,
+        vat_amount: invoice.vat_amount,
+        currency: invoice.currency,
+        import_date: invoice.import_date,
+        is_ppl: invoice.is_ppl || false,
+        ppl_hours_paid: invoice.ppl_hours_paid || 0,
+        xml_content: invoice.xml_content,
+        original_xml_content: invoice.original_xml_content,
+        edited_xml_content: invoice.edited_xml_content,
+        has_edits: !!invoice.edited_xml_content,
+        client: {
+          ...clientData,
+          user: clientData.user_id ? userMap.get(clientData.user_id) : undefined,
+          company: clientData.company_id ? companyMap.get(clientData.company_id) : undefined
+        },
+        items: invoice.invoice_items || [],
+        flight_hours: invoice.flight_hours || []
+      };
+    });
   }
 
   /**

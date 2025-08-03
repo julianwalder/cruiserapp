@@ -28,6 +28,7 @@ import FlightLogsImportTab from './FlightLogsImportTab';
 import FleetImportTab from './FleetImportTab';
 import { DATE_FORMATS, type DateFormat } from '@/lib/date-utils';
 import { useDateFormat } from '@/contexts/DateFormatContext';
+import { User } from "@/types/uuid-types";
 
 
 
@@ -90,7 +91,7 @@ export default function Settings() {
     };
     fetchCurrentUser();
   }, []);
-  const isSuperAdmin = currentUser?.userRoles?.some((userRole: any) => {
+  const isSuperAdmin = currentUser?.userRoles?.some((userRole: unknown) => {
     console.log('🔍 Settings - userRole:', userRole);
     return userRole?.roles?.name === 'SUPER_ADMIN';
   });

@@ -41,25 +41,11 @@ const createAirfieldSchema = z.object({
 
 type CreateAirfieldForm = z.infer<typeof createAirfieldSchema>;
 
-interface Airfield {
-  id: string;
-  name: string;
-  code: string;
-  type: string; // OurAirports type (e.g., 'large_airport', 'small_airport', 'heliport')
-  city: string;
-  state?: string;
-  country: string;
-  latitude?: string;
-  longitude?: string;
-  elevation?: string;
-  runwayLength?: string;
-  runwaySurface?: string;
-  phone?: string;
-  email?: string;
-  website?: string;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
+import { Airfield } from "@/types/uuid-types";
+
+// Extended Airfield interface for this component
+interface ExtendedAirfield extends Omit<Airfield, 'type'> {
+  type: string; // Allow any string type for OurAirports compatibility
   isBase?: boolean;
   source?: 'manual' | 'imported';
 }
@@ -154,8 +140,8 @@ const CompactCombobox = ({
 
 export default function AirfieldsManagement() {
   const { formatDate } = useDateFormatUtils();
-  const [airfields, setAirfields] = useState<Airfield[]>([]);
-  const [allAirfields, setAllAirfields] = useState<Airfield[]>([]); // <-- NEW
+  const [airfields, setAirfields] = useState<ExtendedAirfield[]>([]);
+  const [allAirfields, setAllAirfields] = useState<ExtendedAirfield[]>([]); // <-- NEW
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     limit: 10,
@@ -170,7 +156,7 @@ export default function AirfieldsManagement() {
   const [countryFilter, setCountryFilter] = useState('ALL_COUNTRIES');
   const [provinceFilter, setProvinceFilter] = useState('ALL_PROVINCES');
 
-  const [selectedAirfield, setSelectedAirfield] = useState<Airfield | null>(null);
+  const [selectedAirfield, setSelectedAirfield] = useState<ExtendedAirfield | null>(null);
   const [showAirfieldDialog, setShowAirfieldDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
@@ -233,14 +219,14 @@ export default function AirfieldsManagement() {
       }
 
       // Create a set of imported airfield IDs for quick lookup
-      const importedAirfieldIds = new Set(importedData.airfields.map((airfield: any) => airfield.id));
+      const importedAirfieldIds = new Set(importedData.airfields.map((airfield: unknown) => airfield.id));
 
       // Mark airfields with their source and base status
-      const airfieldsWithSource = airfieldsData.airfields.map((airfield: any) => ({
+      const airfieldsWithSource = airfieldsData.airfields.map((airfield: unknown) => ({
         ...airfield,
         source: importedAirfieldIds.has(airfield.id) ? 'imported' as const : 'manual' as const,
         isBase: importedAirfieldIds.has(airfield.id) ? 
-          (importedData.airfields.find((imp: any) => imp.id === airfield.id) as any)?.isBase || false : false
+          (importedData.airfields.find((imp: unknown) => imp.id === airfield.id) as any)?.isBase || false : false
       }));
 
       setAirfields(airfieldsWithSource);
@@ -252,7 +238,7 @@ export default function AirfieldsManagement() {
 
       // Fetch unique airfield types for the filter
       await fetchAvailableTypes();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.message);
     } finally {
       setLoading(false);
@@ -272,7 +258,7 @@ export default function AirfieldsManagement() {
 
       if (response.ok) {
         const data = await response.json();
-        const types = [...new Set(data.airfields.map((airfield: any) => airfield.type as string))] as string[];
+        const types = [...new Set(data.airfields.map((airfield: unknown) => airfield.type as string))] as string[];
         setAvailableTypes(types.sort());
       }
     } catch (err) {
@@ -293,7 +279,7 @@ export default function AirfieldsManagement() {
 
       if (response.ok) {
         const data = await response.json();
-        const countries = [...new Set(data.airfields.map((airfield: any) => airfield.country as string))] as string[];
+        const countries = [...new Set(data.airfields.map((airfield: unknown) => airfield.country as string))] as string[];
         setAvailableCountries(countries.sort());
       }
     } catch (err) {
@@ -390,7 +376,7 @@ export default function AirfieldsManagement() {
       
       // Clear any errors
       setError('');
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.message);
     } finally {
       setCreateLoading(false);
@@ -430,7 +416,7 @@ export default function AirfieldsManagement() {
 
       // Refresh airfields list
       fetchAirfields();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.message);
     }
   };
@@ -455,7 +441,7 @@ export default function AirfieldsManagement() {
 
       // Refresh airfields list
       fetchAirfields();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.message);
     }
   };
@@ -509,7 +495,7 @@ export default function AirfieldsManagement() {
       .join(' ');
   };
 
-  const getAirportTypeLabel = (airfield: Airfield) => {
+  const getAirportTypeLabel = (airfield: ExtendedAirfield) => {
     // Use the OurAirports type directly to determine the display label
     switch (airfield.type) {
       case 'large_airport':

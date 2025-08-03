@@ -12,7 +12,16 @@
     "setup-rls": "node scripts/setup-rls-complete.js",
     "test-email": "node scripts/test-email-config.js",
     "test-password-reset-email": "node scripts/test-password-reset-email.js",
-    "test-user-login-scenarios": "node scripts/test-user-login-scenarios.js"
+    "test-user-login-scenarios": "node scripts/test-user-login-scenarios.js",
+    "migrate-to-uuids": "node scripts/run-uuid-migration.js",
+    "update-typescript-to-uuid": "node scripts/update-typescript-to-uuid.js",
+    "test-user-management": "node scripts/test-user-management.js",
+    "test-user-management-ui": "node scripts/test-user-management-ui.js",
+    "fix-usermanagement-types": "node scripts/fix-usermanagement-types.ts",
+    "fix-all-components": "node scripts/fix-all-components-types.js",
+    "fix-api-routes": "node scripts/fix-api-routes.ts",
+    "test-all-components": "node scripts/test-all-components.js",
+    "fix-remaining-imports": "node scripts/fix-remaining-imports.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

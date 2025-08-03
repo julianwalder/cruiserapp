@@ -8,13 +8,10 @@ export interface JWTPayload {
   roles: string[];
 }
 
-export interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  password: string;
-  status: string;
+import { User } from "@/types/uuid-types";
+
+// Extended User interface for auth with user_roles
+interface AuthUser extends User {
   user_roles: Array<{
     roles: {
       name: string;

@@ -16,22 +16,20 @@ import {
   Menu,
   X,
   Home,
-  User,
+  User as UserIcon,
   Shield,
   MapPin
 } from 'lucide-react';
 
-interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
+import { User } from "@/types/uuid-types";
+
+// Extended User interface for sidebar with roles
+interface SidebarUser extends User {
   roles: string[];
-  status: string;
 }
 
 interface SidebarProps {
-  user: User | null;
+  user: SidebarUser | null;
   onLogout: () => void;
   onSidebarStateChange?: (isCollapsed: boolean) => void;
 }

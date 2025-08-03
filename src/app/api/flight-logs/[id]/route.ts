@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
 import { AuthService } from '@/lib/auth';
+import { UUID } from '@/types/uuid-types';
+
 
 export async function GET(
   request: NextRequest,
@@ -404,7 +406,7 @@ export async function DELETE(
       .from('users')
       .select(`
         id,
-        user_roles!user_roles_userId_fkey (
+        user_roles (
           roles (
             name
           )

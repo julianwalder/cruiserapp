@@ -26,6 +26,7 @@ import {
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import FlightHoursChart from '@/components/FlightHoursChart';
+import { User, Aircraft, FlightLog, Airfield, Company } from "@/types/uuid-types";
 
 interface FlightStats {
   totalFlights: number;
@@ -293,7 +294,7 @@ export default function Reports() {
                 mode="range"
                 defaultMonth={dateRange.from}
                 selected={dateRange}
-                onSelect={(range: any) => {
+                onSelect={(range: unknown) => {
                   setDateRange(range || { from: undefined, to: undefined });
                   setIsCustomDateRange(true);
                 }}

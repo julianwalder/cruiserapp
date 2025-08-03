@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       .select(`
         id,
         email,
-        user_roles!user_roles_userId_fkey (
+        user_roles (
           roles (
             name
           )
@@ -537,7 +537,16 @@ export async function GET(request: NextRequest) {
               console.log(`🔍 Fetching PPL course data for ${client.email} (user_id: ${client.user_id})`);
               const { data: pplInvoices, error: pplError } = await supabase
                 .from('invoices')
-                .select('is_ppl, ppl_hours_paid, smartbill_id, issue_date')
+                .select(`
+                  is_ppl, 
+                  ppl_hours_paid, 
+                  smartbill_id, 
+                  issue_date,
+                  invoice_clients!inner (
+                    user_id,
+                    email
+                  )
+                `)
                 .eq('is_ppl', true)
                 .eq('invoice_clients.user_id', client.user_id);
               

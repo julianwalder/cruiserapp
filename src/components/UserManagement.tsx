@@ -16,13 +16,14 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Plus, Search, Filter, MoreHorizontal, Edit, Trash2, UserCheck, UserX, Eye, EyeOff, X, User, MapPin, Plane, Settings, Download, Upload, ChevronsUpDown, Check, MoreVertical, UserMinus } from 'lucide-react';
+import { Plus, Search, Filter, MoreHorizontal, Edit, Trash2, UserCheck, UserX, Eye, EyeOff, X, User as UserIcon, MapPin, Plane, Settings, Download, Upload, ChevronsUpDown, Check, MoreVertical, UserMinus } from 'lucide-react';
 import { DatePicker } from '@/components/ui/date-picker';
 import { cn } from '@/lib/utils';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Modal } from './ui/Modal';
+import { User } from "@/types/uuid-types";
 
 // User creation schema
 const createUserSchema = z.object({
@@ -44,29 +45,35 @@ const createUserSchema = z.object({
   instructorRating: z.string().optional(),
 });
 
-type CreateUserForm = z.infer<typeof createUserSchema>;
+// Form validation types
+interface FormErrors {
+  [key: string]: string | undefined;
+}
 
-interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  personalNumber?: string;
-  phone?: string;
-  dateOfBirth?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  zipCode?: string;
-  country?: string;
+interface FormState {
+  isValid: boolean;
+  errors: FormErrors;
+  touched: { [key: string]: boolean };
+}
+
+
+// Error handling types
+interface ApiError {
+  message: string;
+  code?: string;
+  details?: unknown;
+}
+
+interface ApiResponse<T> {
+  data?: T;
+  error?: ApiError;
+  message?: string;
+}
+
+
+// Extended User interface for UserManagement component
+interface ExtendedUser extends User {
   roles: string[];
-  status: string;
-  totalFlightHours: number;
-  licenseNumber?: string;
-  medicalClass?: string;
-  instructorRating?: string;
-  createdAt: string;
-  updatedAt: string;
   lastLoginAt?: string;
   createdBy?: {
     id: string;
@@ -74,6 +81,9 @@ interface User {
     lastName: string;
   };
 }
+
+
+type CreateUserForm = z.infer<typeof createUserSchema>;
 
 interface Pagination {
   page: number;
@@ -163,7 +173,7 @@ const CompactCombobox = ({
 
 export default function UserManagement() {
   const { formatDate } = useDateFormatUtils();
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<ExtendedUser[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     limit: 10,
@@ -175,7 +185,7 @@ export default function UserManagement() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL_STATUSES');
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedUser, setSelectedUser] = useState<ExtendedUser | null>(null);
   const [showUserDialog, setShowUserDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -188,11 +198,11 @@ export default function UserManagement() {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<any>({});
   const [saveLoading, setSaveLoading] = useState(false);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [allUsers, setAllUsers] = useState<ExtendedUser[]>([]);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [userToDelete, setUserToDelete] = useState<ExtendedUser | null>(null);
   const [upgradeRoleDialogOpen, setUpgradeRoleDialogOpen] = useState(false);
-  const [userToUpgrade, setUserToUpgrade] = useState<User | null>(null);
+  const [userToUpgrade, setUserToUpgrade] = useState<ExtendedUser | null>(null);
   const [upgradeRole, setUpgradeRole] = useState<string>('STUDENT');
   const [upgradeValidationData, setUpgradeValidationData] = useState({
     licenseNumber: '',
@@ -201,7 +211,7 @@ export default function UserManagement() {
     totalFlightHours: 0,
   });
   const [activateDialogOpen, setActivateDialogOpen] = useState(false);
-  const [userToActivate, setUserToActivate] = useState<User | null>(null);
+  const [userToActivate, setUserToActivate] = useState<ExtendedUser | null>(null);
   const [activatePaymentData, setActivatePaymentData] = useState({
     paymentReference: '',
     paymentAmount: 0,
@@ -261,8 +271,8 @@ export default function UserManagement() {
       console.log('fetchUsers response:', data); // Debug log
       setUsers(data.users);
       setPagination(data.pagination);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
       setLoading(false);
     }
@@ -332,10 +342,11 @@ export default function UserManagement() {
         description: `${data.firstName} ${data.lastName} has been added to the system.`,
         duration: 3000,
       });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(errorMessage);
       toast.error('Failed to create user', {
-        description: err.message,
+        description: errorMessage,
         duration: 4000,
       });
     } finally {
@@ -369,10 +380,11 @@ export default function UserManagement() {
         description: `${user?.firstName} ${user?.lastName}'s status has been changed to ${newStatus.toLowerCase()}.`,
         duration: 3000,
       });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(errorMessage);
       toast.error('Failed to update status', {
-        description: err.message,
+        description: errorMessage,
         duration: 4000,
       });
     }
@@ -383,7 +395,7 @@ export default function UserManagement() {
     setDeleteConfirmOpen(true);
   };
 
-  const handleUpgradeRole = async (userId: string, newRole: string, validationData?: any) => {
+  const handleUpgradeRole = async (userId: string, newRole: string, validationData?: unknown) => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`/api/users/${userId}/upgrade-role`, {
@@ -417,16 +429,17 @@ export default function UserManagement() {
       // Close dialog
       setUpgradeRoleDialogOpen(false);
       setUserToUpgrade(null);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(errorMessage);
       toast.error('Failed to upgrade user role', {
-        description: err.message,
+        description: errorMessage,
         duration: 4000,
       });
     }
   };
 
-  const openUpgradeDialog = (user: User) => {
+  const openUpgradeDialog = (user: ExtendedUser) => {
     setUserToUpgrade(user);
     setUpgradeRole('STUDENT');
     setUpgradeValidationData({
@@ -438,7 +451,7 @@ export default function UserManagement() {
     setUpgradeRoleDialogOpen(true);
   };
 
-  const handleActivateUser = async (userId: string, paymentData?: any) => {
+  const handleActivateUser = async (userId: string, paymentData?: unknown) => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(`/api/users/${userId}/activate`, {
@@ -469,16 +482,17 @@ export default function UserManagement() {
       // Close dialog
       setActivateDialogOpen(false);
       setUserToActivate(null);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(errorMessage);
       toast.error('Failed to activate user', {
-        description: err.message,
+        description: errorMessage,
         duration: 4000,
       });
     }
   };
 
-  const openActivateDialog = (user: User) => {
+  const openActivateDialog = (user: ExtendedUser) => {
     setUserToActivate(user);
     setActivatePaymentData({
       paymentReference: '',
@@ -517,10 +531,11 @@ export default function UserManagement() {
         description: `${user?.firstName} ${user?.lastName} has been removed from the system.`,
         duration: 3000,
       });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(errorMessage);
       toast.error('Failed to delete user', {
-        description: err.message,
+        description: errorMessage,
         duration: 4000,
       });
     } finally {
@@ -614,8 +629,8 @@ export default function UserManagement() {
     fetchCurrentUser();
   }, []);
 
-  const isSuperAdmin = currentUser?.userRoles?.some((userRole: any) => userRole.roles.name === 'SUPER_ADMIN');
-  const isAdmin = currentUser?.userRoles?.some((userRole: any) => userRole.roles.name === 'ADMIN');
+  const isSuperAdmin = currentUser?.userRoles?.some((userRole: unknown) => (userRole as any).roles.name === 'SUPER_ADMIN');
+  const isAdmin = currentUser?.userRoles?.some((userRole: unknown) => (userRole as any).roles.name === 'ADMIN');
   const canEdit = isSuperAdmin || isAdmin;
 
   // Debug: Log role detection
@@ -634,7 +649,7 @@ export default function UserManagement() {
         email: selectedUser.email,
         personalNumber: selectedUser.personalNumber || '',
         phone: selectedUser.phone || '',
-        dateOfBirth: selectedUser.dateOfBirth ? selectedUser.dateOfBirth.split('T')[0] : '',
+        dateOfBirth: selectedUser.dateOfBirth ? selectedUser.dateOfBirth.toISOString().split('T')[0] : '',
         address: selectedUser.address || '',
         city: selectedUser.city || '',
         state: selectedUser.state || '',
@@ -656,9 +671,9 @@ export default function UserManagement() {
   }, [selectedUser]);
 
   // Handle edit form changes
-  const handleEditChange = (field: string, value: any) => {
-    setEditForm((prev: any) => ({
-      ...prev,
+  const handleEditChange = (field: string, value: unknown) => {
+    setEditForm((prev: unknown) => ({
+      ...(prev as Record<string, unknown>),
       [field]: value
     }));
   };
@@ -776,10 +791,11 @@ export default function UserManagement() {
         description: `${result.user?.firstName || selectedUser?.firstName} ${result.user?.lastName || selectedUser?.lastName}'s information has been updated.`,
         duration: 3000,
       });
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      setError(errorMessage);
       toast.error('Failed to update user', {
-        description: error.message,
+        description: errorMessage,
         duration: 4000,
       });
     } finally {
@@ -871,10 +887,11 @@ export default function UserManagement() {
           duration: 4000,
         });
       }
-    } catch (error: any) {
-      setError(error.message);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      setError(errorMessage);
       toast.error('Import failed', {
-        description: error.message,
+        description: errorMessage,
         duration: 4000,
       });
     } finally {
@@ -1507,7 +1524,7 @@ export default function UserManagement() {
             {/* Basic Information */}
             <div className="bg-muted rounded-lg p-6">
               <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
-                <User className="h-5 w-5 mr-2" />
+                <UserIcon className="h-5 w-5 mr-2" />
                 Basic Information
               </h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -1894,10 +1911,10 @@ export default function UserManagement() {
                       <h4 className="font-medium mb-2">Successfully Imported ({importResults.results.success})</h4>
                       <div className="space-y-1">
                         {importResults.results.details
-                          .filter((detail: any) => detail.status === 'success')
-                          .map((detail: any, index: number) => (
+                          .filter((detail: unknown) => (detail as any).status === 'success')
+                          .map((detail: unknown, index: number) => (
                             <div key={index} className="text-sm text-muted-foreground">
-                              Row {detail.row}: {detail.email} - {detail.message}
+                              Row {(detail as any).row}: {(detail as any).email} - {(detail as any).message}
                             </div>
                           ))}
                       </div>

@@ -22,7 +22,7 @@ import {
   FileText,
   Search,
   MoreVertical,
-  User,
+  User as UserIcon,
   Package,
   Database,
   Building2,
@@ -36,6 +36,7 @@ import {
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { ImportedInvoice } from '@/lib/invoice-import-service';
+import { User, Invoice, FlightHours, HourPackage } from "@/types/uuid-types";
 
 interface UserBillingProps {
   className?: string;
@@ -130,8 +131,8 @@ export default function UserBilling({ className, userId, onRefresh }: UserBillin
 
   // Sort invoices
   const sortedInvoices = [...filteredInvoices].sort((a, b) => {
-    let aValue: any;
-    let bValue: any;
+    let aValue: unknown;
+    let bValue: unknown;
 
     switch (sortField) {
       case 'smartbill_id':

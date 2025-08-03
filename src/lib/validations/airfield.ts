@@ -45,32 +45,9 @@ export const updateAirfieldSchema = z.object({
 });
 
 // Airfield interface
-export interface Airfield {
-  id: string;
-  name: string;
-  code: string;
-  type: 'AIRPORT' | 'AIRSTRIP' | 'HELIPORT' | 'SEAPLANE_BASE';
-  status: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE' | 'CLOSED';
-  city: string;
-  state?: string;
-  country: string;
-  latitude?: string;
-  longitude?: string;
-  elevation?: string;
-  runwayLength?: string;
-  runwaySurface?: string;
-  phone?: string;
-  email?: string;
-  website?: string;
-  createdAt: Date;
-  updatedAt: Date;
-  createdById?: string;
-  createdBy?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-  };
-}
+import { Airfield } from "@/types/uuid-types";
+
+// Using Airfield from uuid-types
 
 // Airfield form data interface
 export interface AirfieldFormData {

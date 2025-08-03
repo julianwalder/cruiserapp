@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
         .from('users')
         .select(`
           id,
-          user_roles!user_roles_userId_fkey (
+          user_roles (
             roles (
               name
             )
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
         .from('users')
         .select(`
           id,
-          user_roles!user_roles_userId_fkey (
+          user_roles (
             roles (
               name
             )

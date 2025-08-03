@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { userLoginSchema } from '@/lib/validations';
 import { AuthService } from '@/lib/auth';
+import { UUID } from '@/types/uuid-types';
+
 
 export async function POST(request: NextRequest) {
   try {

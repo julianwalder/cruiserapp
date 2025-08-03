@@ -1,0 +1,370 @@
+// UUID Types for Migrated Database
+// This file contains all TypeScript interfaces with UUID types
+// Use these types throughout the application after UUID migration
+
+export type UUID = string; // UUID string type
+
+// Base interfaces
+export interface BaseEntity {
+  id: UUID;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// User related interfaces
+export interface User extends BaseEntity {
+  email: string;
+  password?: string; // Optional for security
+  firstName: string;
+  lastName: string;
+  personalNumber?: string;
+  phone?: string;
+  dateOfBirth?: Date | null;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  totalFlightHours: number;
+  licenseNumber?: string;
+  medicalClass?: string;
+  instructorRating?: string;
+}
+
+export interface Role extends BaseEntity {
+  name: string;
+  description?: string;
+  permissions?: string[];
+}
+
+export interface UserRole extends BaseEntity {
+  userId: UUID;
+  roleId: UUID;
+  user?: User;
+  role?: Role;
+}
+
+// Aircraft related interfaces
+export interface Aircraft extends BaseEntity {
+  registration: string;
+  type: string;
+  model: string;
+  manufacturer: string;
+  yearOfManufacture?: number;
+  totalFlightHours: number;
+  lastMaintenanceDate?: Date;
+  nextMaintenanceDate?: Date;
+  status: 'ACTIVE' | 'MAINTENANCE' | 'INACTIVE' | 'RETIRED';
+  baseAirfieldId?: UUID;
+  baseAirfield?: Airfield;
+}
+
+export interface AircraftHobbs extends BaseEntity {
+  aircraftId: UUID;
+  lastHobbsReading: number;
+  lastHobbsDate: Date;
+  lastFlightLogId?: UUID;
+  aircraft?: Aircraft;
+  lastFlightLog?: FlightLog;
+}
+
+// Flight log related interfaces
+export interface FlightLog extends BaseEntity {
+  aircraftId: UUID;
+  pilotId: UUID;
+  instructorId?: UUID;
+  departureAirfieldId: UUID;
+  arrivalAirfieldId: UUID;
+  flightDate: Date;
+  departureTime: Date;
+  arrivalTime: Date;
+  flightDuration: number; // in minutes
+  totalFlightHours: number;
+  landings: number;
+  fuelUsed?: number;
+  notes?: string;
+  createdById: UUID;
+  aircraft?: Aircraft;
+  pilot?: User;
+  instructor?: User;
+  departureAirfield?: Airfield;
+  arrivalAirfield?: Airfield;
+  createdBy?: User;
+}
+
+// Airfield related interfaces
+export interface Airfield extends BaseEntity {
+  name: string;
+  code: string; // ICAO/IATA code
+  type: 'AIRPORT' | 'AIRSTRIP' | 'HELIPORT' | 'SEAPLANE_BASE';
+  status: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE' | 'CLOSED';
+  city: string;
+  state?: string;
+  country: string;
+  latitude?: string;
+  longitude?: string;
+  elevation?: string;
+  runwayLength?: string;
+  runwaySurface?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+  createdById?: UUID;
+  createdBy?: User;
+}
+
+export interface BaseManagement extends BaseEntity {
+  airfieldId: UUID;
+  baseManagerId?: UUID;
+  status: 'ACTIVE' | 'INACTIVE';
+  startDate?: Date;
+  endDate?: Date;
+  airfield?: Airfield;
+  baseManager?: User;
+}
+
+// Company related interfaces
+export interface Company extends BaseEntity {
+  name: string;
+  vatCode?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  city?: string;
+  country: string;
+  status: 'ACTIVE' | 'INACTIVE';
+}
+
+export interface UserCompanyRelationship extends BaseEntity {
+  userId: UUID;
+  companyId: UUID;
+  relationshipType: 'employee' | 'contractor' | 'client';
+  isPrimary: boolean;
+  startDate?: Date;
+  endDate?: Date;
+  user?: User;
+  company?: Company;
+}
+
+// Invoice related interfaces
+export interface Invoice extends BaseEntity {
+  smartbillId?: string;
+  series: string;
+  number: string;
+  issueDate: Date;
+  dueDate: Date;
+  status: 'imported' | 'paid' | 'overdue' | 'cancelled';
+  totalAmount: number;
+  vatAmount: number;
+  currency: string;
+  xmlContent: string;
+  importDate: Date;
+}
+
+export interface InvoiceClient extends BaseEntity {
+  invoiceId: UUID;
+  name: string;
+  email?: string;
+  phone?: string;
+  vatCode?: string;
+  address?: string;
+  city?: string;
+  country: string;
+  userId?: UUID;
+  companyId?: UUID;
+  invoice?: Invoice;
+  user?: User;
+  company?: Company;
+}
+
+export interface InvoiceItem extends BaseEntity {
+  invoiceId: UUID;
+  lineId: number;
+  name: string;
+  description?: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  totalAmount: number;
+  vatRate: number;
+  invoice?: Invoice;
+}
+
+export interface FlightHours extends BaseEntity {
+  invoiceId: UUID;
+  userId: UUID;
+  invoiceItemId: UUID;
+  flightDate: Date;
+  hoursRegular: number;
+  hoursPromotional: number;
+  totalHours: number;
+  ratePerHour: number;
+  totalAmount: number;
+  notes?: string;
+  companyId?: UUID;
+  invoice?: Invoice;
+  user?: User;
+  invoiceItem?: InvoiceItem;
+  company?: Company;
+}
+
+// PPL Course related interfaces
+export interface PPLCourseTranche extends BaseEntity {
+  invoiceId: UUID;
+  userId: UUID;
+  companyId?: UUID;
+  trancheNumber: number;
+  totalHours: number;
+  usedHours: number;
+  remainingHours: number;
+  ratePerHour: number;
+  totalAmount: number;
+  status: 'ACTIVE' | 'USED' | 'EXPIRED';
+  validFrom: Date;
+  validTo?: Date;
+  invoice?: Invoice;
+  user?: User;
+  company?: Company;
+}
+
+// Hour package related interfaces
+export interface HourPackage extends BaseEntity {
+  userId: UUID;
+  invoiceId?: UUID;
+  totalHours: number;
+  usedHours: number;
+  remainingHours: number;
+  ratePerHour: number;
+  totalAmount: number;
+  status: 'ACTIVE' | 'USED' | 'EXPIRED';
+  validFrom: Date;
+  validTo?: Date;
+  user?: User;
+  invoice?: Invoice;
+}
+
+// Form data interfaces (for API requests)
+export interface CreateUserForm {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  personalNumber?: string;
+  phone?: string;
+  dateOfBirth?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+  roles: string[];
+  licenseNumber?: string;
+  medicalClass?: string;
+  instructorRating?: string;
+}
+
+export interface UpdateUserForm {
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  personalNumber?: string;
+  phone?: string;
+  dateOfBirth?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+  roles?: string[];
+  status?: string;
+  licenseNumber?: string;
+  medicalClass?: string;
+  instructorRating?: string;
+}
+
+export interface CreateAircraftForm {
+  registration: string;
+  type: string;
+  model: string;
+  manufacturer: string;
+  yearOfManufacture?: number;
+  totalFlightHours: number;
+  lastMaintenanceDate?: string;
+  nextMaintenanceDate?: string;
+  status: string;
+  baseAirfieldId?: string;
+}
+
+export interface CreateFlightLogForm {
+  aircraftId: string;
+  pilotId: string;
+  instructorId?: string;
+  departureAirfieldId: string;
+  arrivalAirfieldId: string;
+  flightDate: string;
+  departureTime: string;
+  arrivalTime: string;
+  flightDuration: number;
+  totalFlightHours: number;
+  landings: number;
+  fuelUsed?: number;
+  notes?: string;
+}
+
+export interface CreateAirfieldForm {
+  name: string;
+  code: string;
+  type: string;
+  status: string;
+  city: string;
+  state?: string;
+  country: string;
+  latitude?: string;
+  longitude?: string;
+  elevation?: string;
+  runwayLength?: string;
+  runwaySurface?: string;
+  phone?: string;
+  email?: string;
+  website?: string;
+}
+
+// API Response interfaces
+export interface ApiResponse<T> {
+  data?: T;
+  error?: string;
+  message?: string;
+}
+
+export interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+// Dashboard statistics interfaces
+export interface DashboardStats {
+  totalUsers: number;
+  totalAircraft: number;
+  totalFlightHours: number;
+  totalAirfields: number;
+  activeFlights: number;
+  maintenanceAlerts: number;
+}
+
+// Search and filter interfaces
+export interface SearchFilters {
+  search?: string;
+  status?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+// All types are already exported individually above 

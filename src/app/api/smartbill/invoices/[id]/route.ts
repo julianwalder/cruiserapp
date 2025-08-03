@@ -28,7 +28,7 @@ export async function PUT(
       .from('users')
       .select(`
         id,
-        user_roles!user_roles_userId_fkey (
+        user_roles (
           roles (
             name
           )

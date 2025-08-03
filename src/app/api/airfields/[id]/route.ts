@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
+import { UUID } from '@/types/uuid-types';
+
 
 // GET /api/airfields/[id] - Get airfield by ID
 export async function GET(

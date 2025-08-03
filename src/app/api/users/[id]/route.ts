@@ -3,6 +3,8 @@ import { requireAuth, requireRole } from '@/lib/middleware';
 import { userUpdateSchema } from '@/lib/validations';
 import { getSupabaseClient } from '@/lib/supabase';
 import crypto from 'crypto';
+import { UUID } from '@/types/uuid-types';
+
 
 // GET /api/users/[id] - Get user details
 async function getUser(request: NextRequest, currentUser: any) {
@@ -52,7 +54,7 @@ async function getUser(request: NextRequest, currentUser: any) {
         "createdAt",
         "updatedAt",
         "lastLoginAt",
-        user_roles!user_roles_userId_fkey (
+        user_roles (
           roles (
             name
           )
@@ -200,7 +202,7 @@ async function updateUser(request: NextRequest, currentUser: any) {
         "createdAt",
         "updatedAt",
         "lastLoginAt",
-        user_roles!user_roles_userId_fkey (
+        user_roles (
           roles (
             name
           )
@@ -275,7 +277,7 @@ async function updateUser(request: NextRequest, currentUser: any) {
           "createdAt",
           "updatedAt",
           "lastLoginAt",
-          user_roles!user_roles_userId_fkey (
+          user_roles (
             roles (
               name
             )

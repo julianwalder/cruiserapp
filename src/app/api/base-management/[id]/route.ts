@@ -79,7 +79,7 @@ export async function PUT(
         id,
         "firstName",
         "lastName",
-        user_roles!user_roles_userId_fkey (
+        user_roles (
           roles (
             name
           )

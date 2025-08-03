@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
+import { UUID } from '@/types/uuid-types';
+
 
 export async function GET(request: NextRequest) {
   try {
@@ -36,7 +38,7 @@ export async function GET(request: NextRequest) {
         "lastLoginAt",
         "createdAt",
         "updatedAt",
-        user_roles!user_roles_userId_fkey (
+        user_roles (
           roles (
             name
           )

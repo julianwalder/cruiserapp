@@ -19,6 +19,7 @@ import {
   X
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
+import { User, Airfield } from "@/types/uuid-types";
 
 interface Continent {
   code: string;
@@ -209,7 +210,7 @@ export default function OperationalAreaManagement() {
         if (response.ok) {
           const data = await response.json();
           // Transform the airfields to match the ImportedAirfield interface
-          const transformedAirfields = data.airfields.map((airfield: any) => ({
+          const transformedAirfields = data.airfields.map((airfield: unknown) => ({
             id: airfield.id,
             name: airfield.name,
             code: airfield.code,
@@ -298,7 +299,7 @@ export default function OperationalAreaManagement() {
         const countData = await countResponse.json();
         setBaseAirfieldsCount(countData.count);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(err.message);
     } finally {
       setLoading(false);
@@ -340,7 +341,7 @@ export default function OperationalAreaManagement() {
         const countData = await countResponse.json();
         setBaseAirfieldsCount(countData.count);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(err.message);
     } finally {
       setLoading(false);
@@ -387,14 +388,14 @@ export default function OperationalAreaManagement() {
       // Merge new airfields with existing ones, avoiding duplicates
       setImportedAirfields(prevAirfields => {
         const existingAirfieldIds = new Set(prevAirfields.map(af => af.id));
-        const newAirfields = data.airfields.filter((af: any) => !existingAirfieldIds.has(af.id));
+        const newAirfields = data.airfields.filter((af: unknown) => !existingAirfieldIds.has(af.id));
         return [...prevAirfields, ...newAirfields];
       });
       
       toast.success(`Successfully imported ${data.airfields.length} airfields for ${CONTINENTS.find(c => c.code === areaToImport.continent)?.name}`);
       setShowImportDialog(false);
       setSelectedAreaForImport(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(err.message);
     } finally {
       setImporting(false);
@@ -736,9 +737,9 @@ export default function OperationalAreaManagement() {
               }).join(', ')}. Select the types of airfields you want to import.`
             : 'This will import airfields from OurAirports database for your operational areas. This process may take a few minutes.'
         }
-          
-          {/* Airfield Type Selection */}
-          <div className="space-y-4">
+      >
+        {/* Airfield Type Selection */}
+        <div className="space-y-4">
             <div>
               <Label className="text-sm font-medium">Airfield Types to Import</Label>
               <div className="grid grid-cols-2 gap-6 mt-2">
@@ -828,7 +829,7 @@ export default function OperationalAreaManagement() {
               {importing ? 'Importing...' : 'Start Import'}
             </Button>
           </div>
-      </Modal>
-    </div>
-  );
-} 
+        </Modal>
+      </div>
+    );
+  } 

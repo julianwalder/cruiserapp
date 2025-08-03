@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     const { data: user, error: userError } = await supabase
       .from('users')
       .select(`
-        user_roles!user_roles_userId_fkey (
+        user_roles (
           roles (
             name
           )

@@ -67,7 +67,7 @@ export async function POST(
         "firstName",
         "lastName",
         status,
-        user_roles!user_roles_userId_fkey (
+        user_roles (
           roles (
             name
           )

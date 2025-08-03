@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
 import { AuthService } from '@/lib/auth';
 import crypto from 'crypto';
+import { UUID } from '@/types/uuid-types';
+
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,7 +32,7 @@ export async function GET(request: NextRequest) {
       .from('users')
       .select(`
         id,
-        user_roles!user_roles_userId_fkey (
+        user_roles (
           roles (
             name
           )
@@ -492,7 +494,7 @@ export async function POST(request: NextRequest) {
       .from('users')
       .select(`
         id,
-        user_roles!user_roles_userId_fkey (
+        user_roles (
           roles (
             name
           )

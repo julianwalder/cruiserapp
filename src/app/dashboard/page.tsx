@@ -21,22 +21,20 @@ import {
 } from 'lucide-react';
 import PilotOverview from '@/components/PilotOverview';
 
-interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
+import { User } from "@/types/uuid-types";
+
+// Extended User interface for dashboard with userRoles
+interface DashboardUser extends User {
   userRoles: Array<{
     roles: {
       id: string;
       name: string;
     };
   }>;
-  status: string;
 }
 
 export default function DashboardPage() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<DashboardUser | null>(null);
   const [viewMode, setViewMode] = useState<'personal' | 'company'>('company');
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -84,7 +82,7 @@ export default function DashboardPage() {
           setUser(userData);
           
           // Set appropriate view mode based on user role
-          const userRoles = userData.userRoles?.map((ur: any) => ur.roles?.name) || [];
+          const userRoles = userData.userRoles?.map((ur: { roles: { name: string } }) => ur.roles?.name) || [];
           const isPilot = userRoles.includes('PILOT');
           const isStudent = userRoles.includes('STUDENT');
           const isInstructor = userRoles.includes('INSTRUCTOR');

@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
         "medicalClass",
         "instructorRating",
         "lastLoginAt",
-        user_roles!user_roles_userId_fkey (
+        user_roles (
           roles (
             name
           )

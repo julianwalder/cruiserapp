@@ -15,7 +15,7 @@ import { Modal } from './ui/Modal';
 import { Progress } from '@/components/ui/progress';
 import { 
   Clock, 
-  User, 
+  User as UserIcon, 
   Package, 
   AlertTriangle,
   Plus,
@@ -44,6 +44,46 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+// import { User, HourPackage as HourPackageType } from "@/types/uuid-types";
+
+// Temporary inline type definitions
+interface User {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  personalNumber?: string;
+  phone?: string;
+  dateOfBirth?: Date | null;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  totalFlightHours: number;
+  licenseNumber?: string;
+  medicalClass?: string;
+  instructorRating?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface HourPackageType {
+  id: string;
+  userId: string;
+  invoiceId?: string;
+  totalHours: number;
+  usedHours: number;
+  remainingHours: number;
+  ratePerHour: number;
+  totalAmount: number;
+  status: 'ACTIVE' | 'USED' | 'EXPIRED';
+  validFrom: Date;
+  validTo?: Date;
+  user?: User;
+  invoice?: any;
+}
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -74,7 +114,7 @@ interface Client {
   } | null;
 }
 
-interface HourPackage {
+interface LocalHourPackage {
   id: string;
   clientId: string;
   invoiceId: string;
@@ -208,7 +248,7 @@ export default function Usage() {
         if (userData.roles && Array.isArray(userData.roles)) {
           roles = userData.roles;
         } else if (userData.userRoles && Array.isArray(userData.userRoles)) {
-          roles = userData.userRoles.map((ur: any) => ur.roles?.name).filter(Boolean);
+          roles = userData.userRoles.map((ur: unknown) => ur.roles?.name).filter(Boolean);
         }
         
         console.log('🔍 Extracted user roles:', roles);
@@ -1689,7 +1729,7 @@ export default function Usage() {
                   {/* Client Information Header */}
                   <div className="bg-muted rounded-lg p-6">
                     <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
-                      <User className="h-5 w-5 mr-2" />
+                      <UserIcon className="h-5 w-5 mr-2" />
                       Client Information
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

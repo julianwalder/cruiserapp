@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
+import { UUID } from '@/types/uuid-types';
+
 
 // GET /api/airfields - List airfields with pagination and filtering
 export async function GET(request: NextRequest) {

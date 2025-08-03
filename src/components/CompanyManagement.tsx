@@ -28,6 +28,7 @@ import {
   Eye
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Company, UserCompanyRelationship } from "@/types/uuid-types";
 
 interface Company {
   id: string;
@@ -59,7 +60,7 @@ interface CompanyManagementProps {
 }
 
 export default function CompanyManagement({ className }: CompanyManagementProps) {
-  const [companies, setCompanies] = useState<Company[]>([]);
+  const [companies, setCompanies] = useState<ExtendedCompany[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');

@@ -43,6 +43,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { OptimizedImage } from "@/components/ui/optimized-image";
 import { Progress } from "@/components/ui/progress";
 import { Modal } from './ui/Modal';
+import { Aircraft, Airfield, FlightLog } from "@/types/uuid-types";
 
 // Aircraft creation schema
 const createAircraftSchema = z.object({
@@ -166,7 +167,7 @@ interface FleetManagementProps {
 
 export default function FleetManagement({ canEdit = true }: FleetManagementProps) {
   const { formatDate } = useDateFormatUtils();
-  const [aircraft, setAircraft] = useState<Aircraft[]>([]);
+  const [aircraft, setAircraft] = useState<ExtendedAircraft[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     limit: 10,
@@ -183,10 +184,10 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
   const [fleetLoading, setFleetLoading] = useState(false);
   const [airfields, setAirfields] = useState<Airfield[]>([]);
   const [pilots, setPilots] = useState<User[]>([]);
-  const [icaoAircraftTypes, setIcaoAircraftTypes] = useState<Aircraft[]>([]);
+  const [icaoAircraftTypes, setIcaoAircraftTypes] = useState<ExtendedAircraft[]>([]);
   const [selectedIcaoDesignator, setSelectedIcaoDesignator] = useState<string>('');
   const [selectedManufacturer, setSelectedManufacturer] = useState<string>('');
-  const [availableManufacturers, setAvailableManufacturers] = useState<Aircraft[]>([]);
+  const [availableManufacturers, setAvailableManufacturers] = useState<ExtendedAircraft[]>([]);
   // 1. Add state for ICAO reference types
   const [icaoReferenceTypes, setIcaoReferenceTypes] = useState<ICAOReferenceTypeOption[]>([]);
   // Add state for aircraft image
@@ -284,7 +285,7 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
         // Create a map of Hobbs data by aircraft ID
         const aircraftHobbsMap = new Map<string, { hobbs: number; date: string }>();
         
-        hobbsData.forEach((item: any) => {
+        hobbsData.forEach((item: unknown) => {
           if (item.aircraft_id && item.last_hobbs_reading && item.last_hobbs_date) {
             aircraftHobbsMap.set(item.aircraft_id, {
               hobbs: item.last_hobbs_reading,
@@ -348,7 +349,7 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
       
       // Preload critical images for faster loading
       preloadAircraftImages(aircraftWithHobbs);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.message);
     } finally {
       setLoading(false);
@@ -518,7 +519,7 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
       toast.success('Aircraft created successfully!', {
         description: `${data.callSign} has been added to the fleet.`
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.message);
       toast.error('Failed to create aircraft', {
         description: err.message
@@ -571,7 +572,7 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
       toast.success('Aircraft updated successfully!', {
         description: `${data.callSign} has been updated.`
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.message);
       toast.error('Failed to update aircraft', {
         description: err.message
@@ -608,7 +609,7 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
       toast.success('Fleet management updated successfully!', {
         description: `Fleet management settings for ${selectedAircraft.callSign} has been updated.`
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.message);
       toast.error('Failed to update fleet management', {
         description: err.message
@@ -639,7 +640,7 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
       toast.success('Aircraft status updated successfully!', {
         description: `Aircraft status has been changed to ${newStatus.toLowerCase().replace('_', ' ')}.`
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.message);
       toast.error('Failed to update aircraft status', {
         description: err.message
@@ -673,7 +674,7 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
       toast.success('Aircraft deleted successfully!', {
         description: 'The aircraft has been removed from the fleet.'
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setError(err.message);
       toast.error('Failed to delete aircraft', {
         description: err.message

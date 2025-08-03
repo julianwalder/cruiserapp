@@ -15,55 +15,78 @@ import { Modal } from './ui/Modal';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { OptimizedImage } from '@/components/ui/optimized-image';
-import { Plane, MapPin, User, Edit, Trash2, Plus, Shield, MoreVertical, Upload, Clock, Phone, Eye, Settings } from 'lucide-react';
+import { Plane, MapPin, User as UserIcon, Edit, Trash2, Plus, Shield, MoreVertical, Upload, Clock, Phone, Eye, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDateWithCurrentFormat } from '@/lib/date-utils';
+// import type { BaseManagement as BaseManagementType, Airfield, User } from "@/types/uuid-types";
 
+// Temporary inline type definitions
 interface User {
   id: string;
+  email: string;
   firstName: string;
   lastName: string;
-  email: string;
-  userRoles?: Array<{ role: { name: string } }>;
-  roles?: string[];
+  personalNumber?: string;
+  phone?: string;
+  dateOfBirth?: Date | null;
+  address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  totalFlightHours: number;
+  licenseNumber?: string;
+  medicalClass?: string;
+  instructorRating?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 interface Airfield {
   id: string;
   name: string;
   code: string;
-  type: string;
+  type: 'AIRPORT' | 'AIRSTRIP' | 'HELIPORT' | 'SEAPLANE_BASE';
+  status: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE' | 'CLOSED';
   city: string;
   state?: string;
   country: string;
-  latitude?: number;
-  longitude?: number;
-  elevation?: number;
+  latitude?: string;
+  longitude?: string;
+  elevation?: string;
+  runwayLength?: string;
+  runwaySurface?: string;
   phone?: string;
   email?: string;
   website?: string;
-  status?: string;
-  isBase: boolean;
-  createdAt?: string;
-  updatedAt?: string;
+  createdById?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-interface BaseManagement {
+interface BaseManagementType {
   id: string;
   airfieldId: string;
-  baseManagerId: string | null;
-  additionalInfo: string | null;
-  facilities: string[];
-  operatingHours: string | null;
-  emergencyContact: string | null;
-  notes: string | null;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  baseManagerId?: string;
+  status: 'ACTIVE' | 'INACTIVE';
+  startDate?: Date;
+  endDate?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// Extended BaseManagement interface for BaseManagement component
+interface ExtendedBaseManagement extends BaseManagementType {
+  airfield?: Airfield;
+  baseManager?: User;
+  additionalInfo?: string;
+  facilities?: string[];
+  operatingHours?: string;
+  emergencyContact?: string;
+  notes?: string;
   imagePath?: string;
-  airfield: Airfield;
-  airfields?: Airfield; // Handle both singular and plural from API
-  baseManager: User | null;
+  isActive?: boolean;
 }
 
 interface BaseManagementProps {
@@ -71,7 +94,7 @@ interface BaseManagementProps {
 }
 
 export default function BaseManagement({ canEdit = true }: BaseManagementProps) {
-  const [baseManagements, setBaseManagements] = useState<BaseManagement[]>([]);
+  const [baseManagements, setBaseManagements] = useState<ExtendedBaseManagement[]>([]);
   const [airfields, setAirfields] = useState<Airfield[]>([]);
   const [baseManagers, setBaseManagers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,7 +102,7 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showBaseDetailsDialog, setShowBaseDetailsDialog] = useState(false);
-  const [selectedBase, setSelectedBase] = useState<BaseManagement | null>(null);
+  const [selectedBase, setSelectedBase] = useState<ExtendedBaseManagement | null>(null);
   const [formData, setFormData] = useState<{
     airfieldId: string;
     baseManagerId: string | undefined;
@@ -259,7 +282,7 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
     }
   };
 
-  const handleDeleteBase = async (base: BaseManagement) => {
+  const handleDeleteBase = async (base: ExtendedBaseManagement) => {
     if (!confirm('Are you sure you want to remove this base designation?')) return;
 
     try {
@@ -298,7 +321,7 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
     setImagePreview(null);
   };
 
-  const openEditDialog = (base: BaseManagement) => {
+  const openEditDialog = (base: ExtendedBaseManagement) => {
     setSelectedBase(base);
     setFormData({
       airfieldId: base.airfieldId,
@@ -642,7 +665,7 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
                   {/* Manager Information */}
                   <div className="flex items-start space-x-3">
                     <div className="flex-shrink-0 mt-0.5">
-                      <User className="h-4 w-4 text-muted-foreground" />
+                      <UserIcon className="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div className="min-w-0 flex-1">
                       {base.baseManager ? (
@@ -724,7 +747,7 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
             {/* Base Management Information */}
             <div className="bg-muted rounded-lg p-6">
               <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
-                <User className="h-5 w-5 mr-2" />
+                <UserIcon className="h-5 w-5 mr-2" />
                 Base Management Information
               </h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -974,7 +997,7 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
                 {/* Base Management Information */}
                 <div className="bg-muted rounded-lg p-6">
                   <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
-                    <User className="h-5 w-5 mr-2" />
+                    <UserIcon className="h-5 w-5 mr-2" />
                     Base Management Information
                   </h3>
                   <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
