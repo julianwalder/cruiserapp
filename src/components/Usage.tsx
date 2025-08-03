@@ -146,10 +146,13 @@ interface ClientHoursData {
 
   ferryHoursCurrentYear: number;
   ferryHoursPreviousYear: number;
+  ferryHoursTotal: number;
   charterHoursCurrentYear: number;
   charterHoursPreviousYear: number;
+  charterHoursTotal: number;
   demoHoursCurrentYear: number;
   demoHoursPreviousYear: number;
+  demoHoursTotal: number;
   recentFlights: FlightLog[];
 }
 
@@ -682,7 +685,7 @@ export default function Usage() {
                        <CardTitle className="text-sm font-medium text-muted-foreground">Ferry Flights</CardTitle>
                        <div className="mt-0.5">
                          <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => 
-                           sum + client.ferryHoursCurrentYear + client.ferryHoursPreviousYear, 0
+                           sum + client.ferryHoursTotal, 0
                          ))}</p>
                          <p className="text-xs text-muted-foreground">Non-revenue positioning flights</p>
                        </div>
@@ -709,7 +712,7 @@ export default function Usage() {
                              {(() => {
                                const totalBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
                                const ferryHours = filteredClients.reduce((sum, client) => 
-                                 sum + client.ferryHoursCurrentYear + client.ferryHoursPreviousYear, 0
+                                 sum + client.ferryHoursTotal, 0
                                );
                                const percentage = totalBought > 0 ? (ferryHours / totalBought) * 100 : 0;
                                return `${percentage.toFixed(1)}%`;
@@ -725,7 +728,7 @@ export default function Usage() {
                        <CardTitle className="text-sm font-medium text-muted-foreground">Charter Flights</CardTitle>
                        <div className="mt-0.5">
                          <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => 
-                           sum + client.charterHoursCurrentYear + client.charterHoursPreviousYear, 0
+                           sum + client.charterHoursTotal, 0
                          ))}</p>
                          <p className="text-xs text-muted-foreground">Commercial flights with paying passengers</p>
                        </div>
@@ -752,7 +755,7 @@ export default function Usage() {
                              {(() => {
                                const totalBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
                                const charterHours = filteredClients.reduce((sum, client) => 
-                                 sum + client.charterHoursCurrentYear + client.charterHoursPreviousYear, 0
+                                 sum + client.charterHoursTotal, 0
                                );
                                const percentage = totalBought > 0 ? (charterHours / totalBought) * 100 : 0;
                                return `${percentage.toFixed(1)}%`;
@@ -768,7 +771,7 @@ export default function Usage() {
                        <CardTitle className="text-sm font-medium text-muted-foreground">Demo Flights</CardTitle>
                        <div className="mt-0.5">
                          <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => 
-                           sum + client.demoHoursCurrentYear + client.demoHoursPreviousYear, 0
+                           sum + client.demoHoursTotal, 0
                          ))}</p>
                          <p className="text-xs text-muted-foreground">Trial, marketing & introductory flights</p>
                        </div>
@@ -795,7 +798,7 @@ export default function Usage() {
                              {(() => {
                                const totalBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
                                const demoHours = filteredClients.reduce((sum, client) => 
-                                 sum + client.demoHoursCurrentYear + client.demoHoursPreviousYear, 0
+                                 sum + client.demoHoursTotal, 0
                                );
                                const percentage = totalBought > 0 ? (demoHours / totalBought) * 100 : 0;
                                return `${percentage.toFixed(1)}%`;
