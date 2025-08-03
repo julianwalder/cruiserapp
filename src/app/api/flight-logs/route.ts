@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
 import { AuthService } from '@/lib/auth';
+import { ActivityLogger } from '@/lib/activity-logger';
 import crypto from 'crypto';
 import { UUID } from '@/types/uuid-types';
 
@@ -717,6 +718,13 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Log flight log creation activity
+    await ActivityLogger.logFlightCreated(
+      user.id,
+      flightLog.id,
+      aircraftId
+    );
 
     // Update pilot's total flight hours
     await supabase

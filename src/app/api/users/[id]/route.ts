@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, requireRole } from '@/lib/middleware';
 import { userUpdateSchema } from '@/lib/validations';
 import { getSupabaseClient } from '@/lib/supabase';
+import { ActivityLogger } from '@/lib/activity-logger';
 import crypto from 'crypto';
 import { UUID } from '@/types/uuid-types';
 
@@ -215,6 +216,16 @@ async function updateUser(request: NextRequest, currentUser: any) {
       return NextResponse.json(
         { error: 'Failed to update user', details: updateError },
         { status: 500 }
+      );
+    }
+
+    // Log user update activity
+    if (userId) {
+      const changes = Object.keys(updateData).filter(key => key !== 'updatedAt');
+      await ActivityLogger.logUserUpdate(
+        userId,
+        currentUser.id,
+        changes.reduce((acc, key) => ({ ...acc, [key]: updateData[key] }), {})
       );
     }
 

@@ -2,6 +2,27 @@ import { NextRequest, NextResponse } from 'next/server';
 import { userLoginSchema } from '@/lib/validations';
 import { AuthService } from '@/lib/auth';
 import { UUID } from '@/types/uuid-types';
+import { ActivityLogger } from '@/lib/activity-logger';
+
+// Extended User interface for auth with user_roles
+interface AuthUser {
+  id: string;
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PENDING_APPROVAL';
+  totalFlightHours: number;
+  licenseNumber?: string;
+  medicalClass?: string;
+  instructorRating?: string;
+  user_roles: Array<{
+    roles: {
+      id: string;
+      name: string;
+    };
+  }>;
+}
 
 
 export async function POST(request: NextRequest) {
@@ -10,7 +31,7 @@ export async function POST(request: NextRequest) {
     const { email, password } = userLoginSchema.parse(body);
 
     // Validate user credentials using Supabase
-    const user = await AuthService.validateUser(email, password);
+    const user = await AuthService.validateUser(email, password) as AuthUser | null;
     
     if (!user) {
       return NextResponse.json(
@@ -71,6 +92,14 @@ export async function POST(request: NextRequest) {
 
     // Update last login time
     await AuthService.updateLastLogin(user.id);
+
+    // Log the login activity
+    const ipAddress = request.headers.get('x-forwarded-for') || 
+                     request.headers.get('x-real-ip') || 
+                     'unknown';
+    const userAgent = request.headers.get('user-agent') || 'unknown';
+    
+    await ActivityLogger.logUserLogin(user.id, ipAddress, userAgent);
 
     // Prepare user data for response (exclude password)
     const userData = {

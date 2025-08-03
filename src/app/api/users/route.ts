@@ -3,6 +3,7 @@ import { requireRole, requireAuth, requireAnyRole } from '@/lib/middleware';
 import { userRegistrationSchema } from '@/lib/validations';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
+import { ActivityLogger } from '@/lib/activity-logger';
 import crypto from 'crypto';
 import { UUID } from '@/types/uuid-types';
 
@@ -217,6 +218,13 @@ async function createUser(request: NextRequest, currentUser: any) {
         { status: 500 }
       );
     }
+
+    // Log user creation activity
+    await ActivityLogger.logUserRegistration(
+      user.id,
+      validatedData.email,
+      roleNames.join(', ')
+    );
 
     // Assign roles
     if (roles.length > 0) {

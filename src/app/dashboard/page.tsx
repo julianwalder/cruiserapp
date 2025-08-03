@@ -22,6 +22,7 @@ import {
 import PilotOverview from '@/components/PilotOverview';
 
 import { User } from "@/types/uuid-types";
+import { cn } from "@/lib/utils";
 
 // Extended User interface for dashboard with userRoles
 interface DashboardUser extends User {
@@ -65,6 +66,31 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchRecentActivity = async (page = 1) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/activity?page=${page}&limit=${activityPagination.limit}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setRecentActivity(data.activities || []);
+        setActivityPagination(data.pagination || {
+          page: 1,
+          limit: 10,
+          total: 0,
+          pages: 0,
+          hasNext: false,
+          hasPrev: false
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching recent activity:', error);
+    }
+  };
+
   useEffect(() => {
     const fetchUser = async () => {
       try {
@@ -105,6 +131,7 @@ export default function DashboardPage() {
 
     fetchUser();
     fetchStats();
+    fetchRecentActivity();
   }, []);
 
   // Refetch stats when viewMode changes
@@ -126,12 +153,30 @@ export default function DashboardPage() {
     return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('INSTRUCTOR');
   };
 
-  const recentActivity = [
-    { title: 'New user registered', description: 'John Doe registered as a pilot', time: '2 minutes ago' },
-    { title: 'Flight scheduled', description: 'Flight C172-001 scheduled for tomorrow', time: '15 minutes ago' },
-    { title: 'Maintenance due', description: 'Aircraft C172-002 requires maintenance', time: '1 hour ago' },
-    { title: 'Role updated', description: 'Jane Smith promoted to Flight Instructor', time: '2 hours ago' },
-  ];
+  const [recentActivity, setRecentActivity] = useState<Array<{
+    id: string;
+    title: string;
+    description: string;
+    time: string;
+    type: string;
+    entityType: string;
+    entityId?: string;
+    user?: {
+      id: string;
+      name: string;
+      email: string;
+    } | null;
+    metadata?: Record<string, any>;
+  }>>([]);
+
+  const [activityPagination, setActivityPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    pages: 0,
+    hasNext: false,
+    hasPrev: false
+  });
 
   return (
     <AppLayout>
@@ -277,18 +322,73 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {recentActivity.map((activity, index) => (
-                      <div key={index} className="flex items-center space-x-4">
-                        <div className="h-2 w-2 bg-primary rounded-full"></div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-card-foreground">{activity.title}</p>
-                          <p className="text-xs text-muted-foreground">{activity.description}</p>
+                    {recentActivity.length > 0 ? (
+                      <>
+                        {recentActivity.map((activity) => (
+                          <div key={activity.id} className="flex items-center space-x-4">
+                            <div className={cn(
+                              "h-2 w-2 rounded-full",
+                              activity.type.includes('USER_') ? "bg-blue-500" :
+                              activity.type.includes('FLIGHT_') ? "bg-green-500" :
+                              activity.type.includes('AIRCRAFT_') ? "bg-orange-500" :
+                              activity.type.includes('AIRFIELD_') ? "bg-purple-500" :
+                              activity.type.includes('INVOICE_') ? "bg-yellow-500" :
+                              activity.type.includes('SYSTEM_') ? "bg-gray-500" :
+                              "bg-primary"
+                            )}></div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-card-foreground truncate">{activity.title}</p>
+                              <p className="text-xs text-muted-foreground truncate">{activity.description}</p>
+                              {activity.user && (
+                                <p className="text-xs text-muted-foreground">by {activity.user.name}</p>
+                              )}
+                            </div>
+                            <Badge variant="secondary" className="text-xs whitespace-nowrap">
+                              {activity.time}
+                            </Badge>
+                          </div>
+                        ))}
+                        
+                        {/* Pagination Controls */}
+                        {activityPagination.pages > 1 && (
+                          <div className="flex items-center justify-between pt-4 border-t">
+                            <div className="text-xs text-muted-foreground">
+                              Showing {((activityPagination.page - 1) * activityPagination.limit) + 1} to {Math.min(activityPagination.page * activityPagination.limit, activityPagination.total)} of {activityPagination.total} activities
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => fetchRecentActivity(activityPagination.page - 1)}
+                                disabled={!activityPagination.hasPrev}
+                              >
+                                Previous
+                              </Button>
+                              <span className="text-xs text-muted-foreground">
+                                Page {activityPagination.page} of {activityPagination.pages}
+                              </span>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => fetchRecentActivity(activityPagination.page + 1)}
+                                disabled={!activityPagination.hasNext}
+                              >
+                                Next
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-center py-8">
+                        <div className="text-muted-foreground text-sm">
+                          No recent activity
                         </div>
-                        <Badge variant="secondary" className="text-xs">
-                          {activity.time}
-                        </Badge>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Activity will appear here as users interact with the system
+                        </p>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </CardContent>
               </Card>

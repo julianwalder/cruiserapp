@@ -36,7 +36,8 @@ import {
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import type { ImportedInvoice } from '@/lib/invoice-import-service';
-import { User, Invoice, FlightHours, HourPackage } from "@/types/uuid-types";
+// Note: Type imports are not needed for this component as it uses ImportedInvoice type
+// import { User, Invoice, FlightHours, HourPackage } from "@/types/uuid-types";
 
 interface UserBillingProps {
   className?: string;
@@ -538,7 +539,7 @@ export default function UserBilling({ className, userId, onRefresh }: UserBillin
                         <div className="flex items-center justify-center gap-1">
                           {invoice.client.user_id ? (
                             <Badge variant="default" className="text-xs">
-                              <User className="h-3 w-3 mr-1" />
+                              <UserIcon className="h-3 w-3 mr-1" />
                               User
                             </Badge>
                           ) : (
@@ -687,7 +688,7 @@ export default function UserBilling({ className, userId, onRefresh }: UserBillin
               {/* Client Information */}
               <div className="bg-muted rounded-lg p-6">
                 <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
-                  <User className="h-5 w-5 mr-2" />
+                  <UserIcon className="h-5 w-5 mr-2" />
                   Client Information
                 </h3>
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -743,7 +744,7 @@ export default function UserBilling({ className, userId, onRefresh }: UserBillin
                         {selectedInvoice.client.user_id ? (
                           <>
                             <Badge variant="default">
-                              <User className="h-3 w-3 mr-1" />
+                              <UserIcon className="h-3 w-3 mr-1" />
                               Linked
                             </Badge>
                             <span className="text-sm text-muted-foreground">User ID: {selectedInvoice.client.user_id}</span>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { userRegistrationSchema } from '@/lib/validations';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
+import { ActivityLogger } from '@/lib/activity-logger';
 import crypto from 'crypto';
 
 export async function POST(request: NextRequest) {
@@ -77,6 +78,13 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Log user registration activity
+    await ActivityLogger.logUserRegistration(
+      user.id,
+      validatedData.email,
+      validatedData.role || 'PROSPECT'
+    );
     
     // Get the default role (PROSPECT)
     const { data: defaultRole, error: roleError } = await supabase
