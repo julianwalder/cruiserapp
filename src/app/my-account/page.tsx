@@ -379,13 +379,13 @@ export default function MyAccountPage() {
               </CardContent>
             </Card>
 
-            {/* Identity Verification & ID Details Card */}
+            {/* ID Details Card */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Shield className="h-5 w-5" />
-                    Identity Verification & ID Details
+                    ID Details
                   </div>
                   <Button variant="outline" size="sm">
                     <Edit className="h-4 w-4 mr-2" />
