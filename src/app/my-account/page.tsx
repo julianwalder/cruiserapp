@@ -596,6 +596,23 @@ export default function MyAccountPage() {
               </CardContent>
             </Card>
 
+            {/* Veriff Verification Component */}
+            <VeriffVerification
+              userId={user.id}
+              userData={{
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+              }}
+              onStatusChange={(status) => {
+                // Refresh user data when verification status changes
+                if (status === 'approved') {
+                  setTimeout(() => {
+                    window.location.reload();
+                  }, 2000);
+                }
+              }}
+            />
           </TabsContent>
 
           {/* Credentials Tab */}
