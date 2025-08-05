@@ -71,16 +71,15 @@ export class VeriffService {
     const payload = {
       verification: {
         callback: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/veriff/callback`,
+        person: {
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          email: userData.email
+        },
         document: {
           type: 'PASSPORT'
         },
-        person: {
-          givenName: userData.firstName,
-          lastName: userData.lastName
-        },
-        additionalVerification: {
-          faceMatch: true
-        }
+        vendorData: userId
       },
     };
 
@@ -169,24 +168,38 @@ export class VeriffService {
    * Handle Veriff webhook callback
    */
   static async handleCallback(payload: any): Promise<void> {
-    const { verification } = payload;
-    
-    if (!verification || !verification.id) {
-      throw new Error('Invalid callback payload');
-    }
+    console.log('Processing webhook payload:', payload);
 
-    console.log('Processing webhook for verification:', verification.id);
-
-    try {
-      // Get full verification details
-      const verificationDetails = await this.getVerification(verification.id);
-      console.log('Retrieved verification details:', verificationDetails);
+    // Handle different types of webhooks
+    if (payload.verification && payload.verification.id) {
+      // Traditional verification webhook
+      console.log('Processing verification webhook for:', payload.verification.id);
       
-      // Update user verification status
-      await this.updateUserVerification(verification.id, verificationDetails);
-    } catch (error) {
-      console.error('Error processing webhook:', error);
-      // Don't throw - we want to return 200 to Veriff even if there's an error
+      try {
+        const verificationDetails = await this.getVerification(payload.verification.id);
+        console.log('Retrieved verification details:', verificationDetails);
+        await this.updateUserVerification(payload.verification.id, verificationDetails);
+      } catch (error) {
+        console.error('Error processing verification webhook:', error);
+      }
+    } else if (payload.feature === 'selfid' && payload.action === 'submitted') {
+      // SelfID webhook - user has submitted their verification
+      console.log('Processing SelfID webhook for session:', payload.id);
+      
+      try {
+        // Find user by vendorData (which contains the userId)
+        const userId = payload.vendorData;
+        if (userId) {
+          console.log('Updating user verification status for SelfID submission:', userId);
+          
+          // Update user status to submitted
+          await this.updateUserSelfIDStatus(userId, payload);
+        }
+      } catch (error) {
+        console.error('Error processing SelfID webhook:', error);
+      }
+    } else {
+      console.log('Unknown webhook type:', payload);
     }
   }
 
@@ -303,6 +316,41 @@ export class VeriffService {
     }
 
     console.log('User verification status updated successfully');
+  }
+
+  /**
+   * Update user status for SelfID submission
+   */
+  private static async updateUserSelfIDStatus(userId: string, payload: any): Promise<void> {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      throw new Error('Database connection error');
+    }
+
+    console.log('Updating user SelfID status:', { userId, payload });
+
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        veriffStatus: 'submitted',
+        veriffData: {
+          sessionId: payload.id,
+          attemptId: payload.attemptId,
+          feature: payload.feature,
+          action: payload.action,
+          code: payload.code,
+          submittedAt: new Date().toISOString()
+        },
+        updatedAt: new Date().toISOString(),
+      })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('Error updating user SelfID status:', updateError);
+      throw new Error('Failed to update user SelfID status');
+    }
+
+    console.log('User SelfID status updated successfully');
   }
 
   /**
