@@ -40,15 +40,9 @@ export async function GET(request: NextRequest) {
   
   console.log('Veriff GET callback received:', { sessionId, status });
   
-  // If we have session info, redirect to my-account with status
-  if (sessionId || status) {
-    const redirectUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/my-account?veriff_status=${status || 'completed'}&session_id=${sessionId || ''}`;
-    return NextResponse.redirect(redirectUrl);
-  }
+  // Redirect to completion page which will handle the redirect to my-account
+  const redirectUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/veriff-complete?veriff_status=${status || 'completed'}&session_id=${sessionId || ''}`;
   
-  // Otherwise, just show a simple completion page
-  return NextResponse.json({ 
-    status: 'ok',
-    message: 'Verification completed successfully. You can close this window and return to the app.'
-  });
+  console.log('Redirecting to completion page:', redirectUrl);
+  return NextResponse.redirect(redirectUrl);
 } 
