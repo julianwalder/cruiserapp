@@ -159,7 +159,11 @@ export class VeriffService {
 
       if (!response.ok) {
         console.warn(`Verification API returned ${response.status} for ID: ${verificationId}`);
-        // Return a mock verification object since API is not working
+        // Throw error for 404 (expired session) but return mock data for other errors
+        if (response.status === 404) {
+          throw new Error(`Session not found (404): ${verificationId}`);
+        }
+        // Return a mock verification object for other API errors
         return {
           id: verificationId,
           status: 'submitted' as any,
@@ -173,7 +177,12 @@ export class VeriffService {
       return await response.json();
     } catch (error) {
       console.error('Error getting verification from API:', error);
-      // Return a mock verification object for now
+      // Re-throw 404 errors for session validation
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('404') || errorMessage.includes('Session not found')) {
+        throw error; // Re-throw so session validation can handle it
+      }
+      // Return a mock verification object for other errors
       return {
         id: verificationId,
         status: 'submitted' as any,
@@ -406,7 +415,36 @@ export class VeriffService {
   }
 
   /**
-   * Get user's current Veriff status
+   * Clear expired session from database
+   */
+  private static async clearExpiredSession(userId: string): Promise<void> {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      throw new Error('Database connection error');
+    }
+
+    console.log('Clearing expired session for user:', userId);
+
+    const { error } = await supabase
+      .from('users')
+      .update({
+        veriffSessionId: null,
+        veriffSessionUrl: null,
+        veriffStatus: null,
+        updatedAt: new Date().toISOString(),
+      })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Error clearing expired session:', error);
+      throw new Error('Failed to clear expired session');
+    }
+
+    console.log('Expired session cleared successfully');
+  }
+
+  /**
+   * Get user's current Veriff status with session validation
    */
   static async getUserVeriffStatus(userId: string): Promise<{
     sessionId?: string;
@@ -414,6 +452,7 @@ export class VeriffService {
     status?: string;
     isVerified: boolean;
     veriffData?: any;
+    needsNewSession?: boolean;
   }> {
     const supabase = getSupabaseClient();
     if (!supabase) {
@@ -439,12 +478,48 @@ export class VeriffService {
         return { isVerified: false };
       }
 
+      // If no session exists, return default status
+      if (!user.veriffSessionId) {
+        return { isVerified: false };
+      }
+
+      // Validate if the session is still active
+      let sessionValid = false;
+      let verificationDetails = null;
+      
+      try {
+        verificationDetails = await this.getVerification(user.veriffSessionId);
+        console.log('Verification details from API:', verificationDetails);
+        sessionValid = true;
+      } catch (error) {
+        console.error('Error getting verification details:', error);
+        // If we get a 404, the session has expired
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('404') || errorMessage.includes('Not Found')) {
+          console.log('Session has expired, clearing from database');
+          sessionValid = false;
+        } else {
+          // For other errors, assume session is still valid
+          sessionValid = true;
+        }
+      }
+
+      // If session is invalid, clear it from database
+      if (!sessionValid && user.veriffSessionId) {
+        await this.clearExpiredSession(userId);
+        return {
+          isVerified: false,
+          needsNewSession: true,
+        };
+      }
+
       const status = {
         sessionId: user.veriffSessionId,
-        sessionUrl: user.veriffSessionUrl || null, // Will be null if column doesn't exist
+        sessionUrl: user.veriffSessionUrl || null,
         status: user.veriffStatus,
         isVerified: user.identityVerified || false,
-        veriffData: user.veriffData,
+        veriffData: verificationDetails || user.veriffData,
+        needsNewSession: false,
       };
 
       console.log('User Veriff status:', status);

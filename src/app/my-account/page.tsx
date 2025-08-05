@@ -48,6 +48,7 @@ interface MyAccountUser extends UserType {
   idNumber?: string;
   personalNumber?: string;
   avatarUrl?: string;
+  veriffData?: any;
 }
 
 export default function MyAccountPage() {
@@ -378,13 +379,13 @@ export default function MyAccountPage() {
               </CardContent>
             </Card>
 
-            {/* ID Details Card */}
+            {/* Identity Verification & ID Details Card */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Shield className="h-5 w-5" />
-                    ID Details
+                    Identity Verification & ID Details
                   </div>
                   <Button variant="outline" size="sm">
                     <Edit className="h-4 w-4 mr-2" />
@@ -392,61 +393,209 @@ export default function MyAccountPage() {
                   </Button>
                 </CardTitle>
                 <CardDescription>
-                  Official identification information and verification status
+                  Official identification information extracted and verified by Veriff
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
-                    {user.idNumber && (
+                    {/* Personal Information */}
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        Full Name
+                        {user.veriffData?.person?.givenName && (
+                          <Shield className="h-3 w-3 text-blue-600" />
+                        )}
+                      </label>
+                      <p className="text-lg">
+                        {user.veriffData?.person?.givenName && user.veriffData?.person?.lastName 
+                          ? `${user.veriffData.person.givenName} ${user.veriffData.person.lastName}`
+                          : `${user.firstName} ${user.lastName}`
+                        }
+                      </p>
+                    </div>
+                    
+                    {user.veriffData?.person?.dateOfBirth && (
                       <div>
-                        <label className="text-sm font-medium text-muted-foreground">ID Number</label>
-                        <p className="text-lg">{user.idNumber}</p>
+                        <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                          Date of Birth
+                          <Shield className="h-3 w-3 text-blue-600" />
+                        </label>
+                        <p className="text-lg flex items-center gap-2">
+                          <Calendar className="h-4 w-4" />
+                          {new Date(user.veriffData.person.dateOfBirth).toLocaleDateString()}
+                        </p>
                       </div>
                     )}
+                    
+                    {user.veriffData?.person?.idNumber && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                          ID Number
+                          <Shield className="h-3 w-3 text-blue-600" />
+                        </label>
+                        <p className="text-lg">{user.veriffData.person.idNumber}</p>
+                      </div>
+                    )}
+                    
+                    {user.veriffData?.person?.nationality && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                          Nationality
+                          <Shield className="h-3 w-3 text-blue-600" />
+                        </label>
+                        <p className="text-lg">{user.veriffData.person.nationality}</p>
+                      </div>
+                    )}
+                    
+                    {user.veriffData?.person?.gender && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                          Gender
+                          <Shield className="h-3 w-3 text-blue-600" />
+                        </label>
+                        <p className="text-lg">{user.veriffData.person.gender}</p>
+                      </div>
+                    )}
+                    
                     {user.personalNumber && (
                       <div>
-                        <label className="text-sm font-medium text-muted-foreground">Personal Number (CNP)</label>
+                        <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                          Personal Number (CNP)
+                          {user.identityVerified && (
+                            <Shield className="h-3 w-3 text-blue-600" />
+                          )}
+                        </label>
                         <p className="text-lg">{user.personalNumber}</p>
                       </div>
                     )}
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {/* Document Information */}
                     <div>
-                      <label className="text-sm font-medium text-muted-foreground">Identity Verification</label>
+                      <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        Document Type
+                        {user.veriffData?.document?.type && (
+                          <Shield className="h-3 w-3 text-blue-600" />
+                        )}
+                      </label>
+                      <p className="text-lg">
+                        {user.veriffData?.document?.type || 'Passport / National ID'}
+                      </p>
+                    </div>
+                    
+                    {user.veriffData?.document?.number && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                          Document Number
+                          <Shield className="h-3 w-3 text-blue-600" />
+                        </label>
+                        <p className="text-lg">{user.veriffData.document.number}</p>
+                      </div>
+                    )}
+                    
+                    {user.veriffData?.document?.country && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                          Document Country
+                          <Shield className="h-3 w-3 text-blue-600" />
+                        </label>
+                        <p className="text-lg">{user.veriffData.document.country}</p>
+                      </div>
+                    )}
+                    
+                    {user.veriffData?.document?.issuedBy && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                          Issued By
+                          <Shield className="h-3 w-3 text-blue-600" />
+                        </label>
+                        <p className="text-lg">{user.veriffData.document.issuedBy}</p>
+                      </div>
+                    )}
+                    
+                    {user.veriffData?.document?.validFrom && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                          Valid From
+                          <Shield className="h-3 w-3 text-blue-600" />
+                        </label>
+                        <p className="text-lg">{new Date(user.veriffData.document.validFrom).toLocaleDateString()}</p>
+                      </div>
+                    )}
+                    
+                    {user.veriffData?.document?.validUntil && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                          Valid Until
+                          <Shield className="h-3 w-3 text-blue-600" />
+                        </label>
+                        <p className="text-lg">{new Date(user.veriffData.document.validUntil).toLocaleDateString()}</p>
+                      </div>
+                    )}
+                    
+                    {user.country && !user.veriffData?.document?.country && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                          Nationality / Country
+                          {user.identityVerified && (
+                            <Shield className="h-3 w-3 text-blue-600" />
+                          )}
+                        </label>
+                        <p className="text-lg">{user.country}</p>
+                      </div>
+                    )}
+                    
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Verification Status</label>
                       <div className="flex items-center gap-2 mt-1">
-                        <Badge variant={user.identityVerified ? 'default' : 'secondary'}>
-                          {user.identityVerified ? 'Verified' : 'Pending'}
+                        <Badge variant={user.veriffData?.status === 'approved' ? 'default' : 'secondary'}>
+                          {user.veriffData?.status === 'approved' ? 'Approved' : 
+                           user.veriffData?.status === 'submitted' ? 'Submitted' : 
+                           user.veriffData?.status === 'created' ? 'Created' : 'Pending'}
                         </Badge>
-                        {user.identityVerified && (
+                        {user.veriffData?.status === 'approved' && (
                           <Shield className="h-4 w-4 text-green-600" />
                         )}
                       </div>
                     </div>
-                  </div>
-                  <div className="space-y-4">
+                    
+                    {user.veriffData?.decisionScore && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                          Decision Score
+                          <Shield className="h-3 w-3 text-blue-600" />
+                        </label>
+                        <p className="text-lg">{Math.round(user.veriffData.decisionScore * 100)}%</p>
+                      </div>
+                    )}
+                    
+                    {user.veriffData?.additionalVerification?.faceMatch && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                          Face Match
+                          <Shield className="h-3 w-3 text-blue-600" />
+                        </label>
+                        <p className="text-lg">
+                          {user.veriffData.additionalVerification.faceMatch.status === 'approved' ? 'Approved' : 
+                           user.veriffData.additionalVerification.faceMatch.status === 'pending' ? 'Pending' : 'Declined'}
+                          {user.veriffData.additionalVerification.faceMatch.similarity && 
+                            ` (${Math.round(user.veriffData.additionalVerification.faceMatch.similarity * 100)}%)`
+                          }
+                        </p>
+                      </div>
+                    )}
+                    
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">Verification Method</label>
-                      <p className="text-lg">Veriff ID Verification</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Verification Date</label>
-                      <p className="text-lg">
-                        {user.identityVerified ? 'Verified via Veriff' : 'Not yet verified'}
-                      </p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Document Status</label>
-                      <p className="text-lg">
-                        {user.identityVerified ? 'Documents verified' : 'Documents pending'}
-                      </p>
+                      <p className="text-lg">Veriff AI-Powered ID Verification</p>
                     </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
 
-          {/* Credentials Tab */}
-          <TabsContent value="credentials" className="space-y-6">
             {/* Identity Verification */}
             <VeriffVerification
               userId={user.id}
@@ -464,7 +613,10 @@ export default function MyAccountPage() {
                 }
               }}
             />
+          </TabsContent>
 
+          {/* Credentials Tab */}
+          <TabsContent value="credentials" className="space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center justify-between">

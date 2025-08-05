@@ -14,7 +14,8 @@ import {
   XCircle, 
   ExternalLink,
   RefreshCw,
-  Info
+  Info,
+  AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -39,6 +40,7 @@ interface VeriffStatus {
   veriffStatus?: string;
   veriffData?: any;
   needsVerification: boolean;
+  needsNewSession?: boolean;
 }
 
 export function VeriffVerification({ 
@@ -275,8 +277,42 @@ export function VeriffVerification({
                 isVerified: status?.isVerified,
                 sessionId: status?.sessionId,
                 veriffStatus: status?.veriffStatus,
-                sessionUrl: sessionUrl
+                sessionUrl: sessionUrl,
+                needsNewSession: status?.needsNewSession
               });
+              
+              // If session expired, show message and create new session button
+              if (status?.needsNewSession) {
+                return (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <div className="flex items-center space-x-2">
+                        <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                        <span className="text-sm text-yellow-800">
+                          Your previous verification session has expired. Please start a new verification.
+                        </span>
+                      </div>
+                    </div>
+                    <Button 
+                      onClick={createVerificationSession} 
+                      disabled={creatingSession}
+                      className="w-full"
+                    >
+                      {creatingSession ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Creating New Session...
+                        </>
+                      ) : (
+                        <>
+                          <Shield className="h-4 w-4 mr-2" />
+                          Start New Verification
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                );
+              }
               
               if (!status?.sessionId) {
                 return (
