@@ -61,7 +61,7 @@ export class VeriffService {
 
     const payload = {
       verification: {
-        callback: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/veriff/callback?sessionId={sessionId}&status={status}`,
+        callback: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/veriff/callback`,
       },
     };
 

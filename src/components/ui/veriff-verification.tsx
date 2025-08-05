@@ -50,9 +50,27 @@ export function VeriffVerification({
   const [creatingSession, setCreatingSession] = useState(false);
   const [sessionUrl, setSessionUrl] = useState<string | null>(null);
 
-  // Fetch current status on mount
+  // Fetch current status on mount and check for URL parameters
   useEffect(() => {
     fetchStatus();
+    
+    // Check for URL parameters indicating verification completion
+    const urlParams = new URLSearchParams(window.location.search);
+    const veriffStatus = urlParams.get('veriff_status');
+    const sessionId = urlParams.get('session_id');
+    
+    if (veriffStatus || sessionId) {
+      console.log('Veriff completion detected:', { veriffStatus, sessionId });
+      // Refresh status after a short delay to allow webhook processing
+      setTimeout(() => {
+        fetchStatus();
+        // Clear URL parameters
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.delete('veriff_status');
+        newUrl.searchParams.delete('session_id');
+        window.history.replaceState({}, '', newUrl.toString());
+      }, 2000);
+    }
   }, [userId]);
 
   const fetchStatus = async () => {
