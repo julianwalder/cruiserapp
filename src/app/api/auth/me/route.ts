@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
+import { UUID } from '@/types/uuid-types';
 
 
 export async function GET(request: NextRequest) {
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Database connection error' }, { status: 500 });
     }
 
-    // Get user data with roles and Veriff data
+    // Get user data with roles
     const { data: user, error } = await supabase
       .from('users')
       .select(`
@@ -38,16 +39,8 @@ export async function GET(request: NextRequest) {
         "createdAt",
         "updatedAt",
         "avatarUrl",
-        "identityVerified",
-        "veriffSessionId",
-        "veriffStatus",
-        "veriffData",
-        "onboardingCompleted",
-        "idNumber",
-        "personalNumber",
-        "country",
-        user_roles!inner (
-          roles!inner (
+        user_roles (
+          roles (
             name
           )
         )
@@ -62,7 +55,7 @@ export async function GET(request: NextRequest) {
     // Extract roles from user_roles
     const roles = user.user_roles.map((ur: any) => ur.roles.name);
 
-    // Return user data with roles array and Veriff data
+    // Return user data with roles array
     const userData = {
       id: user.id,
       email: user.email,
@@ -79,15 +72,6 @@ export async function GET(request: NextRequest) {
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
       avatarUrl: user.avatarUrl,
-      // Veriff-related fields
-      identityVerified: user.identityVerified,
-      veriffSessionId: user.veriffSessionId,
-      veriffStatus: user.veriffStatus,
-      veriffData: user.veriffData,
-      onboardingCompleted: user.onboardingCompleted,
-      idNumber: user.idNumber,
-      personalNumber: user.personalNumber,
-      country: user.country,
     };
 
     return NextResponse.json(userData);

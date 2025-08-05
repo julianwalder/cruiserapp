@@ -314,15 +314,17 @@ export function VeriffVerification({
                 );
               }
               
-              // Don't show any buttons if verification is approved
-              if (status?.veriffStatus === 'approved' || status?.isVerified) {
+              // If user is already verified and approved, show success message
+              if (status?.isVerified && status?.veriffStatus === 'approved') {
                 return (
-                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <div className="flex items-center space-x-2">
-                      <CheckCircle className="h-4 w-4 text-green-600" />
-                      <span className="text-sm text-green-800 font-medium">
-                        Identity verification completed successfully!
-                      </span>
+                  <div className="space-y-3">
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span className="text-sm text-green-800">
+                          ✅ Identity verification completed successfully!
+                        </span>
+                      </div>
                     </div>
                   </div>
                 );

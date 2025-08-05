@@ -149,15 +149,15 @@ export class VeriffService {
     }
 
     try {
-      const response = await fetch(`${this.BASE_URL}/verifications/${verificationId}`, {
-        method: 'GET',
-        headers: {
-          'X-AUTH-CLIENT': this.API_KEY,
+    const response = await fetch(`${this.BASE_URL}/verifications/${verificationId}`, {
+      method: 'GET',
+      headers: {
+        'X-AUTH-CLIENT': this.API_KEY,
           'X-HMAC-SIGNATURE': this.generateSignature(''),
-        },
-      });
+      },
+    });
 
-      if (!response.ok) {
+    if (!response.ok) {
         console.warn(`Verification API returned ${response.status} for ID: ${verificationId}`);
         // Throw error for 404 (expired session) but return mock data for other errors
         if (response.status === 404) {
@@ -172,9 +172,9 @@ export class VeriffService {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
-      }
+    }
 
-      return await response.json();
+    return await response.json();
     } catch (error) {
       console.error('Error getting verification from API:', error);
       // Re-throw 404 errors for session validation
@@ -212,18 +212,22 @@ export class VeriffService {
       } catch (error) {
         console.error('Error processing verification webhook:', error);
       }
-    } else if (payload.feature === 'selfid' && payload.action === 'submitted') {
-      // SelfID webhook - user has submitted their verification
-      console.log('Processing SelfID webhook for session:', payload.id);
+    } else if (payload.feature === 'selfid' && (payload.action === 'submitted' || payload.action === 'approved')) {
+      // SelfID webhook - user has submitted or been approved
+      console.log('Processing SelfID webhook for session:', payload.id, 'action:', payload.action);
       
       try {
         // Find user by vendorData (which contains the userId)
         const userId = payload.vendorData;
         if (userId) {
-          console.log('Updating user verification status for SelfID submission:', userId);
+          console.log('Updating user verification status for SelfID:', userId, 'action:', payload.action);
           
-          // Update user status to submitted
-          await this.updateUserSelfIDStatus(userId, payload);
+          // Update user status based on action
+          if (payload.action === 'approved') {
+            await this.updateUserApprovedStatus(userId, payload);
+          } else {
+            await this.updateUserSelfIDStatus(userId, payload);
+          }
         }
       } catch (error) {
         console.error('Error processing SelfID webhook:', error);
@@ -386,6 +390,40 @@ export class VeriffService {
   }
 
   /**
+   * Update user status when verification is approved
+   */
+  private static async updateUserApprovedStatus(userId: string, payload: any): Promise<void> {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      throw new Error('Database connection error');
+    }
+
+    console.log('Updating user approved status for user:', userId);
+
+    const { error } = await supabase
+      .from('users')
+      .update({
+        veriffSessionId: payload.id, // Update with session ID from webhook
+        veriffStatus: 'approved',
+        veriffData: {
+          ...payload, // Store full webhook payload
+          status: 'approved', // Ensure status is set to approved
+          webhookReceivedAt: new Date().toISOString() // Timestamp for webhook receipt
+        },
+        identityVerified: true, // Mark user as verified
+        updatedAt: new Date().toISOString(),
+      })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Error updating user approved status:', error);
+      throw new Error('Failed to update user approved status');
+    }
+
+    console.log('User approved status updated successfully');
+  }
+
+  /**
    * Generate Veriff API signature
    */
   private static generateSignature(payloadString: string): string {
@@ -450,6 +488,7 @@ export class VeriffService {
     sessionId?: string;
     sessionUrl?: string;
     status?: string;
+    veriffStatus?: string;
     isVerified: boolean;
     veriffData?: any;
     needsNewSession?: boolean;
@@ -504,9 +543,20 @@ export class VeriffService {
         }
       }
 
-      // If session is invalid, clear it from database but keep veriffData for display
+            // If session is invalid, clear it from database but keep veriffData for display
       if (!sessionValid && user.veriffSessionId) {
         await this.clearExpiredSession(userId);
+        
+        // If the user is already verified (approved), don't show "needs new session"
+        if (user.identityVerified || (user.veriffData?.status === 'approved')) {
+          return {
+            isVerified: true,
+            needsNewSession: false,
+            veriffData: user.veriffData, // Keep veriffData for display
+            veriffStatus: 'approved',
+          };
+        }
+        
         return {
           isVerified: false,
           needsNewSession: true,

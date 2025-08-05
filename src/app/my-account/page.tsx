@@ -473,17 +473,17 @@ export default function MyAccountPage() {
                   
                   <div className="space-y-4">
                     {/* Document Information */}
-                    {user.veriffData?.document?.type && (
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                          Document Type
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                        Document Type
+                        {user.veriffData?.document?.type && (
                           <Shield className="h-3 w-3 text-blue-600" />
-                        </label>
-                        <p className="text-lg">
-                          {user.veriffData.document.type}
-                        </p>
-                      </div>
-                    )}
+                        )}
+                      </label>
+                      <p className="text-lg">
+                        {user.veriffData?.document?.type || 'Passport / National ID'}
+                      </p>
+                    </div>
                     
                     {user.veriffData?.document?.number && (
                       <div>
@@ -535,7 +535,7 @@ export default function MyAccountPage() {
                       </div>
                     )}
                     
-                    {user.country && !user.veriffData?.document?.country && !user.veriffData?.person?.nationality && (
+                    {user.country && !user.veriffData?.document?.country && (
                       <div>
                         <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                           Nationality / Country
@@ -550,7 +550,10 @@ export default function MyAccountPage() {
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">Verification Status</label>
                       <div className="flex items-center gap-2 mt-1">
-                        <Badge variant={user.veriffData?.status === 'approved' ? 'default' : 'secondary'} className={user.veriffData?.status === 'approved' ? 'bg-green-600 hover:bg-green-700' : ''}>
+                        <Badge 
+                          variant={user.veriffData?.status === 'approved' ? 'default' : 'secondary'}
+                          className={user.veriffData?.status === 'approved' ? 'bg-green-600 hover:bg-green-700' : ''}
+                        >
                           {user.veriffData?.status === 'approved' ? 'Approved' : 
                            user.veriffData?.status === 'submitted' ? 'Submitted' : 
                            user.veriffData?.status === 'created' ? 'Created' : 'Pending'}
