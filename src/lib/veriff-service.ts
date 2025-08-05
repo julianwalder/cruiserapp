@@ -504,12 +504,13 @@ export class VeriffService {
         }
       }
 
-      // If session is invalid, clear it from database
+      // If session is invalid, clear it from database but keep veriffData for display
       if (!sessionValid && user.veriffSessionId) {
         await this.clearExpiredSession(userId);
         return {
           isVerified: false,
           needsNewSession: true,
+          veriffData: user.veriffData, // Keep veriffData for display even when session is expired
         };
       }
 
