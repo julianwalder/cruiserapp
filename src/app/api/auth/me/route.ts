@@ -38,6 +38,7 @@ export async function GET(request: NextRequest) {
         "lastLoginAt",
         "createdAt",
         "updatedAt",
+        "avatarUrl",
         user_roles (
           roles (
             name
@@ -70,6 +71,7 @@ export async function GET(request: NextRequest) {
       lastLoginAt: user.lastLoginAt,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
+      avatarUrl: user.avatarUrl,
     };
 
     return NextResponse.json(userData);

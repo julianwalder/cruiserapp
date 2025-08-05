@@ -476,13 +476,13 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
                       </div>
                     </div>
                     <div className="h-px bg-gray-300 dark:bg-gray-600 mx-2" />
-                    <DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleNavigation('/my-account')}>
                       <User className="mr-2 h-4 w-4" />
-                      Account
+                      My Account
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleNavigation('/billing')}>
                       <DollarSign className="mr-2 h-4 w-4" />
-                      Billing
+                      Invoices
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleNavigation('/notifications')}>
                       <FileText className="mr-2 h-4 w-4" />

@@ -8,23 +8,41 @@ export interface BaseEntity {
 }
 
 export interface User extends BaseEntity {
+  id: string;
   email: string;
-  password?: string;
   firstName: string;
   lastName: string;
-  personalNumber?: string;
   phone?: string;
-  dateOfBirth?: Date | null;
+  dateOfBirth?: Date;
   address?: string;
   city?: string;
   state?: string;
   zipCode?: string;
   country?: string;
-  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PENDING_APPROVAL';
-  totalFlightHours: number;
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  totalFlightHours?: number;
   licenseNumber?: string;
   medicalClass?: string;
   instructorRating?: string;
+  // Note: My Account specific fields are now in UserProfile interface
+}
+
+// New interface for My Account profile data
+export interface UserProfile extends BaseEntity {
+  id: string;
+  userId: string;
+  veriffData?: any;
+  identityVerified: boolean;
+  identityVerifiedAt?: Date | null;
+  onboardingCompleted: boolean;
+  onboardingCompletedAt?: Date | null;
+  preferredLanguage: string;
+  timezone: string;
+  notificationPreferences: {
+    email: boolean;
+    push: boolean;
+    sms: boolean;
+  };
 }
 
 export interface Invoice extends BaseEntity {
@@ -68,7 +86,7 @@ export interface HourPackage extends BaseEntity {
   totalHours: number;
   price: number;
   currency: string;
-  validityDays?: number;
+  validityDays: number;
   isActive: boolean;
 }
 
@@ -157,4 +175,73 @@ export interface UserCompanyRelationship extends BaseEntity {
   companyId: UUID;
   role: string;
   status: 'ACTIVE' | 'INACTIVE';
+}
+
+// My Account feature interfaces
+export interface UserOnboarding extends BaseEntity {
+  userId: UUID;
+  onboardingType: 'STUDENT' | 'PILOT';
+  status: 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+  currentStep: number;
+  totalSteps: number;
+  veriffSessionId?: string;
+  veriffStatus?: string;
+  paymentPlanId?: UUID;
+  hourPackageId?: UUID;
+  contractSigned: boolean;
+  contractSignedAt?: Date | null;
+  contractDocumentUrl?: string;
+}
+
+export interface UserDocument extends BaseEntity {
+  userId: UUID;
+  documentType: 'PPL_LICENSE' | 'MEDICAL_CERTIFICATE' | 'RADIO_CERTIFICATE' | 'CONTRACT' | 'VERIFF_REPORT' | 'OTHER';
+  fileName: string;
+  fileUrl: string;
+  fileSize?: number;
+  mimeType?: string;
+  expiryDate?: Date | null;
+  documentNumber?: string;
+  issuingAuthority?: string;
+  isVerified: boolean;
+  verifiedBy?: UUID;
+  verifiedAt?: Date | null;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
+  metadata?: any;
+}
+
+export interface PaymentPlan extends BaseEntity {
+  name: string;
+  description?: string;
+  planType: 'INSTALLMENT' | 'FULL_PAYMENT';
+  totalAmount: number;
+  currency: string;
+  numberOfInstallments?: number;
+  discountPercentage: number;
+  isActive: boolean;
+  validFrom: Date;
+  validTo?: Date | null;
+}
+
+export interface HourPackage extends BaseEntity {
+  name: string;
+  description?: string;
+  totalHours: number;
+  price: number;
+  currency: string;
+  validityDays: number;
+  isActive: boolean;
+}
+
+export interface UserPaymentPlan extends BaseEntity {
+  userId: UUID;
+  paymentPlanId?: UUID;
+  hourPackageId?: UUID;
+  smartbillInvoiceId?: string;
+  status: 'PENDING' | 'PAID' | 'OVERDUE' | 'CANCELLED';
+  totalAmount: number;
+  paidAmount: number;
+  nextPaymentDate?: Date | null;
+  nextPaymentAmount?: number;
+  completedAt?: Date | null;
 } 

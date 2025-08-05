@@ -45,11 +45,25 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await AuthService.hashPassword(validatedData.password);
     
+    // Get PROSPECT role ID (if it exists)
+    const { data: prospectRole, error: prospectRoleError } = await supabase
+      .from('roles')
+      .select('id')
+      .eq('name', 'PROSPECT')
+      .single();
+
+    // If PROSPECT role doesn't exist, we'll skip role assignment for now
+    if (prospectRoleError) {
+      console.log('PROSPECT role not found, skipping role assignment for new user');
+    }
+
+    const userId = crypto.randomUUID();
+
     // Create user
     const { data: user, error: createUserError } = await supabase
       .from('users')
       .insert({
-        id: crypto.randomUUID(),
+        id: userId,
         email: validatedData.email,
         password: hashedPassword,
         firstName: validatedData.firstName,
@@ -86,38 +100,20 @@ export async function POST(request: NextRequest) {
       validatedData.role || 'PROSPECT'
     );
     
-    // Get the default role (PROSPECT)
-    const { data: defaultRole, error: roleError } = await supabase
-      .from('roles')
-      .select('id')
-      .eq('name', validatedData.role || 'PROSPECT')
-      .single();
-    
-    if (roleError) {
-      console.error('Error finding default role:', roleError);
-      return NextResponse.json(
-        { error: 'Failed to assign role' },
-        { status: 500 }
-      );
-    }
-    
-    if (defaultRole) {
-      // Assign the role to the user
+    // Assign PROSPECT role to user (if role exists)
+    if (prospectRole) {
       const { error: assignRoleError } = await supabase
         .from('user_roles')
         .insert({
           id: crypto.randomUUID(),
-          userId: user.id,
-          roleId: defaultRole.id,
+          userId: userId,
+          roleId: prospectRole.id,
           assignedAt: new Date().toISOString(),
         });
-      
+
       if (assignRoleError) {
-        console.error('Error assigning role:', assignRoleError);
-        return NextResponse.json(
-          { error: 'Failed to assign role' },
-          { status: 500 }
-        );
+        console.error('Error assigning PROSPECT role:', assignRoleError);
+        // Don't fail the registration, but log the error
       }
     }
     
