@@ -4,7 +4,7 @@ require('dotenv').config({ path: '.env.local' });
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 async function updateUserWithVeriffData() {
-  const sessionId = 'b0fc7c45-8527-40f9-9924-f8aed05181ca';
+  const sessionId = '03829182-cf62-4af1-8ef4-b614823d2f2e'; // New session ID from logs
   
   // Mock data based on what's visible in Veriff dashboard
   const veriffData = {
@@ -39,25 +39,25 @@ async function updateUserWithVeriffData() {
       flags: [],
       context: 'Document submitted successfully'
     },
-    createdAt: '2025-08-05T12:07:45.701Z',
-    updatedAt: '2025-08-05T12:07:46.031Z',
+    createdAt: '2025-08-05T12:25:27.070Z',
+    updatedAt: new Date().toISOString(),
     // Webhook data
     sessionId: sessionId,
     attemptId: null,
     feature: 'selfid',
     action: 'submitted',
     code: 7002,
-    submittedAt: '2025-08-05T12:07:46.031Z',
+    submittedAt: new Date().toISOString(),
     webhookReceivedAt: new Date().toISOString()
   };
 
   console.log('Updating user with Veriff data:', JSON.stringify(veriffData, null, 2));
 
-  // Find the user with this session ID
+  // Find the user by email since session ID was cleared
   const { data: user, error: findError } = await supabase
     .from('users')
     .select('id, email, firstName, lastName')
-    .eq('veriffSessionId', sessionId)
+    .eq('email', 'julian.pad@me.com')
     .single();
 
   if (findError) {
@@ -66,7 +66,7 @@ async function updateUserWithVeriffData() {
   }
 
   if (!user) {
-    console.log('No user found with session ID:', sessionId);
+    console.log('No user found with email: julian.pad@me.com');
     return;
   }
 
@@ -76,6 +76,7 @@ async function updateUserWithVeriffData() {
   const { error: updateError } = await supabase
     .from('users')
     .update({
+      veriffSessionId: sessionId,
       veriffData: veriffData,
       veriffStatus: 'submitted',
       identityVerified: false, // Still pending approval
