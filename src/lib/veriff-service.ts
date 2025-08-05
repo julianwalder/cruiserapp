@@ -23,6 +23,8 @@ export interface VeriffVerification {
     idNumber?: string;
     dateOfBirth?: string;
     nationality?: string;
+    gender?: string;
+    country?: string;
   };
   document: {
     type: string;
@@ -30,12 +32,19 @@ export interface VeriffVerification {
     country: string;
     validFrom?: string;
     validUntil?: string;
+    issuedBy?: string;
   };
   additionalVerification?: {
     faceMatch: {
       similarity: number;
       status: 'approved' | 'declined';
     };
+  };
+  decisionScore?: number;
+  insights?: {
+    quality?: string;
+    flags?: string[];
+    context?: string;
   };
   createdAt: string;
   updatedAt: string;
@@ -62,6 +71,16 @@ export class VeriffService {
     const payload = {
       verification: {
         callback: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/veriff/callback`,
+        document: {
+          type: 'PASSPORT'
+        },
+        person: {
+          givenName: userData.firstName,
+          lastName: userData.lastName
+        },
+        additionalVerification: {
+          faceMatch: true
+        }
       },
     };
 
@@ -253,6 +272,8 @@ export class VeriffService {
       person: verification.person,
       document: verification.document,
       additionalVerification: verification.additionalVerification,
+      decisionScore: verification.decisionScore,
+      insights: verification.insights,
       createdAt: verification.createdAt,
       updatedAt: verification.updatedAt,
     };

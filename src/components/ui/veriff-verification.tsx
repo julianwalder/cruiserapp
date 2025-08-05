@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { VeriffIDVResults } from './veriff-idv-results';
 
 interface VeriffVerificationProps {
   userId: string;
@@ -231,7 +232,8 @@ export function VeriffVerification({
   }
 
   return (
-    <Card className={cn("w-full", className)}>
+    <div className={cn("w-full", className)}>
+      <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           {getStatusIcon()}
@@ -358,5 +360,13 @@ export function VeriffVerification({
         )}
       </CardContent>
     </Card>
+
+    {/* Full Auto IDV Results */}
+    {status?.isVerified && status?.veriffData && (
+      <div className="mt-6">
+        <VeriffIDVResults veriffData={status.veriffData} />
+      </div>
+    )}
+  </div>
   );
 } 
