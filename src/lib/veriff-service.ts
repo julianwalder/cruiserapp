@@ -195,14 +195,45 @@ export class VeriffService {
       throw new Error('Database connection error');
     }
 
-    // Find user by verification ID (you might need to store this mapping)
-    const { data: user, error: findError } = await supabase
+    console.log('Updating user verification for verification ID:', verificationId);
+    console.log('Verification details:', verification);
+
+    // Find user by verification ID - try different approaches
+    let user = null;
+    let findError = null;
+
+    // First try: look for user with this verification ID as session ID
+    const { data: user1, error: error1 } = await supabase
       .from('users')
-      .select('id')
+      .select('id, veriffSessionId')
       .eq('veriffSessionId', verificationId)
       .single();
 
-    if (findError || !user) {
+    if (user1) {
+      user = user1;
+      console.log('Found user by session ID:', user);
+    } else {
+      console.log('User not found by session ID, trying alternative lookup...');
+      
+      // Second try: look for any user with a recent Veriff session
+      const { data: users, error: error2 } = await supabase
+        .from('users')
+        .select('id, veriffSessionId, veriffStatus')
+        .not('veriffSessionId', 'is', null)
+        .eq('veriffStatus', 'created')
+        .order('updatedAt', { ascending: false })
+        .limit(1);
+
+      if (users && users.length > 0) {
+        user = users[0];
+        console.log('Found user by recent session:', user);
+      } else {
+        findError = error2;
+        console.error('No users found with recent Veriff sessions');
+      }
+    }
+
+    if (!user) {
       console.error('User not found for verification:', verificationId);
       return;
     }
@@ -217,6 +248,13 @@ export class VeriffService {
       createdAt: verification.createdAt,
       updatedAt: verification.updatedAt,
     };
+
+    console.log('Updating user verification status:', {
+      userId: user.id,
+      isVerified,
+      veriffStatus: verification.status,
+      verificationId: verification.id
+    });
 
     const { error: updateError } = await supabase
       .from('users')
@@ -233,6 +271,8 @@ export class VeriffService {
       console.error('Error updating user verification:', updateError);
       throw new Error('Failed to update user verification status');
     }
+
+    console.log('User verification status updated successfully');
   }
 
   /**

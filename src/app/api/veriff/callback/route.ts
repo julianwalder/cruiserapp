@@ -13,7 +13,9 @@ export async function POST(request: NextRequest) {
     });
 
     // Handle the callback
+    console.log('Processing Veriff callback...');
     await VeriffService.handleCallback(payload);
+    console.log('Veriff callback processed successfully');
 
     // Return success response to Veriff
     return NextResponse.json({ status: 'ok' });
