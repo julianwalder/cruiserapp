@@ -61,8 +61,7 @@ export class VeriffService {
 
     const payload = {
       verification: {
-        callback: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/veriff/callback`,
-        returnUrl: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/my-account`,
+        callback: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/veriff/callback?sessionId={sessionId}&status={status}`,
       },
     };
 
@@ -285,7 +284,7 @@ export class VeriffService {
       
       const { data: user, error } = await supabase
         .from('users')
-        .select('veriffSessionId, veriffStatus, identityVerified, veriffData')
+        .select('veriffSessionId, veriffSessionUrl, veriffStatus, identityVerified, veriffData')
         .eq('id', userId)
         .single();
 

@@ -32,10 +32,16 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Also handle GET requests (for testing)
+// Also handle GET requests (for user redirects from Veriff)
 export async function GET(request: NextRequest) {
-  return NextResponse.json({ 
-    status: 'ok',
-    message: 'Veriff callback endpoint is active'
-  });
+  const { searchParams } = new URL(request.url);
+  const sessionId = searchParams.get('sessionId');
+  const status = searchParams.get('status');
+  
+  console.log('Veriff GET callback received:', { sessionId, status });
+  
+  // Redirect user back to the app with status information
+  const redirectUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/my-account?veriff_status=${status || 'completed'}&session_id=${sessionId || ''}`;
+  
+  return NextResponse.redirect(redirectUrl);
 } 
