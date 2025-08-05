@@ -19,6 +19,7 @@ import {
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { VeriffIDVResults } from './veriff-idv-results';
+import { VeriffWebhookStatus } from './veriff-webhook-status';
 
 interface VeriffVerificationProps {
   userId: string;
@@ -360,6 +361,13 @@ export function VeriffVerification({
         )}
       </CardContent>
     </Card>
+
+    {/* Webhook Status */}
+    {status?.veriffData && status.veriffData.sessionId && (
+      <div className="mt-6">
+        <VeriffWebhookStatus veriffData={status.veriffData} />
+      </div>
+    )}
 
     {/* Full Auto IDV Results */}
     {status?.isVerified && status?.veriffData && (
