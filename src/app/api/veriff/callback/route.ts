@@ -42,9 +42,9 @@ export async function GET(request: NextRequest) {
   
   console.log('Veriff GET callback received:', { sessionId, status });
   
-  // Redirect to completion page which will handle the redirect to my-account
-  const redirectUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/veriff-complete?veriff_status=${status || 'completed'}&session_id=${sessionId || ''}`;
+  // Since we don't have session info, we'll redirect to my-account and let the frontend handle status refresh
+  const redirectUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/my-account?veriff_status=completed`;
   
-  console.log('Redirecting to completion page:', redirectUrl);
+  console.log('Redirecting to my-account:', redirectUrl);
   return NextResponse.redirect(redirectUrl);
 } 

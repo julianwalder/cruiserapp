@@ -155,11 +155,19 @@ export class VeriffService {
       throw new Error('Invalid callback payload');
     }
 
-    // Get full verification details
-    const verificationDetails = await this.getVerification(verification.id);
-    
-    // Update user verification status
-    await this.updateUserVerification(verification.id, verificationDetails);
+    console.log('Processing webhook for verification:', verification.id);
+
+    try {
+      // Get full verification details
+      const verificationDetails = await this.getVerification(verification.id);
+      console.log('Retrieved verification details:', verificationDetails);
+      
+      // Update user verification status
+      await this.updateUserVerification(verification.id, verificationDetails);
+    } catch (error) {
+      console.error('Error processing webhook:', error);
+      // Don't throw - we want to return 200 to Veriff even if there's an error
+    }
   }
 
   /**

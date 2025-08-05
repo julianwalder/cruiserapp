@@ -59,17 +59,28 @@ export function VeriffVerification({
     const veriffStatus = urlParams.get('veriff_status');
     const sessionId = urlParams.get('session_id');
     
-    if (veriffStatus || sessionId) {
+    if (veriffStatus === 'completed') {
       console.log('Veriff completion detected:', { veriffStatus, sessionId });
-      // Refresh status after a short delay to allow webhook processing
-      setTimeout(() => {
+      
+      // Show a success message
+      toast.success('Verification completed! Checking status...');
+      
+      // Refresh status multiple times to ensure we get the updated status
+      const refreshStatus = () => {
         fetchStatus();
-        // Clear URL parameters
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.delete('veriff_status');
-        newUrl.searchParams.delete('session_id');
-        window.history.replaceState({}, '', newUrl.toString());
-      }, 2000);
+      };
+      
+      // Refresh immediately, then after 2s, 5s, and 10s to catch webhook updates
+      refreshStatus();
+      setTimeout(refreshStatus, 2000);
+      setTimeout(refreshStatus, 5000);
+      setTimeout(refreshStatus, 10000);
+      
+      // Clear URL parameters
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('veriff_status');
+      newUrl.searchParams.delete('session_id');
+      window.history.replaceState({}, '', newUrl.toString());
     }
   }, [userId]);
 
