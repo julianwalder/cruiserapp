@@ -87,11 +87,12 @@ export class VeriffService {
     const payloadString = JSON.stringify(payload);
     const signature = this.generateSignature(payloadString);
     
-    console.log('Veriff API Request (UPDATED CODE):', {
+    console.log('Veriff API Request (FULL AUTO IDV):', {
       url: `${this.BASE_URL}/sessions`,
       environment: this.ENVIRONMENT,
       payload: payloadString,
       payloadLength: payloadString.length,
+      payloadPreview: payloadString.substring(0, 200) + '...',
       signature: signature.substring(0, 10) + '...',
       apiKey: this.API_KEY ? `${this.API_KEY.substring(0, 8)}...` : 'Not set',
       apiSecret: this.API_SECRET ? `${this.API_SECRET.substring(0, 8)}...` : 'Not set'
