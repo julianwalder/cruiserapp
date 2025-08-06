@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,72 +21,51 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
-// Mock notification data (same as in NotificationBadge)
-const mockNotifications = [
-  {
-    id: 1,
-    type: 'flight',
-    title: 'Flight Log Approved',
-    message: 'Your flight log from yesterday has been approved by the instructor.',
-    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-    read: false,
-    avatar: 'FL'
-  },
-  {
-    id: 2,
-    type: 'system',
-    title: 'System Maintenance',
-    message: 'Scheduled maintenance will occur tonight at 2:00 AM. Expect brief downtime.',
-    timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
-    read: false,
-    avatar: 'SM'
-  },
-  {
-    id: 3,
-    type: 'billing',
-    title: 'Payment Received',
-    message: 'Payment of €150.00 for flight hours package has been received.',
-    timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
-    read: true,
-    avatar: 'PR'
-  },
-  {
-    id: 4,
-    type: 'fleet',
-    title: 'Aircraft Available',
-    message: 'Aircraft C-152 (D-EFGH) is now available for booking.',
-    timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
-    read: true,
-    avatar: 'AA'
-  },
-  {
-    id: 5,
-    type: 'weather',
-    title: 'Weather Alert',
-    message: 'Strong winds expected in the area. Check weather conditions before flight.',
-    timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
-    read: true,
-    avatar: 'WA'
-  },
-  {
-    id: 6,
-    type: 'flight',
-    title: 'New Training Session',
-    message: 'A new training session has been scheduled for next week.',
-    timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
-    read: true,
-    avatar: 'TS'
-  },
-  {
-    id: 7,
-    type: 'billing',
-    title: 'Invoice Generated',
-    message: 'Your monthly invoice has been generated and is ready for review.',
-    timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 1 week ago
-    read: true,
-    avatar: 'IG'
-  }
-];
+// Interface for activity data from API
+interface ActivityData {
+  id: string;
+  title: string;
+  description: string;
+  time: string;
+  type: string;
+  entityType: string;
+  entityId: string;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+  } | null;
+  metadata: any;
+}
+
+// Convert activity data to notification format
+const convertActivityToNotification = (activity: ActivityData) => {
+  const getTypeFromAction = (action: string) => {
+    if (action.includes('FLIGHT')) return 'flight';
+    if (action.includes('USER')) return 'system';
+    if (action.includes('INVOICE') || action.includes('BILLING')) return 'billing';
+    if (action.includes('AIRCRAFT') || action.includes('FLEET')) return 'fleet';
+    if (action.includes('AIRFIELD')) return 'system';
+    return 'system';
+  };
+
+  const getAvatar = (user: { name: string } | null) => {
+    if (!user) return 'SYS';
+    return user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  return {
+    id: activity.id,
+    type: getTypeFromAction(activity.type),
+    title: activity.title,
+    message: activity.description || `${activity.title} performed by ${activity.user?.name || 'System'}`,
+    timestamp: new Date(), // We'll use the time string for display
+    timeString: activity.time,
+    read: false, // All activities are considered unread initially
+    avatar: getAvatar(activity.user),
+    user: activity.user
+  };
+};
 
 const getNotificationIcon = (type: string) => {
   switch (type) {
@@ -140,10 +119,47 @@ const getTypeLabel = (type: string) => {
 };
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState(mockNotifications);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('all');
+
+  // Fetch real activity data
+  useEffect(() => {
+    const fetchActivities = async () => {
+      try {
+        setLoading(true);
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setError('No authentication token found');
+          return;
+        }
+
+        const response = await fetch('/api/activity?page=1&limit=50', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch activities');
+        }
+
+        const data = await response.json();
+        const convertedNotifications = data.activities.map(convertActivityToNotification);
+        setNotifications(convertedNotifications);
+      } catch (err) {
+        console.error('Error fetching activities:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load notifications');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchActivities();
+  }, []);
 
   const filteredNotifications = notifications.filter(notification => {
     const matchesSearch = notification.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -245,7 +261,18 @@ export default function NotificationsPage() {
           </Tabs>
         </CardHeader>
         <CardContent>
-          {filteredNotifications.length === 0 ? (
+          {loading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading notifications...</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-8">
+              <Bell className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">Error loading notifications</p>
+              <p className="text-xs text-muted-foreground mt-2">{error}</p>
+            </div>
+          ) : filteredNotifications.length === 0 ? (
             <div className="text-center py-8">
               <Bell className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <p className="text-muted-foreground">No notifications found</p>
@@ -269,7 +296,7 @@ export default function NotificationsPage() {
                     <div className="flex items-center space-x-2 mb-1">
                       <span className="text-sm">{getNotificationIcon(notification.type)}</span>
                       <h3 className={`text-sm font-medium ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>
-                        {notification.title}
+                        {notification.user?.name ? `${notification.user.name} - ${notification.title}` : notification.title}
                       </h3>
                       {!notification.read && (
                         <Badge variant="secondary" className="text-xs">
@@ -283,9 +310,11 @@ export default function NotificationsPage() {
                     <p className="text-sm text-muted-foreground mb-2">
                       {notification.message}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
-                    </p>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-muted-foreground">
+                        {notification.user?.name || 'System'} • {notification.timeString}
+                      </p>
+                    </div>
                   </div>
                   
                   <div className="flex items-center space-x-2">
