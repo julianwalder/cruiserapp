@@ -100,8 +100,6 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
         return 'Reports';
       case 'billing':
         return 'Billing';
-      case 'client-hours':
-        return 'Client Hours';
       default:
         return 'Dashboard';
     }
