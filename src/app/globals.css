@@ -44,10 +44,8 @@
   
   /* Hydration delay fixes for sticky positioning */
   .sticky-header {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
+    position: sticky;
+    top: 0;
     z-index: 40;
     /* Prevent layout shift during hydration */
     min-height: 64px; /* h-16 */
@@ -61,16 +59,15 @@
   
   /* Ensure header is always visible during hydration */
   .sticky-header[data-hydrating="true"] {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
   }
   
   /* Prevent content jump during hydration */
   .content-with-sticky-header {
-    padding-top: 64px !important; /* h-16 */
-    margin-top: 0 !important;
+    padding-top: 64px; /* h-16 */
   }
   
   /* Smooth transition after hydration */
