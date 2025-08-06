@@ -20,6 +20,12 @@ export const metadata: Metadata = {
   title: "Cruiser Aviation Management System",
   description: "Modern flight school management with user management, aircraft tracking, and scheduling",
   metadataBase: new URL('https://app.cruiseraviation.com'),
+  viewport: {
+    width: 'device-width',
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
   openGraph: {
     title: "Cruiser Aviation Management System",
     description: "Modern flight school management with user management, aircraft tracking, and scheduling",

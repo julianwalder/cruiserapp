@@ -120,8 +120,8 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
     <div className="flex h-screen bg-white dark:bg-gray-900">
       <NewSidebar user={user} onLogout={handleLogout} />
       
-      <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
-        <header className="bg-card shadow-sm border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 h-16 flex items-center">
+      <div className="flex-1 flex flex-col overflow-hidden lg:ml-0 sticky-container">
+        <header className="sticky top-0 bg-card shadow-sm border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 h-16 flex items-center z-40">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center space-x-4">
               <div className="lg:ml-0 ml-12">

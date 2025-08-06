@@ -4,6 +4,44 @@
 @custom-variant dark (&:is(.dark *));
 
 @layer base {
+  /* Mobile sticky positioning fixes */
+  .sticky {
+    position: -webkit-sticky;
+    position: sticky;
+  }
+  
+  /* iOS Safari sticky positioning fixes */
+  @supports (-webkit-touch-callout: none) {
+    .sticky {
+      position: -webkit-sticky;
+    }
+  }
+  
+  /* Prevent sticky positioning issues with transforms */
+  .sticky-container {
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    will-change: transform;
+  }
+  
+  /* iOS Safari specific fixes */
+  @supports (-webkit-touch-callout: none) {
+    .sticky {
+      position: -webkit-sticky !important;
+    }
+    
+    /* Fix for iOS Safari viewport issues */
+    body {
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Ensure proper stacking context */
+    .sticky-container {
+      -webkit-transform: translate3d(0, 0, 0);
+      transform: translate3d(0, 0, 0);
+    }
+  }
+  
   :root {
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
