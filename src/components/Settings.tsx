@@ -26,6 +26,7 @@ import IcaoImportTab from './IcaoImportTab';
 import UsersImportTab from './UsersImportTab';
 import FlightLogsImportTab from './FlightLogsImportTab';
 import FleetImportTab from './FleetImportTab';
+import WebhookMonitoringTab from './WebhookMonitoringTab';
 import { DATE_FORMATS, type DateFormat } from '@/lib/date-utils';
 import { useDateFormat } from '@/contexts/DateFormatContext';
 import { User } from "@/types/uuid-types";
@@ -173,6 +174,9 @@ export default function Settings() {
           )}
           {isSuperAdmin && (
             <TabsTrigger value="flight-logs-import">Flight Logs Import</TabsTrigger>
+          )}
+          {isSuperAdmin && (
+            <TabsTrigger value="webhook-monitoring">Webhook Monitoring</TabsTrigger>
           )}
           <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="backup">Backup & Export</TabsTrigger>
@@ -345,6 +349,12 @@ export default function Settings() {
         {isSuperAdmin && (
           <TabsContent value="flight-logs-import" className="space-y-6">
             <FlightLogsImportTab />
+          </TabsContent>
+        )}
+
+        {isSuperAdmin && (
+          <TabsContent value="webhook-monitoring" className="space-y-6">
+            <WebhookMonitoringTab />
           </TabsContent>
         )}
 

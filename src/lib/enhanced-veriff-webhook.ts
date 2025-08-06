@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { WebhookMonitor } from './webhook-monitor';
 
 interface VeriffWebhookPayload {
   id?: string;
@@ -18,6 +19,11 @@ interface VeriffWebhookPayload {
   personNationality?: string;
   personGender?: string;
   personCountry?: string;
+  personAddress?: string;
+  personCity?: string;
+  personPostalCode?: string;
+  personStreet?: string;
+  personHouseNumber?: string;
   
   // Document data (from SelfID extraction)
   documentType?: string;
@@ -52,6 +58,11 @@ interface VeriffWebhookPayload {
       nationality?: string;
       gender?: string;
       country?: string;
+      address?: string;
+      city?: string;
+      postalCode?: string;
+      street?: string;
+      houseNumber?: string;
     };
     document?: {
       type: string;
@@ -120,11 +131,6 @@ export class EnhancedVeriffWebhook {
       status: payload.status
     });
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
-
     // Determine user ID from webhook
     const userId = payload.vendorData || payload.verification?.id;
     if (!userId) {
@@ -133,20 +139,63 @@ export class EnhancedVeriffWebhook {
 
     console.log('👤 Processing webhook for user:', userId);
 
-    // Extract verification data based on webhook type
-    const verificationData = this.extractVerificationData(payload);
-    
-    // Update user verification data
-    await this.updateUserVerificationData(userId, verificationData);
-    
-    console.log('✅ Webhook processed successfully for user:', userId);
+    // Log webhook event for monitoring
+    const webhookEventId = crypto.randomUUID();
+    await WebhookMonitor.logWebhookEvent({
+      userId,
+      eventType: 'received',
+      webhookType: this.getWebhookType(payload),
+      sessionId: payload.id,
+      status: 'pending',
+      payload,
+      retryCount: 0,
+    });
+
+    try {
+      // Extract verification data based on webhook type
+      const verificationData = this.extractVerificationData(payload);
+      
+      // Update user verification data with comprehensive extraction
+      await this.updateUserVerificationData(userId, verificationData);
+      
+      // Mark webhook as successfully processed
+      await WebhookMonitor.markWebhookProcessed(webhookEventId, true);
+      
+      console.log('✅ Webhook processed successfully for user:', userId);
+      console.log('📊 Personal data extracted and stored automatically');
+    } catch (error) {
+      console.error('❌ Error processing webhook:', error);
+      
+      // Mark webhook as failed
+      await WebhookMonitor.markWebhookProcessed(
+        webhookEventId, 
+        false, 
+        error instanceof Error ? error.message : String(error)
+      );
+      
+      throw error;
+    }
   }
 
   /**
-   * Extract verification data from webhook payload
+   * Determine webhook type from payload
+   */
+  private static getWebhookType(payload: VeriffWebhookPayload): 'submitted' | 'approved' | 'declined' | 'unknown' {
+    if (payload.action === 'submitted' || payload.status === 'submitted') {
+      return 'submitted';
+    } else if (payload.action === 'approved' || payload.status === 'approved') {
+      return 'approved';
+    } else if (payload.action === 'declined' || payload.status === 'declined') {
+      return 'declined';
+    }
+    return 'unknown';
+  }
+
+  /**
+   * Extract verification data from webhook payload with comprehensive data extraction
    */
   private static extractVerificationData(payload: VeriffWebhookPayload) {
-    // Handle SelfID webhooks (new format)
+    // Handle SelfID webhooks (new format) - This is where personal data comes from
     if (payload.feature === 'selfid') {
       return {
         // Session and metadata
@@ -157,7 +206,7 @@ export class EnhancedVeriffWebhook {
         code: payload.code,
         attemptId: payload.attemptId,
         
-        // Person data
+        // Person data - Comprehensive extraction
         person: {
           givenName: payload.personGivenName,
           lastName: payload.personLastName,
@@ -166,9 +215,14 @@ export class EnhancedVeriffWebhook {
           nationality: payload.personNationality,
           gender: payload.personGender,
           country: payload.personCountry,
+          address: payload.personAddress,
+          city: payload.personCity,
+          postalCode: payload.personPostalCode,
+          street: payload.personStreet,
+          houseNumber: payload.personHouseNumber,
         },
         
-        // Document data
+        // Document data - Comprehensive extraction
         document: {
           type: payload.documentType,
           number: payload.documentNumber,
@@ -217,10 +271,10 @@ export class EnhancedVeriffWebhook {
         code: payload.code,
         attemptId: payload.attemptId,
         
-        // Person data
+        // Person data - Comprehensive extraction
         person: payload.verification.person,
         
-        // Document data
+        // Document data - Comprehensive extraction
         document: payload.verification.document,
         
         // Verification results
@@ -256,7 +310,7 @@ export class EnhancedVeriffWebhook {
   }
 
   /**
-   * Update user verification data in database
+   * Update user verification data in database with comprehensive field mapping
    */
   private static async updateUserVerificationData(userId: string, verificationData: any): Promise<void> {
     const supabase = createClient(
@@ -268,11 +322,12 @@ export class EnhancedVeriffWebhook {
       userId,
       status: verificationData.status,
       hasPersonData: !!verificationData.person,
-      hasDocumentData: !!verificationData.document
+      hasDocumentData: !!verificationData.document,
+      hasAddressData: !!verificationData.person?.address
     });
 
     const updateData: any = {
-      // Session and metadata
+      // Session and metadata - CRITICAL: Always update these fields
       veriffSessionId: verificationData.sessionId,
       veriffStatus: verificationData.status,
       identityVerified: verificationData.status === 'approved',
@@ -280,7 +335,7 @@ export class EnhancedVeriffWebhook {
       // Store comprehensive webhook data
       veriffWebhookData: verificationData,
       
-      // Store individual fields for easy access
+      // Store individual person fields for easy access - CRITICAL: Always update these
       veriffPersonGivenName: verificationData.person?.givenName,
       veriffPersonLastName: verificationData.person?.lastName,
       veriffPersonIdNumber: verificationData.person?.idNumber,
@@ -289,6 +344,7 @@ export class EnhancedVeriffWebhook {
       veriffPersonGender: verificationData.person?.gender,
       veriffPersonCountry: verificationData.person?.country,
       
+      // Store document fields
       veriffDocumentType: verificationData.document?.type,
       veriffDocumentNumber: verificationData.document?.number,
       veriffDocumentCountry: verificationData.document?.country,
@@ -296,6 +352,7 @@ export class EnhancedVeriffWebhook {
       veriffDocumentValidUntil: verificationData.document?.validUntil,
       veriffDocumentIssuedBy: verificationData.document?.issuedBy,
       
+      // Store verification results
       veriffFaceMatchSimilarity: verificationData.additionalVerification?.faceMatch?.similarity,
       veriffFaceMatchStatus: verificationData.additionalVerification?.faceMatch?.status,
       veriffDecisionScore: verificationData.decisionScore,
@@ -320,6 +377,22 @@ export class EnhancedVeriffWebhook {
       updatedAt: new Date().toISOString(),
     };
 
+    // If approved, set identityVerifiedAt
+    if (verificationData.status === 'approved') {
+      updateData.identityVerifiedAt = new Date().toISOString();
+    }
+
+    // Update address fields if available (for frontend display)
+    if (verificationData.person?.address) {
+      updateData.address = verificationData.person.address;
+    }
+    if (verificationData.person?.city) {
+      updateData.city = verificationData.person.city;
+    }
+    if (verificationData.person?.postalCode) {
+      updateData.postalCode = verificationData.person.postalCode;
+    }
+
     const { error } = await supabase
       .from('users')
       .update(updateData)
@@ -331,6 +404,7 @@ export class EnhancedVeriffWebhook {
     }
 
     console.log('✅ User verification data updated successfully');
+    console.log('📊 Personal data automatically extracted and stored');
     
     // Log activity
     await this.logActivity(userId, verificationData);
@@ -353,8 +427,11 @@ export class EnhancedVeriffWebhook {
         feature: verificationData.feature,
         hasPersonData: !!verificationData.person,
         hasDocumentData: !!verificationData.document,
+        hasAddressData: !!verificationData.person?.address,
         documentType: verificationData.document?.type,
         documentCountry: verificationData.document?.country,
+        personName: verificationData.person ? `${verificationData.person.givenName} ${verificationData.person.lastName}` : null,
+        personIdNumber: verificationData.person?.idNumber,
       },
       timestamp: new Date().toISOString(),
     };
@@ -416,7 +493,10 @@ export class EnhancedVeriffWebhook {
         veriffApprovedAt,
         veriffDeclinedAt,
         veriffWebhookReceivedAt,
-        veriffWebhookData
+        veriffWebhookData,
+        address,
+        city,
+        postalCode
       `)
       .eq('id', userId)
       .single();
@@ -449,6 +529,9 @@ export class EnhancedVeriffWebhook {
         nationality: user.veriffPersonNationality,
         gender: user.veriffPersonGender,
         country: user.veriffPersonCountry,
+        address: user.address,
+        city: user.city,
+        postalCode: user.postalCode,
       },
       
       document: {
