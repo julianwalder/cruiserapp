@@ -230,7 +230,7 @@ export default function DashboardPage() {
                         <div>
                           <p className="text-sm font-medium">{activity.title}</p>
                           <p className="text-xs text-muted-foreground">
-                            {activity.user?.email || 'System'} • {activity.time}
+                            {activity.user?.name || 'System'} • {activity.time}
                           </p>
                         </div>
                       </div>
