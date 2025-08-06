@@ -3,14 +3,15 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { NewSidebar } from '@/components/NewSidebar';
-import { ThemeToggle } from '@/components/ThemeToggle';
-import { NotificationBadge } from '@/components/NotificationBadge';
+import { UserMenu } from '@/components/UserMenu';
+import { useNotificationCount } from '@/hooks/use-notification-count';
 
 interface User {
   id: string;
   email: string;
   firstName: string;
   lastName: string;
+  avatarUrl?: string;
   userRoles: Array<{
     roles: {
       id: string;
@@ -31,6 +32,7 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isHydrated, setIsHydrated] = useState(false);
+  const { count: notificationCount } = useNotificationCount();
 
   // Handle hydration state
   useEffect(() => {
@@ -146,8 +148,7 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
             </div>
             
             <div className="flex items-center space-x-4">
-              {isHydrated && <NotificationBadge />}
-              {isHydrated && <ThemeToggle />}
+              {isHydrated && <UserMenu user={user} onLogout={handleLogout} notificationCount={notificationCount} />}
             </div>
           </div>
         </header>

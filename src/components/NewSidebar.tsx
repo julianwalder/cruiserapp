@@ -10,8 +10,6 @@ import {
   Plane, 
   Users, 
   Calendar, 
-  Settings, 
-  LogOut, 
   FileText,
   Home,
   Shield,
@@ -21,13 +19,9 @@ import {
   Menu,
   X,
   Clock,
-  MoreVertical,
-  User,
   ShoppingCart
 } from 'lucide-react';
-import { ThemeToggle } from '@/components/ThemeToggle';
 import { Logo } from '@/components/ui/logo';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 interface User {
   id: string;
@@ -116,12 +110,7 @@ const navigationItems = [
     icon: FileText,
     description: 'Analytics and reports'
   },
-  {
-    title: 'Settings',
-    url: '/settings',
-    icon: Settings,
-    description: 'System configuration'
-  },
+
 ];
 
 export function NewSidebar({ user, onLogout }: NewSidebarProps) {
@@ -134,47 +123,7 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'SUPER_ADMIN':
-        return 'bg-destructive-10 text-destructive border-destructive-20';
-      case 'ADMIN':
-        return 'bg-secondary-10 text-secondary-foreground border-secondary-20';
-      case 'INSTRUCTOR':
-        return 'bg-primary-10 text-primary border-primary-20';
-      case 'PILOT':
-        return 'bg-success-10 text-success border-success-20';
-      case 'STUDENT':
-        return 'bg-warning-10 text-warning border-warning-20';
-      case 'BASE_MANAGER':
-        return 'bg-primary-20 text-primary border-primary-20';
-      default:
-        return 'bg-muted text-muted-foreground border-border';
-    }
-  };
 
-  const getRoleDisplayName = (role: string) => {
-    switch (role) {
-      case 'SUPER_ADMIN':
-        return 'Super Admin';
-      case 'ADMIN':
-        return 'Admin';
-      case 'INSTRUCTOR':
-        return 'Instructor';
-      case 'PILOT':
-        return 'Pilot';
-      case 'STUDENT':
-        return 'Student';
-      case 'BASE_MANAGER':
-        return 'Base Manager';
-      default:
-        return role;
-    }
-  };
-
-  const getInitials = (firstName: string | undefined | null, lastName: string | undefined | null) => {
-    return `${firstName?.charAt(0) || ''}${lastName?.charAt(0) || ''}`.toUpperCase();
-  };
 
   const hasRole = (roleName: string) => {
     return user?.userRoles.some(userRole => userRole.roles.name === roleName) || false;
@@ -426,89 +375,7 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
           </div>
         </div>
 
-        {/* Fixed Footer with User Profile and Actions */}
-        <div className="flex-shrink-0 border-t border-sidebar-border">
-          {/* User Profile with Menu */}
-          {user && (
-            <div className="p-4">
-              <div className="flex items-center space-x-3">
-                <OptimizedAvatar
-                  src={user.avatarUrl}
-                  alt={`${user.firstName} ${user.lastName}`}
-                  fallback={`${user.firstName} ${user.lastName}`}
-                  size="md"
-                  className="h-10 w-10 bg-sidebar-primary text-sidebar-primary-foreground"
-                />
-                {!isCollapsed && (
-                  <div className="flex-1 min-w-0">
-                                      <div className="font-medium text-sm text-sidebar-foreground truncate">
-                    {user.firstName} {user.lastName}
-                  </div>
-                    <div className="flex gap-0.5 mt-1">
-                      {user.userRoles?.slice(0, 2).map((userRole, index) => (
-                        <Badge key={`${userRole.roles.name}-${index}`} className={`text-xs px-0.5 py-0 border flex-shrink-0 ${getRoleBadgeColor(userRole.roles.name)}`}>
-                          {getRoleDisplayName(userRole.roles.name)}
-                        </Badge>
-                      ))}
-                      {user.userRoles?.length > 2 && (
-                        <Badge variant="outline" className="text-xs px-0.5 py-0 flex-shrink-0">
-                          +{user.userRoles.length - 2}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                )}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
-                    <div className="px-2 py-1.5">
-                      <div className="flex items-center space-x-2">
-                        <OptimizedAvatar
-                          src={user.avatarUrl}
-                          alt={`${user.firstName} ${user.lastName}`}
-                          fallback={`${user.firstName} ${user.lastName}`}
-                          size="sm"
-                          className="h-8 w-8 bg-sidebar-primary text-sidebar-primary-foreground"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm text-foreground truncate">
-                            {user.firstName} {user.lastName}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="h-px bg-gray-300 dark:bg-gray-600 mx-2" />
-                    <DropdownMenuItem onClick={() => handleNavigation('/my-account')}>
-                      <User className="mr-2 h-4 w-4" />
-                      My Account
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleNavigation('/billing')}>
-                      <DollarSign className="mr-2 h-4 w-4" />
-                      Invoices
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleNavigation('/notifications')}>
-                      <FileText className="mr-2 h-4 w-4" />
-                      Notifications
-                    </DropdownMenuItem>
-                    <div className="h-px bg-border my-1" />
-                    <DropdownMenuItem onClick={onLogout} className="text-destructive">
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Logout
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Fixed Footer - Removed user profile section as it's now in the header */}
       </div>
 
       {/* Main Content Spacer */}

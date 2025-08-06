@@ -72,18 +72,29 @@ export default function Settings() {
     const fetchCurrentUser = async () => {
       try {
         const token = localStorage.getItem('token');
+        console.log('🔍 Settings - Token exists:', !!token);
+        
+        if (!token) {
+          console.error('🔍 Settings - No token found in localStorage');
+          return;
+        }
+
         const response = await fetch('/api/auth/me', {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
         });
+        
+        console.log('🔍 Settings - Response status:', response.status);
+        
         if (response.ok) {
           const data = await response.json();
           console.log('🔍 Settings - Current user data:', data);
           console.log('🔍 Settings - User roles:', data.userRoles);
           setCurrentUser(data);
         } else {
-          console.error('🔍 Settings - Failed to fetch user data:', response.status);
+          const errorData = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
+          console.error('🔍 Settings - Failed to fetch user data:', response.status, errorData);
         }
       } catch (error) {
         console.error('🔍 Settings - Error fetching user:', error);
@@ -91,7 +102,7 @@ export default function Settings() {
     };
     fetchCurrentUser();
   }, []);
-  const isSuperAdmin = currentUser?.userRoles?.some((userRole: unknown) => {
+  const isSuperAdmin = currentUser?.userRoles?.some((userRole: any) => {
     console.log('🔍 Settings - userRole:', userRole);
     return userRole?.roles?.name === 'SUPER_ADMIN';
   });
