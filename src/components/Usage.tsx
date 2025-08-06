@@ -265,7 +265,7 @@ export default function Usage() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/client-hours', {
+      const response = await fetch('/api/usage', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -440,7 +440,7 @@ export default function Usage() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/client-hours/order', {
+      const response = await fetch('/api/usage/order', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

@@ -111,7 +111,7 @@ sortedPackages.forEach(pkg => {
 ## Implementation Details
 
 ### Files Modified
-1. **`src/app/api/client-hours/route.ts`**
+1. **`src/app/api/usage/route.ts`**
    - Updated calculation logic to use FIFO
    - Added package sorting by purchase date
    - Implemented sequential consumption logic

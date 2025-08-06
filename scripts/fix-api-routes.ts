@@ -35,7 +35,7 @@ interface AuthUser extends User {
     ]
   },
   {
-    file: 'src/app/api/client-hours/order/route.ts',
+    file: 'src/app/api/usage/order/route.ts',
     description: 'Fix client hours order route user properties',
     fixes: [
       {

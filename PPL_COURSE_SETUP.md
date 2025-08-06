@@ -213,7 +213,7 @@ curl -X POST /api/smartbill/process-ppl-courses
 curl -X POST /api/smartbill/update-ppl-usage
 
 # View client hours (includes PPL data)
-curl -X GET /api/client-hours
+curl -X GET /api/usage
 ```
 
 ## Security
