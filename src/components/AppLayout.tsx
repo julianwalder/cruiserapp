@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { NewSidebar } from '@/components/NewSidebar';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -30,6 +30,12 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Handle hydration state
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -71,7 +77,7 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
   };
 
   // Get page title from pathname if not provided
-  const getPageTitle = () => {
+  const getPageTitle = useMemo(() => {
     if (pageTitle) return pageTitle;
     
     const path = pathname.split('/')[1];
@@ -103,7 +109,7 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
       default:
         return 'Dashboard';
     }
-  };
+  }, [pageTitle, pathname]);
 
   if (loading) {
     return (
@@ -118,27 +124,35 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
 
   return (
     <div className="flex h-screen bg-white dark:bg-gray-900">
-      <NewSidebar user={user} onLogout={handleLogout} />
+      {isHydrated && <NewSidebar user={user} onLogout={handleLogout} />}
       
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0 sticky-container">
-        <header className="sticky top-0 bg-card shadow-sm border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 h-16 flex items-center z-40">
+        <header 
+          className="sticky-header px-4 sm:px-6 flex items-center"
+          data-hydrating={!isHydrated}
+          data-hydrated={isHydrated}
+        >
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center space-x-4">
               <div className="lg:ml-0 ml-12">
-                <h1 className="text-xl sm:text-2xl font-semibold text-card-foreground">
-                  {getPageTitle()}
-                </h1>
+                {!isHydrated ? (
+                  <div className="h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                ) : (
+                  <h1 className="text-xl sm:text-2xl font-semibold text-card-foreground">
+                    {getPageTitle}
+                  </h1>
+                )}
               </div>
             </div>
             
             <div className="flex items-center space-x-4">
-              <NotificationBadge />
-              <ThemeToggle />
+              {isHydrated && <NotificationBadge />}
+              {isHydrated && <ThemeToggle />}
             </div>
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-white dark:bg-gray-900">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-white dark:bg-gray-900 content-with-sticky-header">
           {children}
         </main>
       </div>

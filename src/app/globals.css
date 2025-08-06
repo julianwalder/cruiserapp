@@ -42,6 +42,39 @@
     }
   }
   
+  /* Hydration delay fixes for sticky positioning */
+  .sticky-header {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    /* Prevent layout shift during hydration */
+    min-height: 64px; /* h-16 */
+    background-color: hsl(var(--card));
+    border-bottom: 1px solid hsl(var(--border));
+    /* Force GPU acceleration */
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+    will-change: transform;
+  }
+  
+  /* Ensure header is always visible during hydration */
+  .sticky-header[data-hydrating="true"] {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+  }
+  
+  /* Prevent content jump during hydration */
+  .content-with-sticky-header {
+    padding-top: 64px; /* h-16 */
+  }
+  
+  /* Smooth transition after hydration */
+  .sticky-header[data-hydrated="true"] {
+    transition: all 0.2s ease-in-out;
+  }
+  
   :root {
     --background: 0 0% 100%;
     --foreground: 240 10% 3.9%;
