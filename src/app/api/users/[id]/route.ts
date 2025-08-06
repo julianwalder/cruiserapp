@@ -55,6 +55,7 @@ async function getUser(request: NextRequest, currentUser: any) {
         "createdAt",
         "updatedAt",
         "lastLoginAt",
+        "avatarUrl",
         user_roles (
           roles (
             name

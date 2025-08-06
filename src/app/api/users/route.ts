@@ -37,6 +37,7 @@ async function getUsers(request: NextRequest, currentUser: any) {
         status,
         "createdAt",
         "updatedAt",
+        "avatarUrl",
         user_roles (
           roles (
             name
