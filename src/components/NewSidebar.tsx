@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { OptimizedAvatar } from '@/components/ui/optimized-avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -34,6 +34,7 @@ interface User {
   email: string;
   firstName: string;
   lastName: string;
+  avatarUrl?: string;
   userRoles: Array<{
     roles: {
       id: string;
@@ -243,7 +244,6 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
         hasAccess = true; // Show other items to all users
     }
     
-            // Debug log removed - navigation filtering is working correctly
     return hasAccess;
   });
 
@@ -254,9 +254,16 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
       const currentTab = searchParams.get('tab');
       return pathname === '/dashboard' && (!currentTab || currentTab === 'overview');
     }
-    const expectedTab = url.split('=')[1];
-    const currentTab = searchParams.get('tab');
-    return pathname === '/dashboard' && currentTab === expectedTab;
+    
+    // For dashboard tabs, check if the tab matches
+    if (url.startsWith('/dashboard?tab=')) {
+      const expectedTab = url.split('=')[1];
+      const currentTab = searchParams.get('tab');
+      return pathname === '/dashboard' && currentTab === expectedTab;
+    }
+    
+    // For other pages, check if the pathname matches
+    return pathname === url;
   };
 
   const handleNavigation = (url: string) => {
@@ -375,7 +382,6 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
 
               {filteredNavigationItems.map((item) => {
                 const active = isActive(item.url);
-                // Debug log removed - navigation rendering is working correctly
                 return (
                   <Button
                     key={item.title}
@@ -426,11 +432,13 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
           {user && (
             <div className="p-4">
               <div className="flex items-center space-x-3">
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-sm font-medium">
-                    {getInitials(user.firstName, user.lastName)}
-                  </AvatarFallback>
-                </Avatar>
+                <OptimizedAvatar
+                  src={user.avatarUrl}
+                  alt={`${user.firstName} ${user.lastName}`}
+                  fallback={`${user.firstName} ${user.lastName}`}
+                  size="md"
+                  className="h-10 w-10 bg-sidebar-primary text-sidebar-primary-foreground"
+                />
                 {!isCollapsed && (
                   <div className="flex-1 min-w-0">
                                       <div className="font-medium text-sm text-sidebar-foreground truncate">
@@ -463,11 +471,13 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
                   <DropdownMenuContent align="end" className="w-56">
                     <div className="px-2 py-1.5">
                       <div className="flex items-center space-x-2">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs font-medium">
-                            {getInitials(user.firstName, user.lastName)}
-                          </AvatarFallback>
-                        </Avatar>
+                        <OptimizedAvatar
+                          src={user.avatarUrl}
+                          alt={`${user.firstName} ${user.lastName}`}
+                          fallback={`${user.firstName} ${user.lastName}`}
+                          size="sm"
+                          className="h-8 w-8 bg-sidebar-primary text-sidebar-primary-foreground"
+                        />
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-sm text-foreground truncate">
                             {user.firstName} {user.lastName}

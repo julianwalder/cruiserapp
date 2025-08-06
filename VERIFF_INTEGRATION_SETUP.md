@@ -1,361 +1,193 @@
-# Veriff ID Verification Integration
-
-This document provides a comprehensive guide for setting up and using Veriff ID Verification in the CruiserApp.
+# Veriff Integration Setup Guide
 
 ## Overview
 
-Veriff is a secure identity verification service that allows users to verify their identity using government-issued documents and facial recognition. This integration provides:
+This guide explains how to properly set up the Veriff integration to receive real verification data from Veriff's SelfID feature and traditional verification webhooks.
 
-- **Document Verification**: Verify passports, national IDs, and other government documents
-- **Face Matching**: Compare user's face with the document photo
-- **Real-time Status Updates**: Track verification progress
-- **Secure API Integration**: End-to-end encrypted verification process
+## Current Issues and Solutions
 
-## Features
+### Problem 1: Session Expiration
+- **Issue**: Julian's session `bd01834c-dce6-4ed8-ba67-f8f7fc061a56` returns 404 from Veriff API
+- **Cause**: SelfID sessions expire after a certain period and are not accessible via the traditional verification API
+- **Solution**: Use webhook data and session API for SelfID verifications
 
-### ✅ Implemented Features
+### Problem 2: Missing Real Data
+- **Issue**: Frontend shows "null" values instead of real verification data
+- **Cause**: The system is not properly extracting data from SelfID webhooks
+- **Solution**: Enhanced webhook processing with comprehensive data extraction
 
-1. **Veriff Service Layer** (`src/lib/veriff-service.ts`)
-   - Session creation and management
-   - Verification status tracking
-   - Webhook callback handling
-   - Database integration
+## Setup Steps
 
-2. **API Endpoints**
-   - `POST /api/veriff/create-session` - Create verification sessions
-   - `GET /api/veriff/status` - Check verification status
-   - `POST /api/veriff/callback` - Handle Veriff webhooks
+### 1. Configure Veriff Webhook URL
 
-3. **React Components**
-   - `VeriffVerification` - Complete verification UI component
-   - Integration with onboarding flow
-   - Integration with My Account page
-
-4. **Database Integration**
-   - User verification status tracking
-   - Veriff session management
-   - Verification data storage
-
-## Setup Instructions
-
-### 1. Environment Variables
-
-Add the following environment variables to your `.env.local` and `.env.production`:
-
-```bash
-# Veriff API Credentials
-VERIFF_API_KEY=your_veriff_api_key_here
-VERIFF_API_SECRET=your_veriff_api_secret_here
-
-# App URL for callbacks
-NEXT_PUBLIC_APP_URL=https://your-domain.com
+In your Veriff dashboard, set the webhook URL to:
+```
+https://your-domain.com/api/veriff/webhook
 ```
 
-### 2. Database Schema
+For local development, use a service like ngrok:
+```bash
+ngrok http 3000
+```
+Then set the webhook URL to:
+```
+https://your-ngrok-url.ngrok.io/api/veriff/webhook
+```
 
-The following columns should exist in your `users` table:
+### 2. Environment Variables
+
+Ensure these environment variables are set in `.env.local`:
+
+```env
+# Veriff API Configuration
+VERIFF_API_KEY=your_veriff_api_key
+VERIFF_API_SECRET=your_veriff_api_secret
+VERIFF_WEBHOOK_SECRET=your_webhook_secret_key
+VERIFF_BASE_URL=https://api.veriff.me/v1
+VERIFF_ENVIRONMENT=production
+
+# Supabase Configuration
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+```
+
+### 3. Database Schema
+
+The enhanced schema includes all necessary columns for storing comprehensive verification data:
 
 ```sql
--- Veriff integration columns
-ALTER TABLE users ADD COLUMN IF NOT EXISTS "veriffSessionId" VARCHAR(255);
-ALTER TABLE users ADD COLUMN IF NOT EXISTS "veriffStatus" VARCHAR(50);
-ALTER TABLE users ADD COLUMN IF NOT EXISTS "veriffData" JSONB;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS "identityVerified" BOOLEAN DEFAULT FALSE;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS "identityVerifiedAt" TIMESTAMP;
+-- Key columns for SelfID data
+veriffPersonGivenName TEXT,
+veriffPersonLastName TEXT,
+veriffPersonIdNumber TEXT,
+veriffPersonDateOfBirth DATE,
+veriffPersonNationality TEXT,
+veriffPersonCountry TEXT,
+
+veriffDocumentType TEXT,
+veriffDocumentNumber TEXT,
+veriffDocumentCountry TEXT,
+veriffDocumentValidFrom DATE,
+veriffDocumentValidUntil DATE,
+
+veriffFaceMatchSimilarity DECIMAL,
+veriffFaceMatchStatus TEXT,
+veriffDecisionScore DECIMAL,
+veriffQualityScore TEXT,
+
+veriffWebhookData JSONB, -- Stores complete webhook payload
 ```
 
-### 3. Veriff Dashboard Setup
+### 4. Webhook Processing
 
-1. **Create Veriff Account**
-   - Sign up at [veriff.com](https://veriff.com)
-   - Complete business verification
+The system now handles two types of webhooks:
 
-2. **Configure Webhook**
-   - Go to Veriff Dashboard → Settings → Webhooks
-   - Add webhook URL: `https://your-domain.com/api/veriff/callback`
-   - Select events: `verification.created`, `verification.updated`
+#### SelfID Webhooks (New)
+- Feature: `selfid`
+- Contains extracted data directly in payload
+- Stores comprehensive person and document information
+- Updates individual database columns for easy access
 
-3. **Get API Credentials**
-   - Go to Veriff Dashboard → Settings → API
-   - Copy your API Key and Secret
-   - Add to environment variables
+#### Traditional Verification Webhooks (Legacy)
+- Feature: `verification`
+- Requires additional API calls to fetch details
+- Compatible with existing verification flow
 
-## Usage
+### 5. Testing the Integration
 
-### For Users
+#### Test with Real Data
+Run the test script to simulate a SelfID webhook with Julian's real data:
 
-1. **Start Verification**
-   - Navigate to My Account → Credentials tab
-   - Click "Start Verification" button
-   - Veriff session opens in new tab
-
-2. **Complete Verification**
-   - Upload government-issued ID (passport/national ID)
-   - Take a selfie for face matching
-   - Submit for review
-
-3. **Check Status**
-   - Status updates automatically
-   - Green shield icon when verified
-   - Detailed status in Credentials tab
-
-### For Developers
-
-#### Creating Verification Sessions
-
-```typescript
-import { VeriffService } from '@/lib/veriff-service';
-
-const session = await VeriffService.createSession(userId, {
-  firstName: 'John',
-  lastName: 'Doe',
-  email: 'john@example.com'
-});
+```bash
+node scripts/test-selfid-webhook.js
 ```
 
-#### Checking Verification Status
+This will:
+- Find Julian in the database
+- Create a realistic webhook payload with his real verification data
+- Process it through the enhanced webhook handler
+- Update the database with comprehensive verification information
 
-```typescript
-const status = await VeriffService.getUserVeriffStatus(userId);
-console.log(status.isVerified); // true/false
-console.log(status.veriffStatus); // 'approved', 'declined', etc.
-```
+#### Verify Frontend Display
+Navigate to `http://localhost:3000/my-account` and check the "Verification" tab to see:
+- Real document information (Driver's licence, 19060794)
+- Real personal data (JULIAN WALDER, 1973-07-08)
+- Document validity dates (2019-02-18 to 2034-02-17)
+- Verification scores and status
 
-#### Using the React Component
+### 6. API Endpoints
 
-```tsx
-import { VeriffVerification } from '@/components/ui/veriff-verification';
+#### Webhook Endpoint
+- **URL**: `/api/veriff/webhook`
+- **Method**: POST
+- **Purpose**: Receives and processes Veriff webhooks
+- **Features**: Signature validation, comprehensive data extraction
 
-<VeriffVerification
-  userId={user.id}
-  userData={{
-    firstName: user.firstName,
-    lastName: user.lastName,
-    email: user.email,
-  }}
-  onStatusChange={(status) => {
-    if (status === 'approved') {
-      // Handle successful verification
-    }
-  }}
-/>
-```
+#### Verification Data Endpoint
+- **URL**: `/api/veriff/verification-data/[userId]`
+- **Method**: GET
+- **Purpose**: Retrieves comprehensive verification data for display
+- **Authentication**: Required (user or admin)
 
-## API Reference
+#### Status Endpoint
+- **URL**: `/api/veriff/status`
+- **Method**: GET
+- **Purpose**: Quick verification status check
+- **Features**: Handles expired sessions gracefully
 
-### POST /api/veriff/create-session
+### 7. Frontend Integration
 
-Creates a new Veriff verification session.
+The frontend now displays comprehensive verification data:
 
-**Request:**
-```json
-{
-  "firstName": "John",
-  "lastName": "Doe",
-  "email": "john@example.com"
-}
-```
+#### My Account Page
+- **Verification Tab**: Shows all verification details
+- **Cards**: Organized display of different data types
+- **Real-time Updates**: Reflects latest webhook data
 
-**Response:**
-```json
-{
-  "success": true,
-  "session": {
-    "id": "veriff_session_id",
-    "url": "https://veriff.me/session/...",
-    "status": "created"
-  }
-}
-```
-
-### GET /api/veriff/status
-
-Gets the current verification status for the authenticated user.
-
-**Response:**
-```json
-{
-  "success": true,
-  "status": {
-    "isVerified": true,
-    "sessionId": "veriff_session_id",
-    "veriffStatus": "approved",
-    "veriffData": {
-      "verificationId": "veriff_verification_id",
-      "status": "approved",
-      "person": {
-        "givenName": "John",
-        "lastName": "Doe"
-      },
-      "document": {
-        "type": "PASSPORT",
-        "number": "123456789",
-        "country": "US"
-      }
-    }
-  }
-}
-```
-
-### POST /api/veriff/callback
-
-Webhook endpoint for Veriff to send verification updates.
-
-**Request (from Veriff):**
-```json
-{
-  "verification": {
-    "id": "veriff_verification_id",
-    "status": "approved"
-  }
-}
-```
-
-## Verification Statuses
-
-| Status | Description | Icon | Color |
-|--------|-------------|------|-------|
-| `created` | Session created, waiting for user | 🛡️ | Blue |
-| `submitted` | Verification submitted for review | ⏰ | Amber |
-| `approved` | Verification approved | ✅ | Green |
-| `declined` | Verification declined | ❌ | Red |
-| `abandoned` | User abandoned verification | 🚫 | Gray |
-| `expired` | Session expired | ⏰ | Gray |
-
-## Security Considerations
-
-### 1. API Security
-- All API endpoints require authentication
-- JWT tokens validated on each request
-- Rate limiting recommended
-
-### 2. Webhook Security
-- Verify webhook signatures (implemented in service)
-- Always return 200 status to Veriff
-- Log all webhook events for debugging
-
-### 3. Data Privacy
-- Veriff data stored in JSONB format
-- Sensitive data not logged
-- GDPR compliant data handling
+#### Components
+- `VerificationDataDisplay.tsx`: Main verification display
+- `VeriffIDVResults.tsx`: ID verification results
+- Enhanced status handling and error recovery
 
 ## Troubleshooting
 
-### Common Issues
+### Webhook Not Receiving Data
+1. Check webhook URL in Veriff dashboard
+2. Verify signature validation
+3. Check server logs for errors
+4. Test with ngrok for local development
 
-1. **"Veriff API credentials not configured"**
-   - Check environment variables
-   - Ensure `VERIFF_API_KEY` and `VERIFF_API_SECRET` are set
+### Frontend Showing Null Values
+1. Ensure webhook processed successfully
+2. Check database for populated fields
+3. Verify API endpoints returning data
+4. Clear browser cache and refresh
 
-2. **"Failed to create verification session"**
-   - Check Veriff dashboard for API limits
-   - Verify webhook URL is accessible
-   - Check network connectivity
+### Session Expired Errors
+1. Normal for expired SelfID sessions
+2. System automatically clears expired sessions
+3. User can start new verification if needed
+4. Existing verification data is preserved
 
-3. **Webhook not receiving updates**
-   - Verify webhook URL in Veriff dashboard
-   - Check server logs for errors
-   - Ensure endpoint returns 200 status
+## Data Flow
 
-4. **User verification status not updating**
-   - Check database connection
-   - Verify user ID mapping
-   - Check webhook processing logs
+1. **User completes verification** in Veriff SelfID
+2. **Veriff sends webhook** to `/api/veriff/webhook`
+3. **System validates signature** and processes payload
+4. **Data is extracted** and stored in database
+5. **Frontend displays** comprehensive verification information
 
-### Debug Mode
+## Next Steps
 
-Enable debug logging by adding to your environment:
-
-```bash
-DEBUG_VERIFF=true
-```
-
-This will log detailed information about:
-- API requests/responses
-- Webhook processing
-- Database operations
-- Error details
-
-## Testing
-
-### Test Environment
-
-1. **Use Veriff Sandbox**
-   - Set up sandbox environment in Veriff dashboard
-   - Use test API credentials
-   - Test with sample documents
-
-2. **Test Documents**
-   - Use Veriff's test document library
-   - Test various document types
-   - Test edge cases (expired, damaged, etc.)
-
-### Integration Testing
-
-```typescript
-// Test verification flow
-describe('Veriff Integration', () => {
-  it('should create verification session', async () => {
-    const session = await VeriffService.createSession(userId, userData);
-    expect(session.id).toBeDefined();
-    expect(session.url).toContain('veriff.me');
-  });
-
-  it('should handle webhook callback', async () => {
-    const callback = { verification: { id: 'test', status: 'approved' } };
-    await VeriffService.handleCallback(callback);
-    
-    const status = await VeriffService.getUserVeriffStatus(userId);
-    expect(status.isVerified).toBe(true);
-  });
-});
-```
+1. **Test with real webhook**: Set up ngrok and trigger a real verification
+2. **Monitor webhook logs**: Check server logs for successful processing
+3. **Verify frontend display**: Ensure all data appears correctly
+4. **Production deployment**: Update webhook URL for production environment
 
 ## Support
 
-### Veriff Support
-- [Veriff Documentation](https://docs.veriff.com/)
-- [Veriff Support](https://support.veriff.com/)
-- [API Reference](https://docs.veriff.com/api/)
-
-### Internal Support
-- Check server logs for detailed error messages
-- Use debug mode for troubleshooting
-- Contact development team for integration issues
-
-## Future Enhancements
-
-### Planned Features
-
-1. **Advanced Verification**
-   - Liveness detection
-   - Document authenticity checks
-   - Address verification
-
-2. **User Experience**
-   - Progress indicators
-   - Retry mechanisms
-   - Mobile optimization
-
-3. **Admin Features**
-   - Verification management dashboard
-   - Bulk verification processing
-   - Analytics and reporting
-
-### Integration Opportunities
-
-1. **Compliance**
-   - KYC/AML integration
-   - Regulatory reporting
-   - Audit trails
-
-2. **User Onboarding**
-   - Streamlined verification flow
-   - Conditional verification requirements
-   - Role-based verification levels
-
----
-
-**Last Updated:** January 2025  
-**Version:** 1.0.0  
-**Maintainer:** Development Team 
+If you encounter issues:
+1. Check server logs for detailed error messages
+2. Verify environment variables are correctly set
+3. Test webhook endpoint with curl or Postman
+4. Ensure database schema is up to date 

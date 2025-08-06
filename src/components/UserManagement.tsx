@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { OptimizedAvatar } from '@/components/ui/optimized-avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -75,6 +75,7 @@ interface ApiResponse<T> {
 interface ExtendedUser extends User {
   roles: string[];
   lastLoginAt?: string;
+  avatarUrl?: string;
   createdBy?: {
     id: string;
     firstName: string;
@@ -1023,11 +1024,12 @@ export default function UserManagement() {
                       >
                         <TableCell className="w-64">
                           <div className="flex items-center space-x-3">
-                            <Avatar>
-                              <AvatarFallback>
-                                {getInitials(user.firstName, user.lastName)}
-                              </AvatarFallback>
-                            </Avatar>
+                            <OptimizedAvatar
+                              src={user.avatarUrl}
+                              alt={`${user.firstName} ${user.lastName}`}
+                              fallback={`${user.firstName} ${user.lastName}`}
+                              size="md"
+                            />
                             <div>
                               <div className="font-medium">
                                 {user.firstName} {user.lastName}

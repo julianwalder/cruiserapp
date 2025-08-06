@@ -399,18 +399,102 @@ export class VeriffService {
     }
 
     console.log('Updating user approved status for user:', userId);
+    console.log('Approval payload:', payload);
+
+    // Extract verification data from SelfID webhook
+    const verificationData = {
+      // Session and metadata
+      sessionId: payload.id,
+      status: 'approved',
+      action: payload.action,
+      feature: payload.feature,
+      code: payload.code,
+      attemptId: payload.attemptId,
+      
+      // Person data (if available in webhook)
+      person: payload.person || {
+        givenName: payload.personGivenName,
+        lastName: payload.personLastName,
+        idNumber: payload.personIdNumber,
+        dateOfBirth: payload.personDateOfBirth,
+        nationality: payload.personNationality,
+        gender: payload.personGender,
+        country: payload.personCountry,
+      },
+      
+      // Document data (if available in webhook)
+      document: payload.document || {
+        type: payload.documentType,
+        number: payload.documentNumber,
+        country: payload.documentCountry,
+        validFrom: payload.documentValidFrom,
+        validUntil: payload.documentValidUntil,
+        issuedBy: payload.documentIssuedBy,
+      },
+      
+      // Verification results
+      additionalVerification: payload.additionalVerification || {
+        faceMatch: {
+          similarity: payload.faceMatchSimilarity,
+          status: payload.faceMatchStatus,
+        },
+      },
+      
+      // Decision and insights
+      decisionScore: payload.decisionScore,
+      insights: payload.insights || {
+        quality: payload.qualityScore,
+        flags: payload.flags,
+        context: payload.context,
+      },
+      
+      // Timestamps
+      createdAt: payload.createdAt,
+      updatedAt: payload.updatedAt,
+      submittedAt: payload.submittedAt,
+      approvedAt: new Date().toISOString(),
+      
+      // Raw webhook data
+      webhookReceivedAt: new Date().toISOString(),
+      rawPayload: payload,
+    };
 
     const { error } = await supabase
       .from('users')
       .update({
-        veriffSessionId: payload.id, // Update with session ID from webhook
+        veriffSessionId: payload.id,
         veriffStatus: 'approved',
-        veriffData: {
-          ...payload, // Store full webhook payload
-          status: 'approved', // Ensure status is set to approved
-          webhookReceivedAt: new Date().toISOString() // Timestamp for webhook receipt
-        },
-        identityVerified: true, // Mark user as verified
+        identityVerified: true,
+        
+        // Store comprehensive verification data
+        veriffWebhookData: verificationData,
+        
+        // Store individual fields for easy access
+        veriffPersonGivenName: verificationData.person?.givenName,
+        veriffPersonLastName: verificationData.person?.lastName,
+        veriffPersonIdNumber: verificationData.person?.idNumber,
+        veriffPersonDateOfBirth: verificationData.person?.dateOfBirth,
+        veriffPersonNationality: verificationData.person?.nationality,
+        veriffPersonGender: verificationData.person?.gender,
+        veriffPersonCountry: verificationData.person?.country,
+        
+        veriffDocumentType: verificationData.document?.type,
+        veriffDocumentNumber: verificationData.document?.number,
+        veriffDocumentCountry: verificationData.document?.country,
+        veriffDocumentValidFrom: verificationData.document?.validFrom,
+        veriffDocumentValidUntil: verificationData.document?.validUntil,
+        veriffDocumentIssuedBy: verificationData.document?.issuedBy,
+        
+        veriffFaceMatchSimilarity: verificationData.additionalVerification?.faceMatch?.similarity,
+        veriffFaceMatchStatus: verificationData.additionalVerification?.faceMatch?.status,
+        veriffDecisionScore: verificationData.decisionScore,
+        veriffQualityScore: verificationData.insights?.quality,
+        veriffFlags: verificationData.insights?.flags,
+        veriffContext: verificationData.insights?.context,
+        
+        veriffApprovedAt: verificationData.approvedAt,
+        veriffWebhookReceivedAt: verificationData.webhookReceivedAt,
+        
         updatedAt: new Date().toISOString(),
       })
       .eq('id', userId);
@@ -420,7 +504,7 @@ export class VeriffService {
       throw new Error('Failed to update user approved status');
     }
 
-    console.log('User approved status updated successfully');
+    console.log('User approved status updated successfully with comprehensive verification data');
   }
 
   /**
@@ -498,87 +582,166 @@ export class VeriffService {
       throw new Error('Database connection error');
     }
 
-    try {
       console.log('Fetching Veriff status for user:', userId);
       
+    // Get user's current verification status
       const { data: user, error } = await supabase
         .from('users')
-        .select('veriffSessionId, veriffSessionUrl, veriffStatus, identityVerified, veriffData')
+      .select(`
+        veriffSessionId,
+        veriffVerificationId,
+        veriffStatus,
+        identityVerified,
+        veriffData,
+        veriffWebhookData
+      `)
         .eq('id', userId)
         .single();
 
       if (error) {
-        console.error('Error fetching user Veriff status:', error);
-        // If columns don't exist, return default status
-        if (error.code === '42703') {
-          console.warn('Veriff columns not found in database - returning default status');
-          return { isVerified: false };
-        }
-        return { isVerified: false };
-      }
+      console.error('Error fetching user verification status:', error);
+      return {
+        isVerified: false,
+        needsNewSession: true
+      };
+    }
 
-      // If no session exists, return default status
-      if (!user.veriffSessionId) {
-        return { isVerified: false };
-      }
+    // If user has no verification data, they need a new session
+    if (!user.veriffSessionId && !user.veriffVerificationId) {
+      return {
+        isVerified: false,
+        needsNewSession: true
+      };
+    }
 
-      // Validate if the session is still active
-      let sessionValid = false;
-      let verificationDetails = null;
-      
+    // If user is already verified, return their status
+    if (user.identityVerified) {
+      return {
+        sessionId: user.veriffSessionId,
+        veriffStatus: user.veriffStatus || 'approved',
+        isVerified: true,
+        veriffData: user.veriffWebhookData || user.veriffData
+      };
+    }
+
+    // For SelfID verifications, try to get the latest status from Veriff API
+    if (user.veriffSessionId) {
       try {
-        verificationDetails = await this.getVerification(user.veriffSessionId);
-        console.log('Verification details from API:', verificationDetails);
-        sessionValid = true;
+        console.log('Attempting to fetch SelfID session status from Veriff API:', user.veriffSessionId);
+        
+        // For SelfID, we need to use a different endpoint or approach
+        // Let's try to get the session details
+        if (!this.API_KEY) {
+          throw new Error('Veriff API key not configured');
+        }
+        
+        const sessionResponse = await fetch(`${this.BASE_URL}/sessions/${user.veriffSessionId}`, {
+          method: 'GET',
+          headers: {
+            'X-AUTH-CLIENT': this.API_KEY,
+            'X-HMAC-SIGNATURE': this.generateSignature(''),
+          },
+        });
+
+        if (sessionResponse.ok) {
+          const sessionData = await sessionResponse.json();
+          console.log('Retrieved session data from Veriff:', sessionData);
+          
+          // Update user with latest session data
+          await supabase
+            .from('users')
+            .update({
+              veriffStatus: sessionData.status,
+              veriffData: {
+                ...user.veriffWebhookData,
+                ...sessionData,
+                lastApiCheck: new Date().toISOString()
+              },
+              updatedAt: new Date().toISOString(),
+            })
+            .eq('id', userId);
+
+          return {
+            sessionId: user.veriffSessionId,
+            veriffStatus: sessionData.status,
+            isVerified: sessionData.status === 'approved',
+            veriffData: {
+              ...user.veriffWebhookData,
+              ...sessionData,
+              lastApiCheck: new Date().toISOString()
+            }
+          };
+        } else {
+          console.warn(`Session API returned ${sessionResponse.status} for session: ${user.veriffSessionId}`);
+          
+          // If session not found, clear expired session
+          if (sessionResponse.status === 404) {
+            console.log('Session has expired, clearing from database');
+            await this.clearExpiredSession(userId);
+            return {
+              isVerified: false,
+              needsNewSession: true
+            };
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching session from Veriff API:', error);
+      }
+    }
+
+    // For traditional verifications, try to get verification details
+    if (user.veriffVerificationId) {
+      try {
+        console.log('Attempting to fetch verification details from Veriff API:', user.veriffVerificationId);
+        
+        const verificationDetails = await this.getVerification(user.veriffVerificationId);
+        console.log('Retrieved verification details from Veriff:', verificationDetails);
+        
+        // Update user with latest verification data
+        await supabase
+          .from('users')
+          .update({
+            veriffStatus: verificationDetails.status,
+            veriffData: {
+              ...verificationDetails,
+              lastApiCheck: new Date().toISOString()
+            },
+            updatedAt: new Date().toISOString(),
+          })
+          .eq('id', userId);
+
+        return {
+          sessionId: user.veriffSessionId,
+          veriffStatus: verificationDetails.status,
+          isVerified: verificationDetails.status === 'approved',
+          veriffData: {
+            ...verificationDetails,
+            lastApiCheck: new Date().toISOString()
+          }
+        };
       } catch (error) {
         console.error('Error getting verification details:', error);
-        // If we get a 404, the session has expired
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        if (errorMessage.includes('404') || errorMessage.includes('Not Found')) {
-          console.log('Session has expired, clearing from database');
-          sessionValid = false;
-        } else {
-          // For other errors, assume session is still valid
-          sessionValid = true;
-        }
-      }
-
-            // If session is invalid, clear it from database but keep veriffData for display
-      if (!sessionValid && user.veriffSessionId) {
-        await this.clearExpiredSession(userId);
         
-        // If the user is already verified (approved), don't show "needs new session"
-        if (user.identityVerified || (user.veriffData?.status === 'approved')) {
+        // If verification not found, clear expired session
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('404') || errorMessage.includes('Session not found')) {
+          console.log('Session has expired, clearing from database');
+        await this.clearExpiredSession(userId);
           return {
-            isVerified: true,
-            needsNewSession: false,
-            veriffData: user.veriffData, // Keep veriffData for display
-            veriffStatus: 'approved',
+            isVerified: false,
+            needsNewSession: true
           };
         }
-        
-        return {
-          isVerified: false,
-          needsNewSession: true,
-          veriffData: user.veriffData, // Keep veriffData for display even when session is expired
-        };
       }
-
-      const status = {
-        sessionId: user.veriffSessionId,
-        sessionUrl: user.veriffSessionUrl || null,
-        status: user.veriffStatus,
-        isVerified: user.identityVerified || false,
-        veriffData: verificationDetails || user.veriffData,
-        needsNewSession: false,
-      };
-
-      console.log('User Veriff status:', status);
-      return status;
-    } catch (error) {
-      console.error('Error in getUserVeriffStatus:', error);
-      return { isVerified: false };
     }
+
+    // Return current status from database if API calls fail
+    return {
+        sessionId: user.veriffSessionId,
+      veriffStatus: user.veriffStatus,
+        isVerified: user.identityVerified || false,
+      veriffData: user.veriffWebhookData || user.veriffData
+    };
   }
 
   /**

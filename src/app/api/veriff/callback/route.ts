@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { VeriffService } from '@/lib/veriff-service';
+import { EnhancedVeriffWebhook } from '@/lib/enhanced-veriff-webhook';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,13 +13,36 @@ export async function POST(request: NextRequest) {
       headers: Object.fromEntries(request.headers.entries())
     });
 
-    // Handle the callback
-    console.log('Processing Veriff callback...');
+    // Extract webhook signature from headers
+    const signature = request.headers.get('x-veriff-signature') || 
+                     request.headers.get('x-hmac-signature') ||
+                     request.headers.get('veriff-signature');
+
+    // Process with enhanced webhook handler
+    console.log('Processing Veriff callback with enhanced handler...');
+    const result = await EnhancedVeriffWebhook.processWebhook(
+      payload,
+      signature || undefined,
+      Object.fromEntries(request.headers.entries())
+    );
+
+    if (result.success) {
+      console.log('Enhanced Veriff callback processed successfully:', result);
+    } else {
+      console.error('Enhanced Veriff callback failed:', result);
+    }
+
+    // Also call the legacy handler for backward compatibility
+    console.log('Processing with legacy Veriff handler...');
     await VeriffService.handleCallback(payload);
-    console.log('Veriff callback processed successfully');
+    console.log('Legacy Veriff callback processed successfully');
 
     // Return success response to Veriff
-    return NextResponse.json({ status: 'ok' });
+    return NextResponse.json({ 
+      status: 'ok',
+      enhanced: result.success,
+      message: result.message
+    });
 
   } catch (error) {
     console.error('Error handling Veriff callback:', error);

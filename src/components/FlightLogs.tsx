@@ -826,8 +826,25 @@ export default function FlightLogs() {
         })
       ]);
 
-      const pilotsData = pilotsResponse.ok ? await pilotsResponse.json() : { users: [] };
-      const studentsData = studentsResponse.ok ? await studentsResponse.json() : { users: [] };
+      // Handle pilots response
+      let pilotsData = { users: [] };
+      if (pilotsResponse.ok) {
+        pilotsData = await pilotsResponse.json();
+      } else if (pilotsResponse.status === 403) {
+        console.log('User does not have permission to access pilots list (expected for some users)');
+      } else {
+        console.error('Error fetching pilots:', pilotsResponse.status);
+      }
+
+      // Handle students response
+      let studentsData = { users: [] };
+      if (studentsResponse.ok) {
+        studentsData = await studentsResponse.json();
+      } else if (studentsResponse.status === 403) {
+        console.log('User does not have permission to access students list (expected for some users)');
+      } else {
+        console.error('Error fetching students:', studentsResponse.status);
+      }
 
       // Combine pilots and students, removing duplicates by ID
       const pilotMap = new Map();
@@ -872,6 +889,10 @@ export default function FlightLogs() {
       if (response.ok) {
         const data = await response.json();
         setInstructors(data.users || []);
+      } else if (response.status === 403) {
+        // User doesn't have permission to access instructors list - this is expected for pilots
+        console.log('User does not have permission to access instructors list (expected for pilots)');
+        setInstructors([]);
       } else {
         console.error('Error fetching instructors:', response.status);
         setInstructors([]);

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { OptimizedAvatar } from '@/components/ui/optimized-avatar';
 import { Badge } from '@/components/ui/badge';
 import { 
   Plane, 
@@ -26,6 +26,7 @@ import { User } from "@/types/uuid-types";
 // Extended User interface for sidebar with roles
 interface SidebarUser extends User {
   roles: string[];
+  avatarUrl?: string;
 }
 
 interface SidebarProps {
@@ -43,43 +44,49 @@ const navigationItems = [
   },
   {
     name: 'Users',
-    href: '/dashboard?tab=users',
+    href: '/users',
     icon: Users,
     description: 'Manage users and roles'
   },
   {
-    name: 'Aircraft',
-    href: '/dashboard?tab=aircraft',
+    name: 'Fleet',
+    href: '/fleet',
     icon: Plane,
     description: 'Aircraft management'
   },
   {
     name: 'Airfields',
-    href: '/dashboard?tab=airfields',
+    href: '/airfields',
     icon: MapPin,
     description: 'Airfield management'
   },
   {
     name: 'Bases',
-    href: '/dashboard?tab=base-management',
+    href: '/bases',
     icon: Shield,
     description: 'Designate and manage bases'
   },
   {
+    name: 'Flight Logs',
+    href: '/flight-logs',
+    icon: FileText,
+    description: 'Flight records and training'
+  },
+  {
     name: 'Scheduling',
-    href: '/dashboard?tab=scheduling',
+    href: '/scheduling',
     icon: Calendar,
     description: 'Flight scheduling'
   },
   {
     name: 'Reports',
-    href: '/dashboard?tab=reports',
-    icon: FileText,
+    href: '/reports',
+    icon: BarChart3,
     description: 'Analytics and reports'
   },
   {
     name: 'Settings',
-    href: '/dashboard?tab=settings',
+    href: '/settings',
     icon: Settings,
     description: 'System settings'
   },
@@ -145,15 +152,29 @@ export default function Sidebar({ user, onLogout, onSidebarStateChange }: Sideba
   };
 
   const isActive = (href: string) => {
+    console.log(`🔍 Checking active state for ${href}:`, { pathname, searchParams: searchParams.toString() });
+    
     if (href === '/dashboard') {
       // Overview is active when we're on dashboard with no tab or tab=overview
       const currentTab = searchParams.get('tab');
-      return pathname === '/dashboard' && (!currentTab || currentTab === 'overview');
+      const isActive = pathname === '/dashboard' && (!currentTab || currentTab === 'overview');
+      console.log(`📊 Dashboard active:`, isActive);
+      return isActive;
     }
-    // For other items, check if the tab matches
-    const expectedTab = href.split('=')[1];
-    const currentTab = searchParams.get('tab');
-    return pathname === '/dashboard' && currentTab === expectedTab;
+    
+    // For dashboard tabs, check if the tab matches
+    if (href.startsWith('/dashboard?tab=')) {
+      const expectedTab = href.split('=')[1];
+      const currentTab = searchParams.get('tab');
+      const isActive = pathname === '/dashboard' && currentTab === expectedTab;
+      console.log(`📋 Dashboard tab active:`, isActive);
+      return isActive;
+    }
+    
+    // For other pages, check if the pathname matches
+    const isActive = pathname === href;
+    console.log(`🌐 Other page active:`, isActive, `(pathname: ${pathname}, href: ${href})`);
+    return isActive;
   };
 
   const handleToggleCollapse = () => {
@@ -218,11 +239,12 @@ export default function Sidebar({ user, onLogout, onSidebarStateChange }: Sideba
         {user && (
           <div className="p-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center space-x-3">
-              <Avatar>
-                <AvatarFallback>
-                  {getInitials(user.firstName, user.lastName)}
-                </AvatarFallback>
-              </Avatar>
+              <OptimizedAvatar
+                src={user.avatarUrl}
+                alt={`${user.firstName} ${user.lastName}`}
+                fallback={`${user.firstName} ${user.lastName}`}
+                size="md"
+              />
               {!isCollapsed && (
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-col space-y-2">
@@ -249,6 +271,7 @@ export default function Sidebar({ user, onLogout, onSidebarStateChange }: Sideba
           {navigationItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
+            console.log(`🎯 Navigation item ${item.name} (${item.href}): active = ${active}`);
             
             return (
               <Button
@@ -256,7 +279,6 @@ export default function Sidebar({ user, onLogout, onSidebarStateChange }: Sideba
                 variant={active ? "default" : "ghost"}
                 className={`
                   w-full justify-start h-12
-                  ${active ? 'bg-primary text-primary-foreground' : 'text-card-foreground hover:bg-accent'}
                   ${isCollapsed ? 'px-2' : 'px-4'}
                 `}
                 onClick={() => handleNavigation(item.href)}
@@ -274,10 +296,9 @@ export default function Sidebar({ user, onLogout, onSidebarStateChange }: Sideba
           {/* Conditionally render Role Management for superadmin */}
           {user?.roles.includes('SUPER_ADMIN') && (
             <Button
-              variant="ghost"
+              variant={isActive('/dashboard?tab=roles') ? "default" : "ghost"}
               className={`
-                        w-full justify-start h-12 text-card-foreground hover:bg-accent
-        ${isActive('/dashboard?tab=roles') ? 'bg-primary text-primary-foreground' : ''}
+                w-full justify-start h-12
                 ${isCollapsed ? 'px-2' : 'px-4'}
               `}
               onClick={() => handleNavigation('/dashboard?tab=roles')}
