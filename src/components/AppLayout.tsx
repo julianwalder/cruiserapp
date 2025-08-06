@@ -124,9 +124,18 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
 
   return (
     <div className="flex h-screen bg-white dark:bg-gray-900">
-      {isHydrated && <NewSidebar user={user} onLogout={handleLogout} />}
+      {/* Always render sidebar placeholder to prevent layout shift */}
+      <div className="fixed top-0 left-0 h-full bg-sidebar border-r border-sidebar-border shadow-xl z-50 transition-all duration-300 ease-in-out flex flex-col sticky-container w-64 lg:translate-x-0 -translate-x-full">
+        {/* Sidebar content will be rendered here when hydrated */}
+      </div>
+      
+      {/* Mobile menu button - always visible */}
+      <div className="lg:hidden fixed top-4 left-4 z-50 sticky-container">
+        <div className="h-9 w-9 bg-background/80 border border-border shadow-lg rounded-md animate-pulse"></div>
+      </div>
       
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0 sticky-container">
+        {/* Header - always sticky from the start */}
         <header 
           className="sticky-header px-4 sm:px-6 flex items-center"
           data-hydrating={!isHydrated}
@@ -146,8 +155,17 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
             </div>
             
             <div className="flex items-center space-x-4">
-              {isHydrated && <NotificationBadge />}
-              {isHydrated && <ThemeToggle />}
+              {!isHydrated ? (
+                <>
+                  <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                  <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded animate-pulse"></div>
+                </>
+              ) : (
+                <>
+                  <NotificationBadge />
+                  <ThemeToggle />
+                </>
+              )}
             </div>
           </div>
         </header>
@@ -156,6 +174,9 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
           {children}
         </main>
       </div>
+      
+      {/* Render actual sidebar when hydrated */}
+      {isHydrated && <NewSidebar user={user} onLogout={handleLogout} />}
     </div>
   );
 } 
