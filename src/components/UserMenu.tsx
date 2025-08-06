@@ -181,11 +181,8 @@ export function UserMenu({ user, onLogout, notificationCount = 0 }: UserMenuProp
         
         <div className="px-2 py-1.5">
           <div className="text-xs text-muted-foreground text-center">
-            <div>Version {formatVersion()}</div>
+            <div>Version {formatVersion(false, true)}</div>
             <div>Last updated: {formatDate(new Date())}</div>
-            <div className="mt-1 opacity-60">
-              {formatVersion(false, true)}
-            </div>
           </div>
         </div>
       </DropdownMenuContent>
