@@ -86,7 +86,6 @@ export default function ClientHoursPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
     </div>
   );
 } 

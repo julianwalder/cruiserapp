@@ -272,7 +272,6 @@ export default function AccountingPage() {
             </Card>
           </TabsContent>
         </Tabs>
-      </div>
     </div>
   );
 } 
