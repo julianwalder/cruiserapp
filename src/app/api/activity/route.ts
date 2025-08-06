@@ -165,8 +165,19 @@ function getActivityTitle(action: string, entityType: string): string {
 
 // Helper function to format time ago
 function formatTimeAgo(dateString: string): string {
+  if (!dateString) {
+    return 'Unknown time';
+  }
+  
   const now = new Date();
   const date = new Date(dateString);
+  
+  // Check if the date is valid
+  if (isNaN(date.getTime())) {
+    console.warn('Invalid date string:', dateString);
+    return 'Unknown time';
+  }
+  
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
   if (diffInSeconds < 60) {

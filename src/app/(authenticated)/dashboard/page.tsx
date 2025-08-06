@@ -228,9 +228,9 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-3">
                         <div className="w-2 h-2 bg-primary rounded-full"></div>
                         <div>
-                          <p className="text-sm font-medium">{activity.action}</p>
+                          <p className="text-sm font-medium">{activity.title}</p>
                           <p className="text-xs text-muted-foreground">
-                            {activity.userEmail} • {new Date(activity.createdAt).toLocaleString()}
+                            {activity.user?.email || 'System'} • {activity.time}
                           </p>
                         </div>
                       </div>
