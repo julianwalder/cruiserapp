@@ -118,6 +118,8 @@ export default function Sidebar({ user, onLogout, onSidebarStateChange }: Sideba
         return 'bg-warning-10 text-warning border-warning-20';
       case 'BASE_MANAGER':
         return 'bg-primary-20 text-primary border-primary-20';
+      case 'PROSPECT':
+        return 'bg-blue-10 text-blue border-blue-20';
       default:
         return 'bg-muted text-muted-foreground border border-gray-200 dark:border-gray-700';
     }
@@ -137,6 +139,8 @@ export default function Sidebar({ user, onLogout, onSidebarStateChange }: Sideba
         return 'Student';
       case 'BASE_MANAGER':
         return 'Base Manager';
+      case 'PROSPECT':
+        return 'Prospect';
       default:
         return role;
     }

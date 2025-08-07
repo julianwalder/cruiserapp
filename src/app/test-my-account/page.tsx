@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/AppLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -22,9 +22,13 @@ import {
   Mail,
   Edit,
   Upload,
-  Eye
+  Eye,
+  Plane,
+  BookOpen
 } from 'lucide-react';
 import { OnboardingFlow } from '@/components/OnboardingFlow';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AspectRatio } from '@/components/ui/aspect-ratio';
 
 // Mock user data for testing
 const mockUser = {
@@ -63,6 +67,19 @@ export default function TestMyAccountPage() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingType, setOnboardingType] = useState<'STUDENT' | 'PILOT' | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [showOnboardingSelection, setShowOnboardingSelection] = useState(false);
+
+  // Auto-show onboarding selection for prospects on page load
+  useEffect(() => {
+    if (hasRole('PROSPECT')) {
+      // Small delay to ensure the page is fully loaded
+      const timer = setTimeout(() => {
+        setShowOnboardingSelection(true);
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   const hasRole = (roleName: string) => {
     return mockUser.userRoles.some(userRole => userRole.roles.name === roleName) || false;
@@ -84,7 +101,7 @@ export default function TestMyAccountPage() {
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case 'PROSPECT':
-        return 'bg-gray-100 text-gray-800 border-gray-200';
+        return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'STUDENT':
         return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'PILOT':
@@ -101,6 +118,7 @@ export default function TestMyAccountPage() {
   const handleStartOnboarding = (type: 'STUDENT' | 'PILOT') => {
     setOnboardingType(type);
     setShowOnboarding(true);
+    setShowOnboardingSelection(false); // Close the selection modal
   };
 
   const handleOnboardingComplete = () => {
@@ -114,6 +132,10 @@ export default function TestMyAccountPage() {
     setOnboardingType(null);
   };
 
+  const handleCloseSelection = () => {
+    setShowOnboardingSelection(false);
+  };
+
   // Show onboarding flow if active
   if (showOnboarding && onboardingType) {
     return (
@@ -122,6 +144,12 @@ export default function TestMyAccountPage() {
           onboardingType={onboardingType}
           onComplete={handleOnboardingComplete}
           onCancel={handleOnboardingCancel}
+          userId={mockUser.id}
+          userData={{
+            firstName: mockUser.firstName,
+            lastName: mockUser.lastName,
+            email: mockUser.email,
+          }}
         />
       </AppLayout>
     );
@@ -595,6 +623,125 @@ export default function TestMyAccountPage() {
           )}
         </Tabs>
       </div>
+
+      {/* Auto-popup Onboarding Selection Modal */}
+      <Dialog open={showOnboardingSelection} onOpenChange={setShowOnboardingSelection}>
+        <DialogContent 
+          className="w-[90vw] max-w-none !max-w-[90vw] max-h-[90vh] overflow-y-auto"
+          style={{ width: '90vw', maxWidth: '90vw', maxHeight: '90vh' }}
+        >
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-center">
+              Welcome to Cruiser Aviation!
+            </DialogTitle>
+            <DialogDescription className="text-center text-lg">
+              Let's get you started! Choose how you'd like to begin your aviation journey.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6 mt-6 max-w-6xl mx-auto">
+            {/* Student Card */}
+            <Card 
+              className="hover:shadow-lg transition-all duration-200 cursor-pointer border-2 hover:border-blue-200 group p-4 lg:p-6"
+              onClick={() => handleStartOnboarding('STUDENT')}
+            >
+              <div className="flex flex-col lg:block">
+                <div className="flex items-center gap-4 lg:block">
+                  <div className="flex-shrink-0 w-20 h-20 lg:w-auto lg:h-auto">
+                    <div className="w-full h-full bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
+                      <GraduationCap className="h-10 w-10 lg:h-16 lg:w-16 text-white" />
+                    </div>
+                  </div>
+                  <div className="flex-1 lg:block">
+                    <CardHeader className="pb-3 lg:pb-3">
+                      <CardTitle className="text-lg lg:text-xl text-blue-700 group-hover:text-blue-800">
+                        Start PPL Course
+                      </CardTitle>
+                      <p className="text-sm lg:text-base text-muted-foreground">
+                        Complete your Private Pilot License (A) course with our experienced instructors
+                      </p>
+                    </CardHeader>
+                    <CardContent className="pt-0 lg:pt-0">
+                      <div className="space-y-2 lg:space-y-3">
+                        <div className="flex items-center gap-2 text-xs lg:text-sm">
+                          <CheckCircle className="h-3 w-3 lg:h-4 lg:w-4 text-green-600" />
+                          <span>45 hours minimum flight training</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs lg:text-sm">
+                          <CheckCircle className="h-3 w-3 lg:h-4 lg:w-4 text-green-600" />
+                          <span>Theory classes included</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs lg:text-sm">
+                          <CheckCircle className="h-3 w-3 lg:h-4 lg:w-4 text-green-600" />
+                          <span>Flexible payment plans</span>
+                        </div>
+                        <div className="pt-1 lg:pt-2">
+                          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 text-xs">
+                            From 13,500 RON
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Pilot Card */}
+            <Card 
+              className="hover:shadow-lg transition-all duration-200 cursor-pointer border-2 hover:border-green-200 group p-4 lg:p-6"
+              onClick={() => handleStartOnboarding('PILOT')}
+            >
+              <div className="flex flex-col lg:block">
+                <div className="flex items-center gap-4 lg:block">
+                  <div className="flex-shrink-0 w-20 h-20 lg:w-auto lg:h-auto">
+                    <div className="w-full h-full bg-gradient-to-br from-green-500 to-green-700 rounded-lg flex items-center justify-center">
+                      <Plane className="h-10 w-10 lg:h-16 lg:w-16 text-white" />
+                    </div>
+                  </div>
+                  <div className="flex-1 lg:block">
+                    <CardHeader className="pb-3 lg:pb-3">
+                      <CardTitle className="text-lg lg:text-xl text-green-700 group-hover:text-green-800">
+                        Rent Aircraft
+                      </CardTitle>
+                      <p className="text-sm lg:text-base text-muted-foreground">
+                        Access our well-maintained fleet for your flying needs
+                      </p>
+                    </CardHeader>
+                    <CardContent className="pt-0 lg:pt-0">
+                      <div className="space-y-2 lg:space-y-3">
+                        <div className="flex items-center gap-2 text-xs lg:text-sm">
+                          <CheckCircle className="h-3 w-3 lg:h-4 lg:w-4 text-green-600" />
+                          <span>Multiple aircraft types available</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs lg:text-sm">
+                          <CheckCircle className="h-3 w-3 lg:h-4 lg:w-4 text-green-600" />
+                          <span>Flexible hour packages</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs lg:text-sm">
+                          <CheckCircle className="h-3 w-3 lg:h-4 lg:w-4 text-green-600" />
+                          <span>Insurance included</span>
+                        </div>
+                        <div className="pt-1 lg:pt-2">
+                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs">
+                            From 750 RON
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          <div className="flex justify-center mt-6">
+            <Button variant="outline" onClick={handleCloseSelection}>
+              Maybe Later
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 } 

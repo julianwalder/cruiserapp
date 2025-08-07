@@ -70,6 +70,48 @@ export function UserMenu({ user, onLogout, notificationCount = 0 }: UserMenuProp
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
   };
 
+  const getRoleBadgeColor = (role: string) => {
+    switch (role) {
+      case 'SUPER_ADMIN':
+        return 'bg-destructive-10 text-destructive border-destructive-20';
+      case 'ADMIN':
+        return 'bg-secondary-10 text-secondary-foreground border-secondary-20';
+      case 'INSTRUCTOR':
+        return 'bg-primary-10 text-primary border-primary-20';
+      case 'PILOT':
+        return 'bg-success-10 text-success border-success-20';
+      case 'STUDENT':
+        return 'bg-warning-10 text-warning border-warning-20';
+      case 'BASE_MANAGER':
+        return 'bg-primary-20 text-primary border-primary-20';
+      case 'PROSPECT':
+        return 'bg-blue-10 text-blue border-blue-20';
+      default:
+        return 'bg-muted text-muted-foreground border border-gray-200 dark:border-gray-700';
+    }
+  };
+
+  const getRoleDisplayName = (role: string) => {
+    switch (role) {
+      case 'SUPER_ADMIN':
+        return 'Super Admin';
+      case 'ADMIN':
+        return 'Admin';
+      case 'INSTRUCTOR':
+        return 'Instructor';
+      case 'PILOT':
+        return 'Pilot';
+      case 'STUDENT':
+        return 'Student';
+      case 'BASE_MANAGER':
+        return 'Base Manager';
+      case 'PROSPECT':
+        return 'Prospect';
+      default:
+        return role;
+    }
+  };
+
   return (
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
@@ -110,9 +152,19 @@ export function UserMenu({ user, onLogout, notificationCount = 0 }: UserMenuProp
             <span className="text-xs text-muted-foreground">
               {user.email}
             </span>
+            <div className="flex gap-1 mt-1">
+              {user.userRoles?.map((userRole, index) => (
+                <Badge 
+                  key={`${userRole.roles.name}-${index}`} 
+                  className={`text-xs ${getRoleBadgeColor(userRole.roles.name)}`}
+                >
+                  {getRoleDisplayName(userRole.roles.name)}
+                </Badge>
+              ))}
+            </div>
           </div>
         </DropdownMenuLabel>
-        <DropdownMenuSeparator />
+        <div className="h-px bg-gray-300 dark:bg-gray-600 my-2 mx-2" />
         
         <DropdownMenuItem onClick={() => handleNavigate('/my-account')}>
           <User className="mr-2 h-4 w-4" />
@@ -139,7 +191,7 @@ export function UserMenu({ user, onLogout, notificationCount = 0 }: UserMenuProp
           <span>System Settings</span>
         </DropdownMenuItem>
         
-        <DropdownMenuSeparator />
+        <div className="h-px bg-gray-300 dark:bg-gray-600 my-2 mx-2" />
         
         <DropdownMenuLabel>Theme</DropdownMenuLabel>
         <DropdownMenuItem onClick={() => setTheme('light')}>
@@ -170,14 +222,14 @@ export function UserMenu({ user, onLogout, notificationCount = 0 }: UserMenuProp
           )}
         </DropdownMenuItem>
         
-        <DropdownMenuSeparator />
+        <div className="h-px bg-gray-300 dark:bg-gray-600 my-2 mx-2" />
         
         <DropdownMenuItem onClick={handleLogout} className="text-destructive">
           <LogOut className="mr-2 h-4 w-4" />
           <span>Logout</span>
         </DropdownMenuItem>
         
-        <DropdownMenuSeparator />
+        <div className="h-px bg-gray-300 dark:bg-gray-600 my-2 mx-2" />
         
         <div className="px-2 py-1.5">
           <div className="text-xs text-muted-foreground text-center">

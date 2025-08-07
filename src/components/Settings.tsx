@@ -27,6 +27,7 @@ import UsersImportTab from './UsersImportTab';
 import FlightLogsImportTab from './FlightLogsImportTab';
 import FleetImportTab from './FleetImportTab';
 import WebhookMonitoringTab from './WebhookMonitoringTab';
+import HourPackagesTab from './HourPackagesTab';
 import { DATE_FORMATS, type DateFormat } from '@/lib/date-utils';
 import { useDateFormat } from '@/contexts/DateFormatContext';
 import { User } from "@/types/uuid-types";
@@ -177,6 +178,9 @@ export default function Settings() {
           )}
           {isSuperAdmin && (
             <TabsTrigger value="webhook-monitoring">Webhook Monitoring</TabsTrigger>
+          )}
+          {isSuperAdmin && (
+            <TabsTrigger value="hour-packages">Hour Packages</TabsTrigger>
           )}
           <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="backup">Backup & Export</TabsTrigger>
@@ -355,6 +359,12 @@ export default function Settings() {
         {isSuperAdmin && (
           <TabsContent value="webhook-monitoring" className="space-y-6">
             <WebhookMonitoringTab />
+          </TabsContent>
+        )}
+
+        {isSuperAdmin && (
+          <TabsContent value="hour-packages" className="space-y-6">
+            <HourPackagesTab />
           </TabsContent>
         )}
 
