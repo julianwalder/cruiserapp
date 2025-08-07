@@ -237,33 +237,24 @@ export function VeriffVerification({
   return (
     <div className={cn("w-full", className)}>
       <Card>
-            <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              {getStatusIcon()}
-              Identity Verification
-            </CardTitle>
-            <CardDescription>
-              Verify your identity using Veriff's secure verification process
-            </CardDescription>
-          </div>
-          
-          {/* Status and Action Button in Header */}
-          <div className="flex items-center gap-4">
-            {/* Status Display */}
-            {getStatusText() !== 'Not Started' && (
-              <div className="flex items-center gap-2">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                {getStatusIcon()}
+                Identity Verification
+              </CardTitle>
+              <CardDescription className="mt-2">
                 <Badge 
                   variant={getStatusColor()}
                   className={getStatusText() === 'Not Started' ? 'bg-orange-100 text-orange-800 border-orange-200' : ''}
                 >
                   {getStatusText()}
                 </Badge>
-              </div>
-            )}
+              </CardDescription>
+            </div>
             
-            {/* Action Button */}
+            {/* Action Button in Header */}
             {!status?.isVerified && (
               <div>
                 {(() => {
@@ -331,8 +322,7 @@ export function VeriffVerification({
               </div>
             )}
           </div>
-        </div>
-      </CardHeader>
+        </CardHeader>
       
       <CardContent className="space-y-4">
 
