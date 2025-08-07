@@ -456,6 +456,7 @@ export class EnhancedVeriffWebhook {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
+    // Get comprehensive verification data
     const { data: user, error } = await supabase
       .from('users')
       .select(`
@@ -495,8 +496,7 @@ export class EnhancedVeriffWebhook {
         veriffWebhookReceivedAt,
         veriffWebhookData,
         address,
-        city,
-        postalCode
+        city
       `)
       .eq('id', userId)
       .single();
@@ -531,7 +531,6 @@ export class EnhancedVeriffWebhook {
         country: user.veriffPersonCountry,
         address: user.address,
         city: user.city,
-        postalCode: user.postalCode,
       },
       
       document: {

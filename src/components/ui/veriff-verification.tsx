@@ -213,14 +213,14 @@ export function VeriffVerification({
   };
 
   const getStatusColor = () => {
-    if (!status) return 'secondary';
+    if (!status) return 'outline';
     
     if (status.isVerified || status.veriffStatus === 'approved') return 'default';
     if (status.veriffStatus === 'declined') return 'destructive';
     if (status.veriffStatus === 'submitted') return 'secondary';
     if (status.veriffStatus === 'created') return 'default';
     
-    return 'secondary';
+    return 'outline';
   };
 
   if (loading) {
@@ -237,23 +237,104 @@ export function VeriffVerification({
   return (
     <div className={cn("w-full", className)}>
       <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          {getStatusIcon()}
-          Identity Verification
-        </CardTitle>
-        <CardDescription>
-          Verify your identity using Veriff's secure verification process
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Status Display */}
+            <CardHeader>
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">Status:</span>
-          <Badge variant={getStatusColor()}>
-            {getStatusText()}
-          </Badge>
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              {getStatusIcon()}
+              Identity Verification
+            </CardTitle>
+            <CardDescription>
+              Verify your identity using Veriff's secure verification process
+            </CardDescription>
+          </div>
+          
+          {/* Status and Action Button in Header */}
+          <div className="flex items-center gap-4">
+            {/* Status Display */}
+            {getStatusText() !== 'Not Started' && (
+              <div className="flex items-center gap-2">
+                <Badge 
+                  variant={getStatusColor()}
+                  className={getStatusText() === 'Not Started' ? 'bg-orange-100 text-orange-800 border-orange-200' : ''}
+                >
+                  {getStatusText()}
+                </Badge>
+              </div>
+            )}
+            
+            {/* Action Button */}
+            {!status?.isVerified && (
+              <div>
+                {(() => {
+                  if (status?.needsNewSession) {
+                    return (
+                      <Button 
+                        onClick={createVerificationSession} 
+                        disabled={creatingSession}
+                      >
+                        {creatingSession ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Creating New Session...
+                          </>
+                        ) : (
+                          <>
+                            <Shield className="h-4 w-4 mr-2" />
+                            Start New Verification
+                          </>
+                        )}
+                      </Button>
+                    );
+                  }
+                  
+                  if (!status?.sessionId) {
+                    return (
+                      <Button 
+                        onClick={createVerificationSession} 
+                        disabled={creatingSession}
+                      >
+                        {creatingSession ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Creating Session...
+                          </>
+                        ) : (
+                          <>
+                            <Shield className="h-4 w-4 mr-2" />
+                            Start Verification
+                          </>
+                        )}
+                      </Button>
+                    );
+                  } else if (status?.veriffStatus === 'created' && sessionUrl) {
+                    return (
+                      <Button 
+                        onClick={openVerificationSession}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Continue Verification
+                      </Button>
+                    );
+                  } else {
+                    return (
+                      <Button 
+                        onClick={fetchStatus}
+                        variant="outline"
+                      >
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Check Status
+                      </Button>
+                    );
+                  }
+                })()}
+              </div>
+            )}
+          </div>
         </div>
+      </CardHeader>
+      
+      <CardContent className="space-y-4">
 
         {/* Verification Details */}
         {status?.veriffData && (
@@ -269,117 +350,10 @@ export function VeriffVerification({
           </div>
         )}
 
-        {/* Action Buttons */}
-        {!status?.isVerified && (
-          <div className="space-y-2">
-            {(() => {
-              console.log('Current status for button logic:', {
-                isVerified: status?.isVerified,
-                sessionId: status?.sessionId,
-                veriffStatus: status?.veriffStatus,
-                sessionUrl: sessionUrl,
-                needsNewSession: status?.needsNewSession
-              });
-              
-              // If session expired, show message and create new session button
-              if (status?.needsNewSession) {
-                return (
-                  <div className="space-y-3">
-                    <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                        <span className="text-sm text-yellow-800">
-                          Your previous verification session has expired. Please start a new verification.
-                        </span>
-                      </div>
-                    </div>
-                    <Button 
-                      onClick={createVerificationSession} 
-                      disabled={creatingSession}
-                      className="w-full"
-                    >
-                      {creatingSession ? (
-                        <>
-                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                          Creating New Session...
-                        </>
-                      ) : (
-                        <>
-                          <Shield className="h-4 w-4 mr-2" />
-                          Start New Verification
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                );
-              }
-              
-              // If user is already verified and approved, show success message
-              if (status?.isVerified && status?.veriffStatus === 'approved') {
-                return (
-                  <div className="space-y-3">
-                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                        <span className="text-sm text-green-800">
-                          ✅ Identity verification completed successfully!
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-              
-              if (!status?.sessionId) {
-                return (
-                  <Button 
-                    onClick={createVerificationSession} 
-                    disabled={creatingSession}
-                    className="w-full"
-                  >
-                    {creatingSession ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                        Creating Session...
-                      </>
-                    ) : (
-                      <>
-                        <Shield className="h-4 w-4 mr-2" />
-                        Start Verification
-                      </>
-                    )}
-                  </Button>
-                );
-              } else if (status?.veriffStatus === 'created' && sessionUrl) {
-                return (
-                  <Button 
-                    onClick={openVerificationSession}
-                    className="w-full"
-                  >
-                    <ExternalLink className="h-4 w-4 mr-2" />
-                    Continue Verification
-                  </Button>
-                );
-              } else {
-                return (
-                  <Button 
-                    onClick={fetchStatus}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Check Status
-                  </Button>
-                );
-              }
-            })()}
-          </div>
-        )}
-
         {/* Information Alert */}
-        <Alert>
-          <Info className="h-4 w-4" />
-          <AlertDescription>
+        <Alert className="bg-blue-50 border-blue-200">
+          <Info className="h-4 w-4 text-blue-600" />
+          <AlertDescription className="text-blue-700">
             You'll need a government-issued ID (passport or national ID) and a device with a camera to complete the verification.
           </AlertDescription>
         </Alert>

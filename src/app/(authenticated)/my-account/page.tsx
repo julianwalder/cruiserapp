@@ -117,6 +117,8 @@ interface VerificationData {
     nationality?: string;
     gender?: string;
     country?: string;
+    address?: string;
+    city?: string;
   };
   
   // Document data (nested object)
@@ -551,45 +553,6 @@ export default function MyAccountPage() {
 
         {/* Verification Tab */}
         <TabsContent value="verification" className="space-y-6">
-          {/* Verification Status Overview */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Identity Verification Status
-              </CardTitle>
-              <CardDescription>
-                Your identity verification status and details
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center space-x-3">
-                  {getStatusIcon(getActualStatus())}
-                  <div>
-                    <h4 className="font-medium">Veriff Identity Verification</h4>
-                    <p className="text-sm text-muted-foreground">
-                      {getActualStatus() || 'Not started'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Badge 
-                    variant={getActualStatus()?.toLowerCase() === 'approved' ? 'default' : 'secondary'}
-                    className={getActualStatus()?.toLowerCase() === 'approved' ? 'bg-green-600 hover:bg-green-700' : ''}
-                  >
-                    {getActualStatus() || 'PENDING'}
-                  </Badge>
-                  {!user.identityVerified && !verificationData?.isVerified && (
-                    <Button variant="outline" size="sm">
-                      <Shield className="h-4 w-4 mr-2" />
-                      Verify Now
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
           {/* Personal Information */}
           {(verificationData?.person?.givenName || user.veriffPersonGivenName) && (
@@ -641,6 +604,19 @@ export default function MyAccountPage() {
                       <p className="text-lg">{verificationData?.person?.country || user.veriffPersonCountry}</p>
                     </div>
                   )}
+                  {(verificationData?.person?.address || user.address) && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Address</label>
+                      <p className="text-lg">{verificationData?.person?.address || user.address}</p>
+                    </div>
+                  )}
+                  {(verificationData?.person?.city || user.city) && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">City</label>
+                      <p className="text-lg">{verificationData?.person?.city || user.city}</p>
+                    </div>
+                  )}
+
                 </div>
               </CardContent>
             </Card>
@@ -838,6 +814,14 @@ export default function MyAccountPage() {
                       </p>
                     </div>
                   )}
+                  {(verificationData?.verificationId || user.veriffVerificationId) && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Verification ID</label>
+                      <p className="text-sm font-mono bg-gray-100 p-2 rounded">
+                        {verificationData?.verificationId || user.veriffVerificationId}
+                      </p>
+                    </div>
+                  )}
                   {(verificationData?.code || user.veriffCode) && (
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">Response Code</label>
@@ -852,6 +836,83 @@ export default function MyAccountPage() {
                       </p>
                     </div>
                   )}
+                  {(verificationData?.reason || user.veriffReason) && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Reason</label>
+                      <p className="text-lg">{verificationData?.reason || user.veriffReason}</p>
+                    </div>
+                  )}
+                  {(verificationData?.action || user.veriffWebhookData?.action) && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Action</label>
+                      <p className="text-lg">{verificationData?.action || user.veriffWebhookData?.action}</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Verification Quality & Flags */}
+          {(verificationData?.qualityScore || user.veriffQualityScore || verificationData?.flags || user.veriffFlags || verificationData?.context || user.veriffContext) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5" />
+                  Verification Quality & Analysis
+                </CardTitle>
+                <CardDescription>
+                  AI analysis results and quality assessment of your verification
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {(verificationData?.qualityScore || user.veriffQualityScore) && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Quality Score</label>
+                      <p className="text-lg font-semibold">{verificationData?.qualityScore || user.veriffQualityScore}</p>
+                    </div>
+                  )}
+                  {(verificationData?.context || user.veriffContext) && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Context</label>
+                      <p className="text-lg">{verificationData?.context || user.veriffContext}</p>
+                    </div>
+                  )}
+                  {(verificationData?.flags || user.veriffFlags) && (
+                    <div className="md:col-span-2">
+                      <label className="text-sm font-medium text-muted-foreground">Flags</label>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {(verificationData?.flags || user.veriffFlags)?.map((flag: string, index: number) => (
+                          <Badge key={index} variant="outline" className="text-xs">
+                            {flag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Raw Webhook Data (Development Only) */}
+          {process.env.NODE_ENV === 'development' && verificationData?.webhookData && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Zap className="h-5 w-5" />
+                  Raw Webhook Data (Development)
+                </CardTitle>
+                <CardDescription>
+                  Complete webhook payload received from Veriff
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-gray-100 p-4 rounded-lg">
+                  <pre className="text-xs overflow-auto max-h-96">
+                    {JSON.stringify(verificationData.webhookData, null, 2)}
+                  </pre>
                 </div>
               </CardContent>
             </Card>
@@ -859,34 +920,21 @@ export default function MyAccountPage() {
 
           {/* Start Verification (Only if not verified) */}
           {!user.identityVerified && !verificationData?.isVerified && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  Start Identity Verification
-                </CardTitle>
-                <CardDescription>
-                  Complete your identity verification to access all features
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <VeriffVerification
-                  userId={user.id}
-                  userData={{
-                    firstName: user.firstName,
-                    lastName: user.lastName,
-                    email: user.email,
-                  }}
-                  onStatusChange={(status) => {
-                    if (status === 'approved') {
-                      setTimeout(() => {
-                        window.location.reload();
-                      }, 2000);
-                    }
-                  }}
-                />
-              </CardContent>
-            </Card>
+            <VeriffVerification
+              userId={user.id}
+              userData={{
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+              }}
+              onStatusChange={(status) => {
+                if (status === 'approved') {
+                  setTimeout(() => {
+                    window.location.reload();
+                  }, 2000);
+                }
+              }}
+            />
           )}
         </TabsContent>
 

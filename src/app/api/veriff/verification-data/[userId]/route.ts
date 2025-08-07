@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
 import { EnhancedVeriffWebhook } from '@/lib/enhanced-veriff-webhook';
+import { getSupabaseClient } from '@/lib/supabase';
 
 export async function GET(
   request: NextRequest,
@@ -27,12 +28,40 @@ export async function GET(
     }
 
     // Get comprehensive verification data
-    const verificationData = await EnhancedVeriffWebhook.getUserVerificationData(userId);
-
-    return NextResponse.json({
-      success: true,
-      data: verificationData
-    });
+    try {
+      const verificationData = await EnhancedVeriffWebhook.getUserVerificationData(userId);
+      
+      return NextResponse.json({
+        success: true,
+        data: verificationData
+      });
+    } catch (verificationError) {
+      console.error('Verification data fetch error:', verificationError);
+      
+      // Fallback: return basic user verification status
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        throw new Error('Database connection error');
+      }
+      
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('id, "identityVerified"')
+        .eq('id', userId)
+        .single();
+      
+      if (userError) {
+        throw new Error(`Failed to fetch user data: ${userError.message}`);
+      }
+      
+      return NextResponse.json({
+        success: true,
+        data: {
+          isVerified: user?.identityVerified || false,
+          status: user?.identityVerified ? 'approved' : 'not_started'
+        }
+      });
+    }
 
   } catch (error) {
     console.error('Error fetching verification data:', error);
