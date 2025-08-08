@@ -59,6 +59,11 @@ app.get('/', (req, res) => {
   res.redirect('/api/health');
 });
 
+// Handle favicon requests
+app.get('/favicon.ico', (req, res) => {
+  res.status(204).end();
+});
+
 // API key authentication for all routes except health
 app.use('/api/health', healthRouter);
 app.use('/api', authenticateApiKey);
