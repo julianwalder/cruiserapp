@@ -636,10 +636,13 @@ export default function HourPackages() {
               {/* Price */}
               <div className="text-center">
                 <div className="text-3xl font-bold text-card-foreground">
-                  {formatCurrency(pkg.price, pkg.currency)}
+                  {formatPricePerHour(pkg.price_per_hour, pkg.currency)}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {formatPricePerHour(pkg.price_per_hour, pkg.currency)} per hour
+                  per flight hour
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Total: {formatCurrency(pkg.price, pkg.currency)}
                 </div>
               </div>
 

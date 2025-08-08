@@ -542,7 +542,7 @@ export function OnboardingFlow({ onboardingType, onComplete, onCancel, userId, u
                                     {formatCurrency(item.price / item.totalHours, item.currency)}
                                   </div>
                                   <div className="text-sm text-muted-foreground">
-                                    per hour
+                                    per flight hour
                                   </div>
                                   <div className="text-sm text-muted-foreground">
                                     Total: {formatCurrency(item.price, item.currency)}
