@@ -29,12 +29,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Check if user is super admin
+    // Get query parameters
+    const { searchParams } = new URL(request.url);
+    const activeOnly = searchParams.get('activeOnly') === 'true';
+
+    // Check permissions based on request type
     const userRoles = user.user_roles?.map(ur => ur.roles?.name || ur.role?.name) || [];
     console.log('User roles:', userRoles);
     console.log('User data:', JSON.stringify(user, null, 2));
     
-    if (!userRoles.includes('SUPER_ADMIN')) {
+    // Allow public access for viewing active packages (for onboarding)
+    // Require super admin for management operations
+    if (!activeOnly && !userRoles.includes('SUPER_ADMIN')) {
       return NextResponse.json(
         { error: 'Insufficient permissions. Only super admins can manage hour package templates.' },
         { status: 403 }
@@ -46,12 +52,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Database connection error' }, { status: 500 });
     }
 
-    // Get query parameters
-    const { searchParams } = new URL(request.url);
+    // Get remaining query parameters
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
     const search = searchParams.get('search') || '';
-    const activeOnly = searchParams.get('activeOnly') === 'true';
 
     let query = supabase
       .from('hour_package_templates')

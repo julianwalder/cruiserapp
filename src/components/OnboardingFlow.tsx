@@ -20,7 +20,9 @@ import {
   ArrowRight,
   ArrowLeft,
   AlertTriangle,
-  Info
+  Info,
+  Star,
+  ShoppingCart
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { VeriffVerification } from '@/components/ui/veriff-verification';
@@ -56,6 +58,8 @@ interface HourPackage {
   price: number;
   currency: string;
   validityDays: number;
+  features?: string[];
+  popular?: boolean;
 }
 
 const studentPaymentPlans: PaymentPlan[] = [
@@ -91,44 +95,7 @@ const studentPaymentPlans: PaymentPlan[] = [
   }
 ];
 
-const pilotHourPackages: HourPackage[] = [
-  {
-    id: '1',
-    name: '5 Hours Package',
-    description: '5 flight hours package',
-    totalHours: 5,
-    price: 750,
-    currency: 'RON',
-    validityDays: 365
-  },
-  {
-    id: '2',
-    name: '10 Hours Package',
-    description: '10 flight hours package',
-    totalHours: 10,
-    price: 1400,
-    currency: 'RON',
-    validityDays: 365
-  },
-  {
-    id: '3',
-    name: '20 Hours Package',
-    description: '20 flight hours package',
-    totalHours: 20,
-    price: 2600,
-    currency: 'RON',
-    validityDays: 365
-  },
-  {
-    id: '4',
-    name: '50 Hours Package',
-    description: '50 flight hours package',
-    totalHours: 50,
-    price: 6000,
-    currency: 'RON',
-    validityDays: 365
-  }
-];
+
 
 export function OnboardingFlow({ onboardingType, onComplete, onCancel, userId, userData }: OnboardingFlowProps) {
   const [currentStep, setCurrentStep] = useState(1);
@@ -136,9 +103,88 @@ export function OnboardingFlow({ onboardingType, onComplete, onCancel, userId, u
   const [selectedPlan, setSelectedPlan] = useState<string>('');
   const [selectedPackage, setSelectedPackage] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [pilotHourPackages, setPilotHourPackages] = useState<HourPackage[]>([]);
+  const [packagesLoading, setPackagesLoading] = useState(false);
 
   const totalSteps = 5;
   const progress = (currentStep / totalSteps) * 100;
+
+  // Fetch hour packages from API
+  useEffect(() => {
+    const fetchHourPackages = async () => {
+      if (onboardingType === 'PILOT') {
+        setPackagesLoading(true);
+        try {
+          const token = localStorage.getItem('token');
+          if (!token) {
+            console.error('No authentication token found');
+            return;
+          }
+
+          const response = await fetch('/api/hour-packages/templates?activeOnly=true', {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: Failed to fetch packages`);
+          }
+
+          const data = await response.json();
+          
+          // Transform API data to match our interface
+          const transformedPackages: HourPackage[] = data.templates.map((template: any) => ({
+            id: template.id,
+            name: template.name,
+            description: template.description || `${template.hours} flight hours package`,
+            totalHours: template.hours,
+            price: template.total_price,
+            currency: template.currency,
+            validityDays: template.validity_days,
+            features: [
+              'Flexible scheduling',
+              `Valid for ${template.validity_days} days`,
+              'No expiration fees',
+              'Aircraft rental included',
+              'Fuel included',
+              'Basic insurance included'
+            ]
+          }));
+
+          // Mark the package with the best value as popular (lowest price per hour)
+          if (transformedPackages.length > 0) {
+            const bestValuePackage = transformedPackages.reduce((best, current) => 
+              (current.price / current.totalHours) < (best.price / best.totalHours) ? current : best
+            );
+            bestValuePackage.popular = true;
+          }
+
+          setPilotHourPackages(transformedPackages);
+        } catch (error) {
+          console.error('Error fetching hour packages:', error);
+          // Fallback to empty array if API fails
+          setPilotHourPackages([]);
+        } finally {
+          setPackagesLoading(false);
+        }
+      }
+    };
+
+    fetchHourPackages();
+  }, [onboardingType]);
+
+  // Helper functions for formatting
+  const formatCurrency = (amount: number, currency: string = 'EUR') => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency
+    }).format(amount);
+  };
+
+  const formatPricePerHour = (pricePerHour: number, currency: string = 'EUR') => {
+    return formatCurrency(pricePerHour, currency);
+  };
 
   const steps = [
     {
@@ -399,39 +445,155 @@ export function OnboardingFlow({ onboardingType, onComplete, onCancel, userId, u
               </p>
             </div>
 
-            <RadioGroup value={onboardingType === 'STUDENT' ? selectedPlan : selectedPackage} onValueChange={onboardingType === 'STUDENT' ? setSelectedPlan : setSelectedPackage}>
-              <div className="grid gap-4">
-                {(onboardingType === 'STUDENT' ? studentPaymentPlans : pilotHourPackages).map((item) => (
-                  <div key={item.id} className="flex items-center space-x-3">
-                    <RadioGroupItem value={item.id} id={item.id} />
-                    <Label htmlFor={item.id} className="flex-1 cursor-pointer">
-                      <div className="p-4 border rounded-lg hover:bg-accent/50 transition-colors">
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="font-semibold">{item.name}</h3>
-                          <Badge variant="outline">
-                            {onboardingType === 'STUDENT' 
-                              ? `${(item as PaymentPlan).discountPercentage}% off`
-                              : `${(item as HourPackage).totalHours}h`
-                            }
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-2">{item.description}</p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-lg font-bold">
-                            {item.totalAmount.toLocaleString()} {item.currency}
-                          </span>
-                          {onboardingType === 'STUDENT' && (item as PaymentPlan).numberOfInstallments && (
-                            <span className="text-sm text-muted-foreground">
-                              {(item as PaymentPlan).numberOfInstallments} installments
+            {onboardingType === 'STUDENT' ? (
+              <RadioGroup value={selectedPlan} onValueChange={setSelectedPlan}>
+                <div className="grid gap-4">
+                  {studentPaymentPlans.map((item) => (
+                    <div key={item.id} className="flex items-center space-x-3">
+                      <RadioGroupItem value={item.id} id={item.id} />
+                      <Label htmlFor={item.id} className="flex-1 cursor-pointer">
+                        <div className="p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-semibold">{item.name}</h3>
+                            <Badge variant="outline">
+                              {item.discountPercentage}% off
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-2">{item.description}</p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-lg font-bold">
+                              {item.totalAmount?.toLocaleString() || '0'} {item.currency}
                             </span>
-                          )}
+                            {item.numberOfInstallments && (
+                              <span className="text-sm text-muted-foreground">
+                                {item.numberOfInstallments} installments
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </RadioGroup>
+            ) : (
+              <>
+                {packagesLoading ? (
+                  <div className="space-y-4">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="p-4 border rounded-lg animate-pulse">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+                          <div className="h-6 bg-gray-200 rounded w-16"></div>
+                        </div>
+                        <div className="h-3 bg-gray-200 rounded w-2/3 mb-2"></div>
+                        <div className="flex items-center justify-between">
+                          <div className="h-6 bg-gray-200 rounded w-20"></div>
+                          <div className="h-4 bg-gray-200 rounded w-24"></div>
                         </div>
                       </div>
-                    </Label>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </RadioGroup>
+                ) : pilotHourPackages.length > 0 ? (
+                  <RadioGroup value={selectedPackage} onValueChange={setSelectedPackage}>
+                    <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 ${
+                      pilotHourPackages.length >= 4 && pilotHourPackages.length % 4 === 0 
+                        ? 'lg:grid-cols-4' 
+                        : pilotHourPackages.length >= 3 && pilotHourPackages.length % 3 === 0 
+                          ? 'lg:grid-cols-3' 
+                          : 'lg:grid-cols-4'
+                    }`}>
+                      {pilotHourPackages.map((item) => (
+                        <div key={item.id} className="relative">
+                          <RadioGroupItem value={item.id} id={item.id} className="sr-only" />
+                          <Label 
+                            htmlFor={item.id} 
+                            className="cursor-pointer block"
+                            onClick={() => setSelectedPackage(item.id)}
+                          >
+                            <Card className={`relative transition-all duration-200 hover:shadow-lg hover:scale-105 ${
+                              item.popular ? 'ring-2 ring-primary' : ''
+                            } ${selectedPackage === item.id ? 'ring-2 ring-primary bg-primary/5' : ''}`}>
+                              {item.popular && (
+                                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                                  <Badge className="bg-primary text-primary-foreground flex items-center gap-1">
+                                    <Star className="h-3 w-3" />
+                                    Best Value
+                                  </Badge>
+                                </div>
+                              )}
+                              
+                              <CardHeader className="text-center pb-4">
+                                <div className="flex items-center justify-center mb-2">
+                                  <Clock className="h-8 w-8 text-primary" />
+                                </div>
+                                <CardTitle className="text-2xl font-bold">
+                                  {item.totalHours} Hours
+                                </CardTitle>
+                                <CardDescription className="text-sm">
+                                  {item.description}
+                                </CardDescription>
+                              </CardHeader>
+                              
+                              <CardContent className="space-y-4">
+                                {/* Price */}
+                                <div className="text-center">
+                                  <div className="text-3xl font-bold text-card-foreground">
+                                    {formatCurrency(item.price / item.totalHours, item.currency)}
+                                  </div>
+                                  <div className="text-sm text-muted-foreground">
+                                    per hour
+                                  </div>
+                                  <div className="text-sm text-muted-foreground">
+                                    Total: {formatCurrency(item.price, item.currency)}
+                                  </div>
+                                </div>
+
+                                {/* Features */}
+                                <div className="space-y-2">
+                                  {item.features?.slice(0, 4).map((feature, index) => (
+                                    <div key={index} className="flex items-center gap-2 text-sm">
+                                      <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                      <span className="text-muted-foreground">{feature}</span>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {/* Select Button */}
+                                <Button 
+                                  className="w-full mt-4" 
+                                  variant={selectedPackage === item.id ? "default" : (item.popular ? "outline" : "outline")}
+                                >
+                                  {selectedPackage === item.id ? (
+                                    <>
+                                      <CheckCircle className="h-4 w-4 mr-2" />
+                                      Selected
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ShoppingCart className="h-4 w-4 mr-2" />
+                                      Select Package
+                                    </>
+                                  )}
+                                </Button>
+                              </CardContent>
+                            </Card>
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </RadioGroup>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="text-muted-foreground">
+                      <Plane className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-lg">No hour packages available at the moment.</p>
+                      <p className="text-sm">Please contact support or check back later.</p>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         );
 
@@ -511,15 +673,18 @@ export function OnboardingFlow({ onboardingType, onComplete, onCancel, userId, u
                     <span className="font-medium">Total Amount:</span>
                     <p className="text-muted-foreground">
                       {onboardingType === 'STUDENT' 
-                        ? `${studentPaymentPlans.find(p => p.id === selectedPlan)?.totalAmount.toLocaleString()} RON`
-                        : `${pilotHourPackages.find(p => p.id === selectedPackage)?.price.toLocaleString()} RON`
+                        ? `${studentPaymentPlans.find(p => p.id === selectedPlan)?.totalAmount?.toLocaleString() || '0'} ${studentPaymentPlans.find(p => p.id === selectedPlan)?.currency || 'RON'}`
+                        : `${pilotHourPackages.find(p => p.id === selectedPackage)?.price?.toLocaleString() || '0'} ${pilotHourPackages.find(p => p.id === selectedPackage)?.currency || 'EUR'}`
                       }
                     </p>
                   </div>
                   <div>
                     <span className="font-medium">Duration:</span>
                     <p className="text-muted-foreground">
-                      {onboardingType === 'STUDENT' ? '3-6 months' : '12 months'}
+                      {onboardingType === 'STUDENT' 
+                        ? '3-6 months' 
+                        : `${pilotHourPackages.find(p => p.id === selectedPackage)?.validityDays || 365} days`
+                      }
                     </p>
                   </div>
                 </div>

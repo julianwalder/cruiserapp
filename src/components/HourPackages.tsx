@@ -4,9 +4,51 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription, 
+  DialogFooter,
+  DialogTrigger
+} from '@/components/ui/dialog';
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Modal } from './ui/Modal';
-import { Clock, ShoppingCart, CheckCircle, Star, Euro } from 'lucide-react';
+import { 
+  Clock, 
+  ShoppingCart, 
+  CheckCircle, 
+  Star, 
+  Euro, 
+  Plus, 
+  MoreVertical, 
+  Eye, 
+  Edit, 
+  Trash2,
+  Save,
+  X
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 interface HourPackageTemplate {
@@ -27,6 +69,7 @@ interface HourPackageTemplate {
 
 interface HourPackage {
   id: string;
+  name: string;
   hours: number;
   price: number;
   price_per_hour: number;
@@ -35,14 +78,75 @@ interface HourPackage {
   features?: string[];
   validity_days: number;
   currency: string;
+  is_active: boolean;
+}
+
+interface User {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  userRoles?: Array<{
+    roles: {
+      name: string;
+    };
+  }>;
+  roles?: string[];
 }
 
 export default function HourPackages() {
   const [packages, setPackages] = useState<HourPackage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [selectedPackage, setSelectedPackage] = useState<HourPackage | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Management states
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [deletingPackage, setDeletingPackage] = useState<HourPackage | null>(null);
+
+  // Form state for create/edit
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    hours: 0,
+    price_per_hour: 0,
+    total_price: 0,
+    currency: 'EUR',
+    validity_days: 365,
+    is_active: true,
+  });
+
+  // Check if user is admin or super admin
+  const isAdmin = currentUser?.userRoles?.some(ur => 
+    ur.roles?.name === 'SUPER_ADMIN' || ur.roles?.name === 'ADMIN'
+  ) || currentUser?.roles?.includes('SUPER_ADMIN') || currentUser?.roles?.includes('ADMIN');
+
+
+
+  // Fetch current user
+  const fetchCurrentUser = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch('/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        setCurrentUser(userData);
+      }
+    } catch (error) {
+      console.error('Error fetching user:', error);
+    }
+  };
 
   // Fetch hour packages from API
   const fetchPackages = async () => {
@@ -68,12 +172,14 @@ export default function HourPackages() {
       // Transform API data to match our interface
       const transformedPackages: HourPackage[] = data.templates.map((template: HourPackageTemplate) => ({
         id: template.id,
+        name: template.name,
         hours: template.hours,
         price: template.total_price,
         price_per_hour: template.price_per_hour,
         description: template.description,
         validity_days: template.validity_days,
         currency: template.currency,
+        is_active: template.is_active,
         features: [
           'Flexible scheduling',
           `Valid for ${template.validity_days} days`,
@@ -102,6 +208,7 @@ export default function HourPackages() {
   };
 
   useEffect(() => {
+    fetchCurrentUser();
     fetchPackages();
   }, []);
 
@@ -121,7 +228,6 @@ export default function HourPackages() {
     setIsProcessing(true);
     try {
       // TODO: Implement actual order placement API call
-      // For now, simulate API call for ordering
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       toast.success(`Order placed successfully! ${selectedPackage.hours} hours package ordered.`);
@@ -131,6 +237,137 @@ export default function HourPackages() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // Management functions
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      description: '',
+      hours: 0,
+      price_per_hour: 0,
+      total_price: 0,
+      currency: 'EUR',
+      validity_days: 365,
+      is_active: true,
+    });
+    setIsEditMode(false);
+  };
+
+  const handleCreatePackage = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch('/api/hour-packages/templates', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to create package');
+      }
+
+      toast.success('Hour package created successfully');
+      setIsCreateDialogOpen(false);
+      resetForm();
+      fetchPackages();
+    } catch (error) {
+      console.error('Error creating package:', error);
+      toast.error('Failed to create hour package');
+    }
+  };
+
+  const handleUpdatePackage = async () => {
+    if (!selectedPackage) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch(`/api/hour-packages/templates/${selectedPackage.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to update package');
+      }
+
+      toast.success('Hour package updated successfully');
+      setIsEditMode(false);
+      resetForm();
+      fetchPackages();
+    } catch (error) {
+      console.error('Error updating package:', error);
+      toast.error('Failed to update hour package');
+    }
+  };
+
+  const handleDeletePackage = async () => {
+    if (!deletingPackage) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch(`/api/hour-packages/templates/${deletingPackage.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to delete package');
+      }
+
+      toast.success('Hour package deleted successfully');
+      setDeletingPackage(null);
+      fetchPackages();
+    } catch (error) {
+      console.error('Error deleting package:', error);
+      toast.error('Failed to delete hour package');
+    }
+  };
+
+  const openViewDialog = (pkg: HourPackage) => {
+    setSelectedPackage(pkg);
+    setFormData({
+      name: pkg.name,
+      description: pkg.description || '',
+      hours: pkg.hours,
+      price_per_hour: pkg.price_per_hour,
+      total_price: pkg.price,
+      currency: pkg.currency,
+      validity_days: pkg.validity_days,
+      is_active: pkg.is_active,
+    });
+    setIsEditMode(false);
+    setIsViewDialogOpen(true);
+  };
+
+  const handlePricePerHourChange = (value: number) => {
+    const newPricePerHour = value;
+    const newTotalPrice = newPricePerHour * formData.hours;
+    setFormData(prev => ({ ...prev, price_per_hour: newPricePerHour, total_price: newTotalPrice }));
+  };
+
+  const handleHoursChange = (value: number) => {
+    const newHours = value;
+    const newTotalPrice = formData.price_per_hour * newHours;
+    setFormData(prev => ({ ...prev, hours: newHours, total_price: newTotalPrice }));
   };
 
   const formatCurrency = (amount: number, currency: string = 'EUR') => {
@@ -156,8 +393,8 @@ export default function HourPackages() {
         </div>
         
         {/* Loading skeleton */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {[...Array(4)].map((_, i) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(3)].map((_, i) => (
             <Card key={i} className="animate-pulse">
               <CardHeader className="text-center pb-4">
                 <div className="h-8 w-8 bg-gray-200 rounded mx-auto mb-2"></div>
@@ -205,12 +442,115 @@ export default function HourPackages() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="text-center space-y-2">
-        <h1 className="text-3xl font-bold text-card-foreground">Hour Packages</h1>
-        <p className="text-muted-foreground max-w-2xl mx-auto">
-          Choose the perfect hour package for your flying needs. All packages include aircraft rental, 
-          fuel, and basic insurance. Valid for the specified duration from purchase date.
-        </p>
+      <div className="flex items-center justify-between">
+        <div className="text-center space-y-2 flex-1">
+          <h1 className="text-3xl font-bold text-card-foreground">Hour Packages</h1>
+          <p className="text-muted-foreground max-w-2xl mx-auto">
+            Choose the perfect hour package for your flying needs. All packages include aircraft rental, 
+            fuel, and basic insurance. Valid for the specified duration from purchase date.
+          </p>
+        </div>
+        
+        {isAdmin && (
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => resetForm()}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Package
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Create Hour Package</DialogTitle>
+                <DialogDescription>
+                  Create a new hour package template for pilots to purchase
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Package Name</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="e.g., 10 Hours Package"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea
+                    id="description"
+                    value={formData.description}
+                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Describe the package..."
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="hours">Hours</Label>
+                    <Input
+                      id="hours"
+                      type="number"
+                      value={formData.hours}
+                      onChange={(e) => handleHoursChange(Number(e.target.value))}
+                      placeholder="10"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="price_per_hour">Price per Hour (€)</Label>
+                    <Input
+                      id="price_per_hour"
+                      type="number"
+                      step="0.01"
+                      value={formData.price_per_hour}
+                      onChange={(e) => handlePricePerHourChange(Number(e.target.value))}
+                      placeholder="120.00"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="total_price">Total Price (€)</Label>
+                    <Input
+                      id="total_price"
+                      type="number"
+                      step="0.01"
+                      value={formData.total_price}
+                      readOnly
+                      className="bg-gray-50"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="validity_days">Validity (days)</Label>
+                    <Input
+                      id="validity_days"
+                      type="number"
+                      value={formData.validity_days}
+                      onChange={(e) => setFormData(prev => ({ ...prev, validity_days: Number(e.target.value) }))}
+                      placeholder="365"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="is_active"
+                    checked={formData.is_active}
+                    onCheckedChange={(checked: boolean) => setFormData(prev => ({ ...prev, is_active: checked }))}
+                  />
+                  <Label htmlFor="is_active">Active</Label>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCreatePackage}>
+                  Create Package
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* Package Cards */}
@@ -227,7 +567,6 @@ export default function HourPackages() {
             className={`relative cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 ${
               pkg.popular ? 'ring-2 ring-primary' : ''
             }`}
-            onClick={() => handlePackageSelection(pkg)}
           >
             {pkg.popular && (
               <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
@@ -237,8 +576,51 @@ export default function HourPackages() {
                 </Badge>
               </div>
             )}
+
+            {isAdmin && (
+              <div className="absolute top-2 right-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => openViewDialog(pkg)}>
+                      <Eye className="h-4 w-4 mr-2" />
+                      View Details
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => {
+                      setSelectedPackage(pkg);
+                      setFormData({
+                        name: pkg.name,
+                        description: pkg.description || '',
+                        hours: pkg.hours,
+                        price_per_hour: pkg.price_per_hour,
+                        total_price: pkg.price,
+                        currency: pkg.currency,
+                        validity_days: pkg.validity_days,
+                        is_active: pkg.is_active,
+                      });
+                      setIsEditMode(true);
+                      setIsViewDialogOpen(true);
+                    }}>
+                      <Edit className="h-4 w-4 mr-2" />
+                      Edit Package
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => setDeletingPackage(pkg)}
+                      className="text-red-600"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Package
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
             
-            <CardHeader className="text-center pb-4">
+            <CardHeader className="text-center pb-4" onClick={() => handlePackageSelection(pkg)}>
               <div className="flex items-center justify-center mb-2">
                 <Clock className="h-8 w-8 text-primary" />
               </div>
@@ -250,7 +632,7 @@ export default function HourPackages() {
               </CardDescription>
             </CardHeader>
             
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4" onClick={() => handlePackageSelection(pkg)}>
               {/* Price */}
               <div className="text-center">
                 <div className="text-3xl font-bold text-card-foreground">
@@ -339,62 +721,193 @@ export default function HourPackages() {
         title="Confirm Package Order"
         description="Review your selected hour package before placing the order."
       >
-          
-          {selectedPackage && (
-            <div className="space-y-4">
-              <div className="bg-muted p-4 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium">Package:</span>
-                  <span className="font-bold">{selectedPackage.hours} Hours</span>
-                </div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium">Total Price:</span>
-                  <span className="font-bold text-lg">{formatCurrency(selectedPackage.price, selectedPackage.currency)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">Price per Hour:</span>
-                  <span className="font-medium">{formatPricePerHour(selectedPackage.price_per_hour, selectedPackage.currency)}</span>
-                </div>
-                <div className="flex items-center justify-between mt-2">
-                  <span className="font-medium">Validity:</span>
-                  <span className="font-medium">{selectedPackage.validity_days} days</span>
-                </div>
+        {selectedPackage && (
+          <div className="space-y-4">
+            <div className="bg-muted p-4 rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-medium">Package:</span>
+                <span className="font-bold">{selectedPackage.hours} Hours</span>
               </div>
-              
-              <div className="text-sm text-muted-foreground">
-                <p>• Valid for {selectedPackage.validity_days} days from purchase date</p>
-                <p>• Includes aircraft rental, fuel, and basic insurance</p>
-                <p>• Flexible scheduling available</p>
-                {selectedPackage.popular && (
-                  <p className="text-primary font-medium">• Best value package!</p>
-                )}
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-medium">Total Price:</span>
+                <span className="font-bold text-lg">{formatCurrency(selectedPackage.price, selectedPackage.currency)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-medium">Price per Hour:</span>
+                <span className="font-medium">{formatPricePerHour(selectedPackage.price_per_hour, selectedPackage.currency)}</span>
+              </div>
+              <div className="flex items-center justify-between mt-2">
+                <span className="font-medium">Validity:</span>
+                <span className="font-medium">{selectedPackage.validity_days} days</span>
               </div>
             </div>
-          )}
-
-          <div className="flex justify-end space-x-2 pt-6">
-            <Button variant="outline" onClick={handleCloseModal} disabled={isProcessing}>
-              Cancel
-            </Button>
-            <Button 
-              onClick={handleConfirmOrder} 
-              disabled={isProcessing}
-              className="min-w-[120px]"
-            >
-              {isProcessing ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <ShoppingCart className="h-4 w-4 mr-2" />
-                  Place Order
-                </>
+            
+            <div className="text-sm text-muted-foreground">
+              <p>• Valid for {selectedPackage.validity_days} days from purchase date</p>
+              <p>• Includes aircraft rental, fuel, and basic insurance</p>
+              <p>• Flexible scheduling available</p>
+              {selectedPackage.popular && (
+                <p className="text-primary font-medium">• Best value package!</p>
               )}
-            </Button>
+            </div>
           </div>
+        )}
+
+        <div className="flex justify-end space-x-2 pt-6">
+          <Button variant="outline" onClick={handleCloseModal} disabled={isProcessing}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleConfirmOrder} 
+            disabled={isProcessing}
+            className="min-w-[120px]"
+          >
+            {isProcessing ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Processing...
+              </>
+            ) : (
+              <>
+                <ShoppingCart className="h-4 w-4 mr-2" />
+                Place Order
+              </>
+            )}
+          </Button>
+        </div>
       </Modal>
+
+      {/* View/Edit Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>
+              {isEditMode ? 'Edit Hour Package' : 'Package Details'}
+            </DialogTitle>
+            <DialogDescription>
+              {isEditMode ? 'Update the hour package template' : 'View package information'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="view-name">Package Name</Label>
+              <Input
+                id="view-name"
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="e.g., 10 Hours Package"
+                readOnly={!isEditMode}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="view-description">Description</Label>
+              <Textarea
+                id="view-description"
+                value={formData.description}
+                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Describe the package..."
+                readOnly={!isEditMode}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="view-hours">Hours</Label>
+                <Input
+                  id="view-hours"
+                  type="number"
+                  value={formData.hours}
+                  onChange={(e) => handleHoursChange(Number(e.target.value))}
+                  placeholder="10"
+                  readOnly={!isEditMode}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="view-price-per-hour">Price per Hour (€)</Label>
+                <Input
+                  id="view-price-per-hour"
+                  type="number"
+                  step="0.01"
+                  value={formData.price_per_hour}
+                  onChange={(e) => handlePricePerHourChange(Number(e.target.value))}
+                  placeholder="120.00"
+                  readOnly={!isEditMode}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="view-total-price">Total Price (€)</Label>
+                <Input
+                  id="view-total-price"
+                  type="number"
+                  step="0.01"
+                  value={formData.total_price}
+                  readOnly
+                  className="bg-gray-50"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="view-validity-days">Validity (days)</Label>
+                <Input
+                  id="view-validity-days"
+                  type="number"
+                  value={formData.validity_days}
+                  onChange={(e) => setFormData(prev => ({ ...prev, validity_days: Number(e.target.value) }))}
+                  placeholder="365"
+                  readOnly={!isEditMode}
+                />
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="view-is-active"
+                checked={formData.is_active}
+                onCheckedChange={(checked: boolean) => setFormData(prev => ({ ...prev, is_active: checked }))}
+                disabled={!isEditMode}
+              />
+              <Label htmlFor="view-is-active">Active</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            {isEditMode ? (
+              <>
+                <Button variant="outline" onClick={() => setIsEditMode(false)}>
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel Edit
+                </Button>
+                <Button onClick={handleUpdatePackage}>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Changes
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>
+                Close
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deletingPackage} onOpenChange={() => setDeletingPackage(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Hour Package</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete "{deletingPackage?.name}"? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeletingPackage(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeletePackage}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 } 
