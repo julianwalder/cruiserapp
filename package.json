@@ -2,6 +2,11 @@
   "name": "cruiserapp",
   "version": "0.1.6",
   "private": true,
+  "overrides": {
+    "openai": {
+      "zod": "^4.0.0"
+    }
+  },
   "engines": {
     "node": ">=18.0.0"
   },
