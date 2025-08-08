@@ -444,9 +444,9 @@ export default function HourPackages() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="text-center space-y-2 flex-1">
-          <h1 className="text-3xl font-bold text-card-foreground">Hour Packages</h1>
-          <p className="text-muted-foreground max-w-2xl mx-auto">
-            Choose the perfect hour package for your flying needs. All packages include aircraft rental, 
+        <h1 className="text-3xl font-bold text-card-foreground">Hour Packages</h1>
+        <p className="text-muted-foreground max-w-2xl mx-auto">
+          Choose the perfect hour package for your flying needs. All packages include aircraft rental, 
             fuel, and basic insurance. Valid for the specified duration from purchase date.
           </p>
         </div>
@@ -576,7 +576,7 @@ export default function HourPackages() {
                 </Badge>
               </div>
             )}
-
+            
             {isAdmin && (
               <div className="absolute top-2 right-2">
                 <DropdownMenu>
@@ -724,60 +724,60 @@ export default function HourPackages() {
         title="Confirm Package Order"
         description="Review your selected hour package before placing the order."
       >
-        {selectedPackage && (
-          <div className="space-y-4">
-            <div className="bg-muted p-4 rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-medium">Package:</span>
-                <span className="font-bold">{selectedPackage.hours} Hours</span>
-              </div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-medium">Total Price:</span>
+          {selectedPackage && (
+            <div className="space-y-4">
+              <div className="bg-muted p-4 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium">Package:</span>
+                  <span className="font-bold">{selectedPackage.hours} Hours</span>
+                </div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium">Total Price:</span>
                 <span className="font-bold text-lg">{formatCurrency(selectedPackage.price, selectedPackage.currency)}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="font-medium">Price per Hour:</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Price per Hour:</span>
                 <span className="font-medium">{formatPricePerHour(selectedPackage.price_per_hour, selectedPackage.currency)}</span>
               </div>
               <div className="flex items-center justify-between mt-2">
                 <span className="font-medium">Validity:</span>
                 <span className="font-medium">{selectedPackage.validity_days} days</span>
+                </div>
+              </div>
+              
+              <div className="text-sm text-muted-foreground">
+              <p>• Valid for {selectedPackage.validity_days} days from purchase date</p>
+                <p>• Includes aircraft rental, fuel, and basic insurance</p>
+                <p>• Flexible scheduling available</p>
+                {selectedPackage.popular && (
+                <p className="text-primary font-medium">• Best value package!</p>
+                )}
               </div>
             </div>
-            
-            <div className="text-sm text-muted-foreground">
-              <p>• Valid for {selectedPackage.validity_days} days from purchase date</p>
-              <p>• Includes aircraft rental, fuel, and basic insurance</p>
-              <p>• Flexible scheduling available</p>
-              {selectedPackage.popular && (
-                <p className="text-primary font-medium">• Best value package!</p>
-              )}
-            </div>
-          </div>
-        )}
+          )}
 
-        <div className="flex justify-end space-x-2 pt-6">
-          <Button variant="outline" onClick={handleCloseModal} disabled={isProcessing}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleConfirmOrder} 
-            disabled={isProcessing}
-            className="min-w-[120px]"
-          >
-            {isProcessing ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Processing...
-              </>
-            ) : (
-              <>
-                <ShoppingCart className="h-4 w-4 mr-2" />
-                Place Order
-              </>
-            )}
-          </Button>
-        </div>
+          <div className="flex justify-end space-x-2 pt-6">
+            <Button variant="outline" onClick={handleCloseModal} disabled={isProcessing}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleConfirmOrder} 
+              disabled={isProcessing}
+              className="min-w-[120px]"
+            >
+              {isProcessing ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <ShoppingCart className="h-4 w-4 mr-2" />
+                  Place Order
+                </>
+              )}
+            </Button>
+          </div>
       </Modal>
 
       {/* View/Edit Dialog */}

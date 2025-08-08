@@ -63,29 +63,43 @@ export async function PUT(
       items 
     } = body;
 
-    // Validate required fields
-    if (!smartbill_id || !issue_date || !client || !items) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    // For status-only updates, skip validation of other fields
+    const isStatusOnlyUpdate = Object.keys(body).length === 1 && body.hasOwnProperty('status');
+    
+    if (!isStatusOnlyUpdate) {
+      // Validate required fields for full updates
+      if (!smartbill_id || !issue_date || !client || !items) {
+        return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+      }
+
+      // Validate client data
+      if (!client.name && !client.email) {
+        return NextResponse.json({ error: 'Client name or email is required' }, { status: 400 });
+      }
     }
 
-    // Validate client data
-    if (!client.name && !client.email) {
-      return NextResponse.json({ error: 'Client name or email is required' }, { status: 400 });
+    // Prepare update data based on what's being updated
+    const updateData: any = {};
+    
+    if (isStatusOnlyUpdate) {
+      // For status-only updates, only update the status
+      updateData.status = status;
+    } else {
+      // For full updates, update all fields
+      updateData.smartbill_id = smartbill_id;
+      updateData.series = series;
+      updateData.issue_date = issue_date;
+      updateData.due_date = due_date;
+      updateData.status = status;
+      updateData.total_amount = total_amount;
+      updateData.vat_amount = vat_amount;
+      updateData.currency = currency;
     }
 
     // Update the invoice
     const { data: updatedInvoice, error: updateError } = await supabase
       .from('invoices')
-      .update({
-        smartbill_id,
-        series,
-        issue_date,
-        due_date,
-        status,
-        total_amount,
-        vat_amount,
-        currency
-      })
+      .update(updateData)
       .eq('id', params.id)
       .select()
       .single();
@@ -95,8 +109,8 @@ export async function PUT(
       return NextResponse.json({ error: 'Failed to update invoice' }, { status: 500 });
     }
 
-    // Update or create client information
-    if (client) {
+    // Update or create client information (only for full updates)
+    if (client && !isStatusOnlyUpdate) {
       
       // First, check if client record exists
       const { data: existingClient, error: checkError } = await supabase
@@ -150,8 +164,8 @@ export async function PUT(
       }
     }
 
-    // Update invoice items
-    if (items && Array.isArray(items)) {
+    // Update invoice items (only for full updates)
+    if (items && Array.isArray(items) && !isStatusOnlyUpdate) {
       // First, delete existing items
       const { error: deleteError } = await supabase
         .from('invoice_items')
