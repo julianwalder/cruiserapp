@@ -17,6 +17,13 @@ const hourPackageOrderSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Debug: Log environment variables (without exposing secrets)
+    console.log('Environment check:', {
+      microserviceUrl: process.env.MICROSERVICE_URL ? 'SET' : 'NOT SET',
+      microserviceApiKey: process.env.MICROSERVICE_API_KEY ? 'SET' : 'NOT SET',
+      nodeEnv: process.env.NODE_ENV
+    });
+
     // Verify authentication
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     if (!token) {
@@ -121,6 +128,38 @@ export async function POST(request: NextRequest) {
 
     // Send command to microservice
     console.log('Sending data to microservice:', JSON.stringify(invoiceData, null, 2));
+    
+    // Debug: Test microservice connectivity first
+    try {
+      console.log('Testing microservice connectivity...');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const testResponse = await fetch(`${process.env.MICROSERVICE_URL}/api/health`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (testResponse.ok) {
+        const healthData = await testResponse.json();
+        console.log('Microservice health check passed:', healthData);
+      } else {
+        console.error('Microservice health check failed:', testResponse.status, testResponse.statusText);
+      }
+    } catch (healthError) {
+      console.error('Microservice connectivity test failed:', healthError);
+      return NextResponse.json({
+        error: 'Microservice is not reachable',
+        details: healthError instanceof Error ? healthError.message : 'Network connectivity issue',
+        microserviceUrl: process.env.MICROSERVICE_URL,
+      }, { status: 500 });
+    }
+
     const microserviceResponse = await microserviceClient.issueProformaInvoice(invoiceData);
 
     if (!microserviceResponse.success) {
@@ -129,6 +168,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         error: 'Failed to place order',
         details: microserviceResponse.error,
+        microserviceUrl: process.env.MICROSERVICE_URL,
       }, { status: 500 });
     }
 
