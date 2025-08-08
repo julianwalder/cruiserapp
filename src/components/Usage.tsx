@@ -174,7 +174,7 @@ interface PPLCourseData {
 
 interface ClientHoursData {
   client: Client;
-  packages: HourPackage[];
+  packages: LocalHourPackage[];
   pplCourse?: PPLCourseData;
   totalBoughtHours: number;
   totalUsedHours: number;
@@ -248,7 +248,7 @@ export default function Usage() {
         if (userData.roles && Array.isArray(userData.roles)) {
           roles = userData.roles;
         } else if (userData.userRoles && Array.isArray(userData.userRoles)) {
-          roles = userData.userRoles.map((ur: unknown) => ur.roles?.name).filter(Boolean);
+          roles = userData.userRoles.map((ur: any) => ur.roles?.name).filter(Boolean);
         }
         
         console.log('🔍 Extracted user roles:', roles);
@@ -440,6 +440,8 @@ export default function Usage() {
 
     try {
       const token = localStorage.getItem('token');
+      
+      // Call our microservice to issue proforma invoice
       const response = await fetch('/api/usage/order', {
         method: 'POST',
         headers: {
@@ -454,14 +456,22 @@ export default function Usage() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to place order');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to place order');
       }
 
-      toast.success('Hour package ordered successfully!');
+      const result = await response.json();
+      
+      toast.success('Hour package ordered successfully! Proforma invoice has been generated and sent.', {
+        description: `Invoice number: ${result.data.invoiceNumber}`,
+        duration: 5000,
+      });
+      
       handleCloseOrderModal();
       fetchClientHours(); // Refresh data
     } catch (err) {
-      toast.error('Failed to place order');
+      console.error('Order error:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to place order');
     }
   };
 

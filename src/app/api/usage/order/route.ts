@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
+import microserviceClient from '@/lib/microservice-client';
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,6 +26,9 @@ export async function POST(request: NextRequest) {
       .from('users')
       .select(`
         id,
+        email,
+        "firstName",
+        "lastName",
         user_roles (
           roles (
             name
@@ -53,88 +57,72 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Insufficient permissions to order hours' }, { status: 403 });
     }
 
-    // For non-admins, they can only order for themselves
-    if (!isAdmin && clientId !== user.email) {
-      return NextResponse.json({ error: 'You can only order hours for yourself' }, { status: 403 });
-    }
-
     const { clientId, hours, price } = await request.json();
 
     if (!clientId || !hours || !price) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    // For non-admins, they can only order for themselves
+    if (!isAdmin && clientId !== user.email) {
+      return NextResponse.json({ error: 'You can only order hours for yourself' }, { status: 403 });
+    }
+
     // Get client information
     const clientEmail = clientId;
     const clientName = isAdmin ? 'Stefan Avadanei' : `${user.firstName} ${user.lastName}`; // For non-admins, use their own name
 
-    // Create a new invoice record for the hour package
+    // Prepare data for microservice
     const invoiceData = {
-      smartbill_id: `ORDER-${Date.now()}`,
-      series: 'ORD',
-      number: Date.now().toString(),
-      issue_date: new Date().toISOString().split('T')[0],
-      due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
-      status: 'draft',
-      total_amount: price,
-      currency: 'RON',
-      vat_amount: price * 0.19, // 19% VAT
-      import_date: new Date().toISOString()
+      userId: user.id,
+      packageId: `package-${Date.now()}`,
+      packageName: `${hours} Hour Flight Package`,
+      hours: hours,
+      pricePerHour: price / hours,
+      totalPrice: price,
+      currency: 'EUR',
+      validityDays: 365, // 1 year validity
+              userData: {
+          userId: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: clientEmail,
+          address: 'N/A',
+          city: 'N/A',
+          region: 'N/A',
+          country: 'N/A',
+          cnp: 'N/A',
+        },
+      paymentMethod: 'card',
+      paymentLink: true,
+      vatPercentage: 21,
+      pricesIncludeVat: true,
+      convertToRON: true,
     };
 
-    // Insert the new invoice
-    const { data: newInvoice, error: invoiceError } = await supabase
-      .from('invoices')
-      .insert(invoiceData)
-      .select()
-      .single();
+    // Send command to microservice
+    const microserviceResponse = await microserviceClient.issueProformaInvoice(invoiceData);
 
-    if (invoiceError) {
-      console.error('Error creating invoice:', invoiceError);
-      return NextResponse.json({ error: 'Failed to create invoice' }, { status: 500 });
-    }
-
-    // Create client record
-    const { error: clientError } = await supabase
-      .from('invoice_clients')
-      .insert({
-        invoice_id: newInvoice.id,
-        name: clientName,
-        email: clientEmail,
-        vat_code: isAdmin ? 'RO12345678' : user.personalNumber || 'N/A' // Use personal number for non-admins
-      });
-
-    if (clientError) {
-      console.error('Error creating client record:', clientError);
-      return NextResponse.json({ error: 'Failed to create client record' }, { status: 500 });
-    }
-
-    // Create invoice item record
-    const { error: itemError } = await supabase
-      .from('invoice_items')
-      .insert({
-        invoice_id: newInvoice.id,
-        line_id: 1,
-        name: `${hours} Hour Flight Package`,
-        description: `Flight training package of ${hours} hours`,
-        quantity: hours,
-        unit: 'HUR',
-        unit_price: price / hours,
-        total_amount: price,
-        vat_rate: 19
-      });
-
-    if (itemError) {
-      console.error('Error creating item record:', itemError);
-      return NextResponse.json({ error: 'Failed to create item record' }, { status: 500 });
+    if (!microserviceResponse.success) {
+      console.error('Microservice error:', microserviceResponse.error);
+      return NextResponse.json({
+        error: 'Failed to place order',
+        details: microserviceResponse.error,
+      }, { status: 500 });
     }
 
     return NextResponse.json({
       success: true,
       message: 'Hour package ordered successfully',
-      invoice: newInvoice,
-      hours: hours,
-      price: price
+      data: {
+        invoiceId: microserviceResponse.data?.invoiceId,
+        invoiceNumber: microserviceResponse.data?.invoiceNumber,
+        microserviceId: microserviceResponse.data?.microserviceId,
+        paymentLink: microserviceResponse.data?.paymentLink,
+        status: microserviceResponse.data?.status,
+        hours: hours,
+        price: price
+      }
     });
 
   } catch (error) {
