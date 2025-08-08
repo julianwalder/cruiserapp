@@ -34,8 +34,7 @@
     "build:info": "node scripts/set-build-info.js all",
     "prebuild": "npm run build:info",
     "setup-hour-packages": "node scripts/setup-hour-packages.js",
-    "setup-orders-table": "node scripts/setup-orders-table.js",
-    "install": "npm install --legacy-peer-deps"
+    "setup-orders-table": "node scripts/setup-orders-table.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -98,7 +97,7 @@
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^1.1.2",
     "xml2js": "^0.6.2",
-    "zod": "^3.22.4"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -112,7 +111,6 @@
     "@typescript-eslint/parser": "^8.38.0",
     "eslint": "^9",
     "eslint-config-next": "^15.4.5",
-    "openai": "^5.12.2",
     "tailwindcss": "^4.1.11",
     "tsx": "^4.20.3",
     "tw-animate-css": "^1.3.6",

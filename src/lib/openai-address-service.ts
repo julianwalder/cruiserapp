@@ -1,4 +1,10 @@
-import OpenAI from 'openai';
+let OpenAI: any;
+try {
+  OpenAI = require('openai').default || require('openai');
+} catch (e) {
+  console.warn('OpenAI not available in production - address normalization disabled');
+  OpenAI = null;
+}
 
 export interface NormalizedAddressData {
   street_address: string;
@@ -25,9 +31,13 @@ export interface AddressComparisonRequest {
 }
 
 export class OpenAIAddressService {
-  private static openai: OpenAI;
+  private static openai: any;
 
-  private static getClient(): OpenAI {
+  private static getClient(): any {
+    if (!OpenAI) {
+      throw new Error('OpenAI not available in production - address normalization is disabled');
+    }
+    
     if (!this.openai) {
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) {
