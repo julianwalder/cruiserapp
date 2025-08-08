@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  invoice-engine:
+    build: .
+    container_name: invoice-engine-microservice
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - API_KEY=${API_KEY}
+      - PAYMENT_GATEWAY_URL=${PAYMENT_GATEWAY_URL}
+      - PAYMENT_GATEWAY_KEY=${PAYMENT_GATEWAY_KEY}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - EMAIL_FROM=${EMAIL_FROM}
+      - COMPANY_NAME=${COMPANY_NAME}
+      - COMPANY_ADDRESS=${COMPANY_ADDRESS}
+      - COMPANY_PHONE=${COMPANY_PHONE}
+      - COMPANY_EMAIL=${COMPANY_EMAIL}
+      - COMPANY_WEBSITE=${COMPANY_WEBSITE}
+      - INVOICE_SERIES=${INVOICE_SERIES}
+      - UPLOAD_PATH=/app/uploads
+      - LOG_FILE=/app/logs/invoice-engine.log
+    volumes:
+      - ./logs:/app/logs
+      - ./uploads:/app/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - invoice-network
+
+  # Optional: Add a database service if needed
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: invoice-engine-db
+  #   environment:
+  #     POSTGRES_DB: invoice_engine
+  #     POSTGRES_USER: invoice_user
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   networks:
+  #     - invoice-network
+
+networks:
+  invoice-network:
+    driver: bridge
+
+# volumes:
+#   postgres_data:

@@ -366,6 +366,31 @@ class SmartBillService {
   }
 
   /**
+   * Create a new invoice
+   */
+  async createInvoice(invoiceData: SmartBillInvoice): Promise<{ success: boolean; invoiceId?: string; error?: string }> {
+    try {
+      const body: any = {
+        ...invoiceData,
+        cif: this.config.cif,
+      };
+
+      const response = await this.makeRequest<{ id: string; message?: string }>('/invoice', 'POST', body);
+      
+      return {
+        success: true,
+        invoiceId: response.id,
+      };
+    } catch (error) {
+      console.error('Failed to create invoice:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create invoice',
+      };
+    }
+  }
+
+  /**
    * Get invoice statistics
    */
   async getInvoiceStats(startDate?: string, endDate?: string): Promise<any> {

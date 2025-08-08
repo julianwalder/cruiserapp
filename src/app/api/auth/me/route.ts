@@ -39,6 +39,9 @@ export async function GET(request: NextRequest) {
         "createdAt",
         "updatedAt",
         "avatarUrl",
+        phone,
+        "personalNumber",
+        "veriffPersonIdNumber",
         user_roles (
           roles (
             name
@@ -52,10 +55,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    // Get normalized address data
+    const { data: normalizedAddress, error: addressError } = await supabase
+      .from('normalized_addresses')
+      .select('*')
+      .eq('user_id', decoded.userId)
+      .single();
+
+    if (addressError && addressError.code !== 'PGRST116') {
+      console.error('Error fetching normalized address:', addressError);
+    }
+
     // Extract roles from user_roles
     const roles = user.user_roles.map((ur: any) => ur.roles.name);
 
-    // Return user data with roles array
+    // Return user data with roles array and normalized address
     const userData = {
       id: user.id,
       email: user.email,
@@ -72,6 +86,24 @@ export async function GET(request: NextRequest) {
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
       avatarUrl: user.avatarUrl,
+      phone: user.phone,
+      personalNumber: user.personalNumber,
+      veriffPersonIdNumber: user.veriffPersonIdNumber,
+      // Normalized address data
+      normalizedAddress: normalizedAddress ? {
+        streetAddress: normalizedAddress.street_address,
+        city: normalizedAddress.city,
+        stateRegion: normalizedAddress.state_region,
+        country: normalizedAddress.country,
+        postalCode: normalizedAddress.postal_code,
+        phone: normalizedAddress.phone,
+        cnp: normalizedAddress.cnp,
+        confidenceScore: normalizedAddress.confidence_score,
+        processingNotes: normalizedAddress.processing_notes,
+        sourceType: normalizedAddress.source_type,
+        createdAt: normalizedAddress.created_at,
+        updatedAt: normalizedAddress.updated_at
+      } : null
     };
 
     return NextResponse.json(userData);

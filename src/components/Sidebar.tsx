@@ -18,7 +18,8 @@ import {
   Home,
   User as UserIcon,
   Shield,
-  MapPin
+  MapPin,
+  ShoppingCart
 } from 'lucide-react';
 
 import { User } from "@/types/uuid-types";
@@ -71,6 +72,12 @@ const navigationItems = [
     href: '/flight-logs',
     icon: FileText,
     description: 'Flight records and training'
+  },
+  {
+    name: 'Orders',
+    href: '/orders',
+    icon: ShoppingCart,
+    description: 'Hour package orders'
   },
   {
     name: 'Scheduling',

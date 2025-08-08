@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { WebhookMonitor } from './webhook-monitor';
+import { updateAddressAfterVeriff } from './veriff-address-updater';
 
 interface VeriffWebhookPayload {
   id?: string;
@@ -405,6 +406,22 @@ export class EnhancedVeriffWebhook {
 
     console.log('✅ User verification data updated successfully');
     console.log('📊 Personal data automatically extracted and stored');
+    
+    // Update normalized address if verification was approved
+    if (verificationData.status === 'approved') {
+      console.log('🔄 Checking for address updates after Veriff verification...');
+      try {
+        const addressResult = await updateAddressAfterVeriff(userId);
+        if (addressResult.success) {
+          console.log(`✅ Address update completed: ${addressResult.action} - ${addressResult.notes}`);
+        } else {
+          console.error(`❌ Address update failed: ${addressResult.error}`);
+        }
+      } catch (addressError) {
+        console.error('❌ Error during address update:', addressError);
+        // Don't fail the webhook if address update fails
+      }
+    }
     
     // Log activity
     await this.logActivity(userId, verificationData);

@@ -227,13 +227,42 @@ export default function HourPackages() {
 
     setIsProcessing(true);
     try {
-      // TODO: Implement actual order placement API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const token = localStorage.getItem('token');
       
-      toast.success(`Order placed successfully! ${selectedPackage.hours} hours package ordered.`);
+      // Call our microservice to issue proforma invoice
+      const response = await fetch('/api/hour-packages/order', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          packageId: selectedPackage.id,
+          packageName: selectedPackage.name,
+          hours: selectedPackage.hours,
+          pricePerHour: selectedPackage.price_per_hour,
+          totalPrice: selectedPackage.price,
+          currency: selectedPackage.currency,
+          validityDays: selectedPackage.validity_days,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to place order');
+      }
+
+      const result = await response.json();
+      
+      toast.success(`Order placed successfully! ${selectedPackage.hours} hours package ordered.`, {
+        description: `Proforma invoice ${result.data.invoiceNumber} has been generated and sent.`,
+        duration: 5000,
+      });
+      
       handleCloseModal();
     } catch (error) {
-      toast.error('Failed to place order. Please try again.');
+      console.error('Order error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to place order. Please try again.');
     } finally {
       setIsProcessing(false);
     }

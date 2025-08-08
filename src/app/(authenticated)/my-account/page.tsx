@@ -64,6 +64,21 @@ interface MyAccountUser extends UserType {
   personalNumber?: string;
   avatarUrl?: string;
   postalCode?: string;
+  // Normalized address data
+  normalizedAddress?: {
+    streetAddress?: string;
+    city?: string;
+    stateRegion?: string;
+    country?: string;
+    postalCode?: string;
+    phone?: string;
+    cnp?: string;
+    confidenceScore?: number;
+    processingNotes?: string;
+    sourceType?: string;
+    createdAt?: string;
+    updatedAt?: string;
+  };
   // Enhanced Veriff data fields
   veriffSessionId?: string;
   veriffVerificationId?: string;
@@ -538,7 +553,104 @@ export default function MyAccountPage() {
             </CardContent>
           </Card>
 
-          {/* Address Information */}
+          {/* Personal Identification */}
+          {(user.personalNumber || user.veriffPersonIdNumber || user.normalizedAddress?.cnp) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Fingerprint className="h-5 w-5" />
+                  Personal Identification
+                </CardTitle>
+                <CardDescription>
+                  Your official identification numbers
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {user.normalizedAddress?.cnp && (
+                    <div>
+                      <label className="text-sm font-medium">CNP (from invoices)</label>
+                      <p className="text-sm font-mono text-muted-foreground">{user.normalizedAddress.cnp}</p>
+                    </div>
+                  )}
+                  {user.veriffPersonIdNumber && (
+                    <div>
+                      <label className="text-sm font-medium">ID Number (verified)</label>
+                      <p className="text-sm font-mono text-muted-foreground">{user.veriffPersonIdNumber}</p>
+                    </div>
+                  )}
+                  {user.personalNumber && (
+                    <div>
+                      <label className="text-sm font-medium">Personal Number</label>
+                      <p className="text-sm font-mono text-muted-foreground">{user.personalNumber}</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Normalized Address Information */}
+          {user.normalizedAddress && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5" />
+                  Normalized Address Information
+                </CardTitle>
+                <CardDescription>
+                  AI-processed and standardized address data
+                  {user.normalizedAddress.confidenceScore && (
+                    <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                      Confidence: {Math.round(user.normalizedAddress.confidenceScore * 100)}%
+                    </span>
+                  )}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium">Street Address</label>
+                    <p className="text-sm text-muted-foreground">{user.normalizedAddress.streetAddress || 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">City</label>
+                    <p className="text-sm text-muted-foreground">{user.normalizedAddress.city || 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">State/Region</label>
+                    <p className="text-sm text-muted-foreground">{user.normalizedAddress.stateRegion || 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Postal Code</label>
+                    <p className="text-sm text-muted-foreground">{user.normalizedAddress.postalCode || 'Not provided'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Country</label>
+                    <p className="text-sm text-muted-foreground">{user.normalizedAddress.country || 'Not provided'}</p>
+                  </div>
+                  {user.normalizedAddress.phone && (
+                    <div>
+                      <label className="text-sm font-medium">Phone (from invoices)</label>
+                      <p className="text-sm text-muted-foreground">{user.normalizedAddress.phone}</p>
+                    </div>
+                  )}
+                </div>
+                {user.normalizedAddress.processingNotes && (
+                  <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <ShieldCheck className="h-4 w-4 text-blue-600" />
+                      <label className="text-sm font-medium text-blue-800">Verification & Processing Notes</label>
+                    </div>
+                    <div className="text-sm text-blue-700 whitespace-pre-line">{user.normalizedAddress.processingNotes}</div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Legacy Address Information (if no normalized address) */}
+          {!user.normalizedAddress && (user.address || user.city || user.state || user.country) && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -571,6 +683,7 @@ export default function MyAccountPage() {
               </div>
             </CardContent>
           </Card>
+          )}
         </TabsContent>
 
         {/* Verification Tab */}
