@@ -1,22 +1,9 @@
 const PDFDocument = require('pdfkit');
-const fs = require('fs');
-const path = require('path');
 const logger = require('../utils/logger');
 
 class PDFService {
   constructor() {
-    this.uploadPath = process.env.UPLOAD_PATH || './uploads';
-    this._ensureUploadDirectory();
-  }
-
-  /**
-   * Ensure upload directory exists
-   */
-  _ensureUploadDirectory() {
-    if (!fs.existsSync(this.uploadPath)) {
-      fs.mkdirSync(this.uploadPath, { recursive: true });
-      logger.info('Created upload directory', { path: this.uploadPath });
-    }
+    // No need for file system operations in serverless environment
   }
 
   /**
@@ -32,10 +19,12 @@ class PDFService {
       });
 
       const filename = `invoice-${invoice.invoiceNumber || invoice.id}.pdf`;
-      const filepath = path.join(this.uploadPath, filename);
-      const stream = fs.createWriteStream(filepath);
+      const chunks = [];
 
-      doc.pipe(stream);
+      // Collect PDF data in memory
+      doc.on('data', (chunk) => {
+        chunks.push(chunk);
+      });
 
       // Add company header
       this._addCompanyHeader(doc);
@@ -58,16 +47,23 @@ class PDFService {
       doc.end();
 
       return new Promise((resolve, reject) => {
-        stream.on('finish', () => {
-          const pdfUrl = `/uploads/${filename}`;
+        doc.on('end', () => {
+          const pdfBuffer = Buffer.concat(chunks);
+          const pdfData = {
+            buffer: pdfBuffer,
+            filename: filename,
+            mimeType: 'application/pdf'
+          };
+
           logger.info('Invoice PDF generated successfully', { 
             invoiceId: invoice.id, 
-            filepath 
+            filename,
+            bufferSize: pdfBuffer.length
           });
-          resolve(pdfUrl);
+          resolve(pdfData);
         });
 
-        stream.on('error', (error) => {
+        doc.on('error', (error) => {
           logger.error('Error generating PDF', { 
             invoiceId: invoice.id, 
             error: error.message 
@@ -332,41 +328,9 @@ class PDFService {
   }
 
   /**
-   * Get PDF file path
+   * Note: File system operations removed for serverless compatibility
+   * PDFs are now handled in memory as buffers
    */
-  getPDFFilePath(invoiceId) {
-    const filename = `invoice-${invoiceId}.pdf`;
-    return path.join(this.uploadPath, filename);
-  }
-
-  /**
-   * Check if PDF exists
-   */
-  pdfExists(invoiceId) {
-    const filepath = this.getPDFFilePath(invoiceId);
-    return fs.existsSync(filepath);
-  }
-
-  /**
-   * Delete PDF file
-   */
-  deletePDF(invoiceId) {
-    try {
-      const filepath = this.getPDFFilePath(invoiceId);
-      if (fs.existsSync(filepath)) {
-        fs.unlinkSync(filepath);
-        logger.info('PDF file deleted', { invoiceId, filepath });
-        return true;
-      }
-      return false;
-    } catch (error) {
-      logger.error('Failed to delete PDF file', { 
-        invoiceId, 
-        error: error.message 
-      });
-      return false;
-    }
-  }
 }
 
 module.exports = new PDFService();

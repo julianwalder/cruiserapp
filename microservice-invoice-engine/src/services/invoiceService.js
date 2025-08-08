@@ -198,10 +198,10 @@ class InvoiceService {
       }
 
       // Generate PDF invoice
+      let pdfData = null;
       try {
-        const pdfUrl = await PDFService.generateInvoicePDF(invoice);
-        invoice.pdfUrl = pdfUrl;
-        logger.info('PDF invoice generated', { invoiceId, pdfUrl });
+        pdfData = await PDFService.generateInvoicePDF(invoice);
+        logger.info('PDF invoice generated', { invoiceId, filename: pdfData.filename });
 
       } catch (pdfError) {
         logger.error('PDF generation failed', {
@@ -223,7 +223,7 @@ class InvoiceService {
           totalPrice: invoice.totalPrice,
           currency: data.currency,
           paymentUrl,
-          pdfUrl: invoice.pdfUrl,
+          pdfData: pdfData,
           exchangeRateInfo: exchangeRateInfo,
           convertedAmounts: convertedAmounts
         });
@@ -510,10 +510,10 @@ class InvoiceService {
       invoices.set(fiscalInvoiceId, fiscalInvoice);
 
       // Generate PDF fiscal invoice
+      let fiscalPdfData = null;
       try {
-        const pdfUrl = await PDFService.generateInvoicePDF(fiscalInvoice);
-        fiscalInvoice.pdfUrl = pdfUrl;
-        logger.info('PDF fiscal invoice generated', { fiscalInvoiceId, pdfUrl });
+        fiscalPdfData = await PDFService.generateInvoicePDF(fiscalInvoice);
+        logger.info('PDF fiscal invoice generated', { fiscalInvoiceId, filename: fiscalPdfData.filename });
 
       } catch (pdfError) {
         logger.error('PDF fiscal invoice generation failed', {
@@ -534,7 +534,7 @@ class InvoiceService {
           vatAmount: fiscalInvoice.vatAmount,
           totalPrice: fiscalInvoice.totalPrice,
           currency: proformaInvoice.currency,
-          pdfUrl: fiscalInvoice.pdfUrl,
+          pdfData: fiscalPdfData,
           exchangeRateInfo: proformaInvoice.exchangeRateInfo,
           convertedAmounts: proformaInvoice.convertedAmounts
         });

@@ -80,10 +80,11 @@ class EmailService {
         subject: `Invoice ${data.invoiceNumber || data.invoiceId} - ${data.packageName}`,
         html: emailContent.html,
         text: emailContent.text,
-        attachments: data.pdfUrl ? [
+        attachments: data.pdfData ? [
           {
-            filename: `invoice-${data.invoiceNumber || data.invoiceId}.pdf`,
-            path: data.pdfUrl.startsWith('/') ? `uploads${data.pdfUrl.replace('/uploads', '')}` : data.pdfUrl
+            filename: data.pdfData.filename,
+            content: data.pdfData.buffer,
+            contentType: data.pdfData.mimeType
           }
         ] : []
       };
@@ -136,10 +137,11 @@ class EmailService {
         subject: `FISCAL INVOICE ${data.invoiceNumber || data.invoiceId} - ${data.packageName} (PAID)`,
         html: emailContent.html,
         text: emailContent.text,
-        attachments: data.pdfUrl ? [
+        attachments: data.pdfData ? [
           {
-            filename: `fiscal-invoice-${data.invoiceNumber || data.invoiceId}.pdf`,
-            path: data.pdfUrl.startsWith('/') ? `uploads${data.pdfUrl.replace('/uploads', '')}` : data.pdfUrl
+            filename: `fiscal-${data.pdfData.filename}`,
+            content: data.pdfData.buffer,
+            contentType: data.pdfData.mimeType
           }
         ] : []
       };
@@ -230,9 +232,8 @@ class EmailService {
               <a href="${data.paymentUrl}" class="button">Pay Now</a>
             ` : ''}
             
-            ${data.pdfUrl ? `
-              <p><strong>Invoice PDF:</strong></p>
-              <a href="${data.pdfUrl}" class="button">Download PDF</a>
+            ${data.pdfData ? `
+              <p><strong>Invoice PDF:</strong> Attached to this email</p>
             ` : ''}
           </div>
           
@@ -271,7 +272,7 @@ Invoice Number: ${data.invoiceNumber || data.invoiceId}
 Date: ${new Date().toLocaleDateString()}
 
 ${data.paymentUrl ? `Payment Link: ${data.paymentUrl}` : ''}
-${data.pdfUrl ? `Invoice PDF: ${data.pdfUrl}` : ''}
+${data.pdfData ? `Invoice PDF: Attached to this email` : ''}
 
 This is an automated message from Cruiser Aviation.
 If you have any questions, please contact us at billing@cruiseraviation.com
@@ -387,9 +388,8 @@ If you have any questions, please contact us at billing@cruiseraviation.com
             <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
             <p><strong>Status:</strong> <span class="paid-badge">PAID</span></p>
             
-            ${data.pdfUrl ? `
-              <p><strong>Fiscal Invoice PDF:</strong></p>
-              <a href="${data.pdfUrl}" class="button">Download Fiscal Invoice</a>
+            ${data.pdfData ? `
+              <p><strong>Fiscal Invoice PDF:</strong> Attached to this email</p>
             ` : ''}
           </div>
           
