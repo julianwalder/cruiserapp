@@ -1,5 +1,4 @@
 const winston = require('winston');
-const path = require('path');
 
 // Define log format
 const logFormat = winston.format.combine(
@@ -10,40 +9,20 @@ const logFormat = winston.format.combine(
   winston.format.json()
 );
 
-// Create logger instance
+// Create logger instance - console only for serverless
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: logFormat,
   defaultMeta: { service: 'invoice-engine' },
   transports: [
-    // Console transport
+    // Console transport only (Vercel captures console logs)
     new winston.transports.Console({
       format: winston.format.combine(
         winston.format.colorize(),
         winston.format.simple()
       )
-    }),
-    // File transport for errors
-    new winston.transports.File({
-      filename: path.join(__dirname, '../../logs/error.log'),
-      level: 'error',
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
-    }),
-    // File transport for all logs
-    new winston.transports.File({
-      filename: path.join(__dirname, '../../logs/combined.log'),
-      maxsize: 5242880, // 5MB
-      maxFiles: 5,
     })
   ]
 });
-
-// If we're not in production, log to console as well
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: winston.format.simple()
-  }));
-}
 
 module.exports = logger;
