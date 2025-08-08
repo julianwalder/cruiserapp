@@ -7,10 +7,13 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Initialize OpenAI client (only if API key is available)
+let openai: OpenAI | null = null;
+if (process.env.OPENAI_API_KEY) {
+  openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY
+  });
+}
 
 interface NormalizedAddress {
   street_address?: string;
@@ -66,6 +69,15 @@ Source: Veriff verification (official ID document)
 User: ${userEmail}
 
 Should the Veriff address replace the existing one? Return JSON with decision.`;
+
+  if (!openai) {
+    console.warn('OpenAI API key not available - using fallback for address comparison');
+    return {
+      shouldUpdate: false,
+      comparisonNotes: 'OpenAI API key not available - comparison skipped',
+      confidenceScore: 0.1
+    };
+  }
 
   try {
     const response = await openai.chat.completions.create({
@@ -142,6 +154,18 @@ Source: Veriff verification (official ID document)
 User Email: ${userEmail}
 
 Return the normalized address as JSON.`;
+
+  if (!openai) {
+    console.warn('OpenAI API key not available - using fallback for address normalization');
+    return {
+      street_address: veriffAddress,
+      city: 'Unknown',
+      state_region: 'Unknown',
+      country: 'Romania',
+      confidence_score: 0.1,
+      processing_notes: 'OpenAI API key not available - normalization skipped'
+    };
+  }
 
   try {
     const response = await openai.chat.completions.create({
