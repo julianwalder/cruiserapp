@@ -1,5 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
-import OpenAI from 'openai';
+
+let OpenAI: any;
+try {
+  OpenAI = require('openai').default || require('openai');
+} catch (e) {
+  console.warn('OpenAI not available in production - address normalization disabled');
+  OpenAI = null;
+}
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -7,10 +14,18 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// Initialize OpenAI client
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+// Initialize OpenAI client (only if available)
+let openai: any = null;
+if (OpenAI) {
+  try {
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
+  } catch (e) {
+    console.warn('Failed to initialize OpenAI client:', e);
+    openai = null;
+  }
+}
 
 interface NormalizedAddress {
   street_address?: string;
@@ -66,6 +81,15 @@ Source: Veriff verification (official ID document)
 User: ${userEmail}
 
 Should the Veriff address replace the existing one? Return JSON with decision.`;
+
+  if (!openai) {
+    console.warn('OpenAI not available - using fallback address comparison');
+    return {
+      shouldUpdate: false,
+      comparisonNotes: 'OpenAI not available in production - comparison disabled',
+      confidenceScore: 0.1
+    };
+  }
 
   try {
     const response = await openai.chat.completions.create({
@@ -142,6 +166,18 @@ Source: Veriff verification (official ID document)
 User Email: ${userEmail}
 
 Return the normalized address as JSON.`;
+
+  if (!openai) {
+    console.warn('OpenAI not available - using fallback address normalization');
+    return {
+      street_address: veriffAddress,
+      city: 'Unknown',
+      state_region: 'Unknown',
+      country: 'Romania',
+      confidence_score: 0.1,
+      processing_notes: 'OpenAI not available in production - normalization disabled'
+    };
+  }
 
   try {
     const response = await openai.chat.completions.create({
