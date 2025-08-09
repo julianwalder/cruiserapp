@@ -195,12 +195,12 @@ export default function Sidebar({ user, onLogout, onSidebarStateChange }: Sideba
   return (
     <>
       {/* Mobile menu button */}
-      <div className="lg:hidden fixed top-4 left-4 z-50">
+      <div className="lg:hidden fixed top-4 left-4 z-[60]">
         <Button
           variant="outline"
           size="sm"
           onClick={() => setIsMobileOpen(!isMobileOpen)}
-          className="bg-white dark:bg-gray-900 shadow-md"
+          className="bg-background border-border shadow-lg"
         >
           {isMobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
         </Button>
@@ -209,7 +209,7 @@ export default function Sidebar({ user, onLogout, onSidebarStateChange }: Sideba
       {/* Mobile overlay */}
       {isMobileOpen && (
         <div 
-          className="lg:hidden fixed inset-0 bg-white/80 dark:bg-gray-900/80 z-40"
+          className="lg:hidden fixed inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-40"
           onClick={() => setIsMobileOpen(false)}
         />
       )}
@@ -223,17 +223,17 @@ export default function Sidebar({ user, onLogout, onSidebarStateChange }: Sideba
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           {!isCollapsed && (
-            <div className="flex items-center space-x-2">
-                      <Plane className="h-8 w-8 text-primary" />
+            <div className="flex items-center space-x-2 lg:ml-0 ml-12 relative z-10">
+                      <Plane className="h-7 w-7 text-primary" />
         <div>
-          <h1 className="font-bold text-lg text-card-foreground">Cruiser Aviation</h1>
+          <h1 className="font-bold text-base text-card-foreground">Cruiser Aviation</h1>
           <p className="text-xs text-muted-foreground">Management System</p>
         </div>
             </div>
           )}
           {isCollapsed && (
-            <div className="flex justify-center w-full">
-              <Plane className="h-8 w-8 text-primary" />
+            <div className="flex justify-center w-full lg:ml-0 ml-12 relative z-10">
+              <Plane className="h-7 w-7 text-primary" />
             </div>
           )}
           <Button

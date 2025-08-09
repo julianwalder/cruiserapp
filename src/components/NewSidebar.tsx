@@ -270,12 +270,12 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
   return (
     <>
       {/* Mobile Menu Button */}
-      <div className="lg:hidden fixed top-4 left-4 z-50 sticky-container">
+      <div className="lg:hidden fixed top-4 left-4 z-[60] sticky-container">
         <Button
           variant="outline"
           size="sm"
           onClick={() => setIsMobileOpen(!isMobileOpen)}
-          className="bg-background/80 border-border shadow-lg"
+          className="bg-background border-border shadow-lg"
         >
           {isMobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
         </Button>
@@ -302,11 +302,11 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
       >
         {/* Fixed Header */}
         <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border flex-shrink-0">
-          <div className="flex items-center">
+          <div className="flex items-center relative z-10">
             {!isCollapsed ? (
-              <Logo width={140} height={32} className="h-8 w-auto" />
+              <Logo width={120} height={28} className="h-7 w-auto lg:ml-0 ml-12" />
             ) : (
-              <Logo width={32} height={32} className="h-8 w-8" />
+              <Logo width={28} height={28} className="h-7 w-7 lg:ml-0 ml-12" />
             )}
           </div>
           
