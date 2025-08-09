@@ -644,13 +644,44 @@ export default function UserManagement() {
   // Initialize edit form when user is selected
   useEffect(() => {
     if (selectedUser) {
+      // Helper function to safely format dateOfBirth
+      const formatDateOfBirth = (dateOfBirth: any) => {
+        if (!dateOfBirth) return '';
+        
+        // If it's already a string (YYYY-MM-DD format), return as is
+        if (typeof dateOfBirth === 'string') {
+          // If it's an ISO string, extract just the date part
+          if (dateOfBirth.includes('T')) {
+            return dateOfBirth.split('T')[0];
+          }
+          return dateOfBirth;
+        }
+        
+        // If it's a Date object, convert to ISO string and extract date part
+        if (dateOfBirth instanceof Date) {
+          return dateOfBirth.toISOString().split('T')[0];
+        }
+        
+        // Try to parse as Date if it's some other format
+        try {
+          const date = new Date(dateOfBirth);
+          if (!isNaN(date.getTime())) {
+            return date.toISOString().split('T')[0];
+          }
+        } catch (error) {
+          console.warn('Could not parse dateOfBirth:', dateOfBirth);
+        }
+        
+        return '';
+      };
+
       setEditForm({
         firstName: selectedUser.firstName,
         lastName: selectedUser.lastName,
         email: selectedUser.email,
         personalNumber: selectedUser.personalNumber || '',
         phone: selectedUser.phone || '',
-        dateOfBirth: selectedUser.dateOfBirth ? selectedUser.dateOfBirth.toISOString().split('T')[0] : '',
+        dateOfBirth: formatDateOfBirth(selectedUser.dateOfBirth),
         address: selectedUser.address || '',
         city: selectedUser.city || '',
         state: selectedUser.state || '',
