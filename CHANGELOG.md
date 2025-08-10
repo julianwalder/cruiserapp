@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] - 2025-08-09
+
+### Added
+- **Sitewide Announcement Bar System**
+  - Reusable, dismissible announcement bar component
+  - Fixed-top positioning with content offset
+  - iOS safe area support for mobile devices
+  - localStorage persistence for dismissal state
+  - ResizeObserver for dynamic height management
+  - CSS custom properties for seamless integration
+- **Veriff Identity Verification Announcement Bar**
+  - Targeted announcement for unverified users
+  - Session-based dismissal with automatic reappearance on login
+  - Direct navigation to "Verification" tab in My Account
+  - Modern gradient styling with responsive design
+  - Mobile-optimized layout (hidden text and badges)
+- **Enhanced Dashboard Quick Actions**
+  - "Log New Flight" button with black styling
+  - Direct navigation to flight logs with modal opening
+  - "View Flight Logs" navigation
+  - "Check Weather" popup with "Available soon" message
+- **Real-time Monthly Statistics**
+  - Live calculation of current month flight data
+  - This month vs last month comparisons
+  - Percentage change indicators with trend arrows
+  - Enhanced "This Month" card with flight hours display
+
+### Fixed
+- `dateOfBirth.toISOString` error in user management
+- Mobile sidebar hamburger menu positioning and z-index issues
+- Logo alignment and sizing in mobile sidebar
+- Announcement bar content overlap with sidebar
+- TypeScript errors in FlightLogs component
+- User role mapping and interface definitions
+
+### Changed
+- Improved mobile sidebar layout and transitions
+- Enhanced announcement bar styling and positioning
+- Updated dashboard layout with better content spacing
+- Refined UI components for better mobile experience
+- Improved TypeScript type safety across components
+
 ## [Unreleased]
 
 ### Added

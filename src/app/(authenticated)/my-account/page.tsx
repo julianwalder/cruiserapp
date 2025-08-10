@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -175,6 +176,7 @@ interface VerificationData {
 }
 
 export default function MyAccountPage() {
+  const searchParams = useSearchParams();
   const [user, setUser] = useState<MyAccountUser | null>(null);
   const [verificationData, setVerificationData] = useState<VerificationData | null>(null);
   const [activeTab, setActiveTab] = useState('personal');
@@ -186,6 +188,14 @@ export default function MyAccountPage() {
   
   // Use the proper date formatting system
   const { formatDate } = useDateFormatUtils();
+
+  // Set initial active tab based on URL parameter
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && ['personal', 'verification', 'credentials', 'documents'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   // Auto-show onboarding selection for prospects on page load
   useEffect(() => {

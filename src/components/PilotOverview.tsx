@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { WeatherPopup } from '@/components/WeatherPopup';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -97,6 +98,7 @@ export default function PilotOverview() {
   const [stats, setStats] = useState<PilotStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showWeatherPopup, setShowWeatherPopup] = useState(false);
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -283,10 +285,22 @@ export default function PilotOverview() {
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.flights.thisMonth}</div>
-            <p className="text-xs text-muted-foreground">
-              {formatHours(stats.hours.thisMonth)} hours
-            </p>
+            <div className="text-2xl font-bold">{formatHours(stats.hours.thisMonth)}</div>
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{stats.flights.thisMonth} flights</span>
+              {stats.flights.change !== 0 && (
+                <div className="flex items-center">
+                  {stats.flights.change > 0 ? (
+                    <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
+                  ) : (
+                    <TrendingDown className="h-3 w-3 mr-1 text-red-500" />
+                  )}
+                  <span className={stats.flights.change > 0 ? 'text-green-500' : 'text-red-500'}>
+                    {Math.abs(stats.flights.change)}%
+                  </span>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -504,9 +518,9 @@ export default function PilotOverview() {
           <CardContent>
             <div className="grid grid-cols-1 gap-3">
               <Button 
-                variant="outline" 
-                className="justify-start h-12"
-                onClick={() => router.push('/dashboard?tab=flight-logs')}
+                variant="default" 
+                className="justify-start h-12 bg-black hover:bg-gray-800 text-white"
+                onClick={() => router.push('/flight-logs?create=true')}
               >
                 <Plane className="h-4 w-4 mr-2" />
                 Log New Flight
@@ -514,7 +528,7 @@ export default function PilotOverview() {
               <Button 
                 variant="outline" 
                 className="justify-start h-12"
-                onClick={() => router.push('/dashboard?tab=flight-logs')}
+                onClick={() => router.push('/flight-logs')}
               >
                 <FileText className="h-4 w-4 mr-2" />
                 View Flight Logs
@@ -522,7 +536,7 @@ export default function PilotOverview() {
               <Button 
                 variant="outline" 
                 className="justify-start h-12"
-                onClick={() => window.open('https://www.aviationweather.gov/', '_blank')}
+                onClick={() => setShowWeatherPopup(true)}
               >
                 <Cloud className="h-4 w-4 mr-2" />
                 Check Weather
@@ -603,6 +617,12 @@ export default function PilotOverview() {
           </CardContent>
         </Card>
       )}
+
+      {/* Weather Popup */}
+      <WeatherPopup 
+        open={showWeatherPopup} 
+        onOpenChange={setShowWeatherPopup} 
+      />
     </div>
   );
 } 

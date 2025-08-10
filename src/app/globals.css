@@ -45,7 +45,7 @@
   /* Hydration delay fixes for sticky positioning */
   .sticky-header {
     position: sticky;
-    top: 0;
+    top: calc(env(safe-area-inset-top) + var(--announcement-height, 0px));
     z-index: 40;
     /* Prevent layout shift during hydration */
     min-height: 64px; /* h-16 */
@@ -60,7 +60,7 @@
   /* Ensure header is always visible during hydration */
   .sticky-header[data-hydrating="true"] {
     position: fixed;
-    top: 0;
+    top: calc(env(safe-area-inset-top) + var(--announcement-height, 0px));
     left: 0;
     right: 0;
   }
@@ -607,5 +607,18 @@
     --tw-ring-color: hsl(var(--sidebar-ring));
   }
 
+  /* Announcement bar helpers */
+  .announcement-offset {
+    padding-top: var(--announcement-height, 0px);
+  }
+
+  .announcement-margin-offset {
+    margin-top: var(--announcement-height, 0px);
+  }
+
+  /* Reserve default space for announcement bar */
+  html {
+    --announcement-height: 0px;
+  }
 
 } 

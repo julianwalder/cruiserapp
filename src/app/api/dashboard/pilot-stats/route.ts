@@ -158,6 +158,52 @@ export async function GET(request: NextRequest) {
     const lastNightFlight = flightLogs?.find(flight => flight.night && flight.night > 0);
     const lastInstrumentFlight = flightLogs?.find(flight => flight.instrument && flight.instrument > 0);
 
+    // Calculate monthly statistics
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    // This month (current month)
+    const thisMonthFlights = flightLogs?.filter(flight => {
+      const flightDate = new Date(flight.date);
+      return flightDate.getMonth() === currentMonth && flightDate.getFullYear() === currentYear;
+    }) || [];
+    
+    const thisMonthHours = thisMonthFlights.reduce((sum, flight) => {
+      if (flight.totalHours !== null && flight.totalHours !== undefined) {
+        return sum + flight.totalHours;
+      } else if (flight.departureTime && flight.arrivalTime) {
+        return sum + calculateFlightHours(flight.departureTime, flight.arrivalTime);
+      }
+      return sum;
+    }, 0);
+
+    // Last month
+    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+    
+    const lastMonthFlights = flightLogs?.filter(flight => {
+      const flightDate = new Date(flight.date);
+      return flightDate.getMonth() === lastMonth && flightDate.getFullYear() === lastMonthYear;
+    }) || [];
+    
+    const lastMonthHours = lastMonthFlights.reduce((sum, flight) => {
+      if (flight.totalHours !== null && flight.totalHours !== undefined) {
+        return sum + flight.totalHours;
+      } else if (flight.departureTime && flight.arrivalTime) {
+        return sum + calculateFlightHours(flight.departureTime, flight.arrivalTime);
+      }
+      return sum;
+    }, 0);
+
+    // Calculate percentage change
+    const flightsChange = lastMonthFlights.length > 0 
+      ? Math.round(((thisMonthFlights.length - lastMonthFlights.length) / lastMonthFlights.length) * 100)
+      : thisMonthFlights.length > 0 ? 100 : 0;
+    
+    const hoursChange = lastMonthHours > 0 
+      ? Math.round(((thisMonthHours - lastMonthHours) / lastMonthHours) * 100)
+      : thisMonthHours > 0 ? 100 : 0;
+
 
 
     const stats = {
@@ -171,9 +217,9 @@ export async function GET(request: NextRequest) {
       },
       flights: {
         total: flightLogs?.length || 0,
-        thisMonth: 0,
-        lastMonth: 0,
-        change: 0,
+        thisMonth: thisMonthFlights.length,
+        lastMonth: lastMonthFlights.length,
+        change: flightsChange,
         recent: flightLogs?.slice(0, 5).map(flight => ({
           id: flight.id,
           date: flight.date,
@@ -185,9 +231,9 @@ export async function GET(request: NextRequest) {
       },
       hours: {
         total: totalUsedHours,
-        thisMonth: 0,
-        lastMonth: 0,
-        change: 0
+        thisMonth: thisMonthHours,
+        lastMonth: lastMonthHours,
+        change: hoursChange
       },
       billing: {
         pending: 0,

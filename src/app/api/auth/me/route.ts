@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
         phone,
         "personalNumber",
         "veriffPersonIdNumber",
+        "identityVerified",
         user_roles (
           roles (
             name
@@ -89,6 +90,7 @@ export async function GET(request: NextRequest) {
       phone: user.phone,
       personalNumber: user.personalNumber,
       veriffPersonIdNumber: user.veriffPersonIdNumber,
+      identityVerified: user.identityVerified || false,
       // Normalized address data
       normalizedAddress: normalizedAddress ? {
         streetAddress: normalizedAddress.street_address,

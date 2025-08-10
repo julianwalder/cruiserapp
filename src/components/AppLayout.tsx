@@ -75,6 +75,11 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    
+    // Dispatch auth-change event to notify other components
+    window.dispatchEvent(new Event('auth-change'));
+    
     router.push('/login');
   };
 
@@ -153,7 +158,7 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 bg-white dark:bg-gray-900 content-with-sticky-header">
+        <main className="flex-1 overflow-y-auto pt-8 pb-4 px-4 sm:pt-10 sm:pb-6 sm:px-6 bg-white dark:bg-gray-900 content-with-sticky-header announcement-offset">
           {children}
         </main>
       </div>

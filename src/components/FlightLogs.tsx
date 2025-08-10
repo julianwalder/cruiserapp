@@ -47,7 +47,7 @@ import { toast } from "sonner";
 import { useFormattedDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { FlightLog, Aircraft, User, Airfield } from "@/types/uuid-types";
+// Remove duplicate imports - we'll use local interfaces
 
 // Client-side date formatter component to prevent hydration issues
 function FormattedDate({ date }: { date: string | Date | null | undefined }) {
@@ -146,17 +146,22 @@ interface Aircraft {
   status: string;
 }
 
+interface UserRole {
+  role?: {
+    name: string;
+  };
+  roles?: {
+    name: string;
+  };
+}
+
 interface User {
   id: string;
   firstName: string;
   lastName: string;
   email: string;
   status?: string;
-  userRoles: Array<{
-    role: {
-      name: string;
-    };
-  }>;
+  userRoles: Array<UserRole>;
 }
 
 interface Airfield {
@@ -233,7 +238,22 @@ interface Pagination {
   pages: number;
 }
 
-function TimeInput({ value, onChange, name, className, ...props }: unknown) {
+// Extended FlightLog type that includes all the related data
+interface ExtendedFlightLog extends FlightLog {
+  // Additional fields that might be added by the API
+  [key: string]: any;
+}
+
+interface TimeInputProps {
+  value?: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  name?: string;
+  className?: string;
+  onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
+  [key: string]: any;
+}
+
+function TimeInput({ value, onChange, name, className, ...props }: TimeInputProps) {
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   // Handle input change with basic validation
@@ -312,7 +332,15 @@ function TimeInput({ value, onChange, name, className, ...props }: unknown) {
   );
 }
 
-function HobbsInput({ value, onChange, name, className, ...props }: unknown) {
+interface HobbsInputProps {
+  value?: string | number;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  name?: string;
+  className?: string;
+  [key: string]: any;
+}
+
+function HobbsInput({ value, onChange, name, className, ...props }: HobbsInputProps) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let inputValue = e.target.value;
     
@@ -383,7 +411,11 @@ function HobbsInput({ value, onChange, name, className, ...props }: unknown) {
   );
 }
 
-export default function FlightLogs() {
+interface FlightLogsProps {
+  openCreateModal?: boolean;
+}
+
+export default function FlightLogs({ openCreateModal = false }: FlightLogsProps) {
   console.log('🔍 FlightLogs component rendering');
   
   // State management
@@ -574,7 +606,7 @@ export default function FlightLogs() {
         setCurrentUser(data);
         
         // Set appropriate view mode based on user role
-        const userRoles = data.userRoles?.map((ur: unknown) => ur.role?.name || ur.roles?.name) || [];
+        const userRoles = data.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
         const isPilot = userRoles.includes('PILOT');
         const isStudent = userRoles.includes('STUDENT');
         const isInstructor = userRoles.includes('INSTRUCTOR');
@@ -634,6 +666,13 @@ export default function FlightLogs() {
       console.log('❌ Form validation errors:', form.formState.errors);
     }
   }, [form.formState.errors]);
+
+  // Auto-open create modal if prop is true
+  useEffect(() => {
+    if (openCreateModal && !loading) {
+      setShowCreateDialog(true);
+    }
+  }, [openCreateModal, loading]);
 
   // Fetch data when component mounts or currentUser changes
   useEffect(() => {
@@ -1173,10 +1212,10 @@ export default function FlightLogs() {
   // Check if user is pilot only (no other roles)
   const isPilotOnly = () => {
     if (!currentUser) return false;
-    const isPilot = currentUser.userRoles?.some((ur: unknown) => (ur.role?.name || ur.roles?.name) === 'PILOT');
-    const isInstructor = currentUser.userRoles?.some((ur: unknown) => (ur.role?.name || ur.roles?.name) === 'INSTRUCTOR');
-    const isAdmin = currentUser.userRoles?.some((ur: unknown) => (ur.role?.name || ur.roles?.name) === 'ADMIN' || (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN');
-    const isBaseManager = currentUser.userRoles?.some((ur: unknown) => (ur.role?.name || ur.roles?.name) === 'BASE_MANAGER');
+    const isPilot = currentUser.userRoles?.some((ur: UserRole) => (ur.role?.name || ur.roles?.name) === 'PILOT');
+    const isInstructor = currentUser.userRoles?.some((ur: UserRole) => (ur.role?.name || ur.roles?.name) === 'INSTRUCTOR');
+    const isAdmin = currentUser.userRoles?.some((ur: UserRole) => (ur.role?.name || ur.roles?.name) === 'ADMIN' || (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN');
+    const isBaseManager = currentUser.userRoles?.some((ur: UserRole) => (ur.role?.name || ur.roles?.name) === 'BASE_MANAGER');
     return isPilot && !isInstructor && !isAdmin && !isBaseManager;
   };
 
@@ -1184,9 +1223,9 @@ export default function FlightLogs() {
   const shouldShowPilotSelection = () => {
     if (!currentUser) return true;
     
-    const isInstructor = currentUser.userRoles?.some((ur: unknown) => (ur.role?.name || ur.roles?.name) === 'INSTRUCTOR');
-    const isAdmin = currentUser.userRoles?.some((ur: unknown) => (ur.role?.name || ur.roles?.name) === 'ADMIN' || (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN');
-    const isBaseManager = currentUser.userRoles?.some((ur: unknown) => (ur.role?.name || ur.roles?.name) === 'BASE_MANAGER');
+    const isInstructor = currentUser.userRoles?.some((ur: UserRole) => (ur.role?.name || ur.roles?.name) === 'INSTRUCTOR');
+    const isAdmin = currentUser.userRoles?.some((ur: UserRole) => (ur.role?.name || ur.roles?.name) === 'ADMIN' || (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN');
+    const isBaseManager = currentUser.userRoles?.some((ur: UserRole) => (ur.role?.name || ur.roles?.name) === 'BASE_MANAGER');
     
     // Always show pilot selection for instructors, admins, and super admins
     if (isInstructor || isAdmin) return true;
@@ -1200,7 +1239,7 @@ export default function FlightLogs() {
   // Check if user can delete flight logs
   const canDeleteFlightLogs = () => {
     if (!currentUser) return false;
-    return currentUser.userRoles?.some((ur: unknown) => 
+    return currentUser.userRoles?.some((ur: UserRole) => 
       (ur.role?.name || ur.roles?.name) === 'ADMIN' || (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN' || (ur.role?.name || ur.roles?.name) === 'BASE_MANAGER'
     );
   };
@@ -1212,7 +1251,7 @@ export default function FlightLogs() {
     console.log('🔍 canToggleViewMode - currentUser.userRoles:', JSON.stringify(currentUser.userRoles, null, 2));
     
     // Only allow view mode toggle for users who should see company-wide data
-    const canToggle = currentUser.userRoles?.some((ur: unknown) => {
+    const canToggle = currentUser.userRoles?.some((ur: UserRole) => {
       const roleName = ur.role?.name || ur.roles?.name;
       console.log('🔍 Checking role:', roleName, 'from ur:', ur);
       // Only INSTRUCTOR, ADMIN, SUPER_ADMIN, and BASE_MANAGER can toggle view mode
@@ -1222,7 +1261,7 @@ export default function FlightLogs() {
     
     console.log('🔍 canToggleViewMode check:', {
       currentUser: currentUser?.email,
-      userRoles: currentUser?.userRoles?.map((ur: unknown) => ur.role?.name || ur.roles?.name),
+      userRoles: currentUser?.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name),
       canToggle
     });
     return canToggle;
@@ -1231,7 +1270,7 @@ export default function FlightLogs() {
   // Check if user can edit flight logs
   const canEditFlightLogs = () => {
     if (!currentUser) return false;
-    return currentUser.userRoles?.some((ur: unknown) => 
+    return currentUser.userRoles?.some((ur: UserRole) => 
       (ur.role?.name || ur.roles?.name) === 'ADMIN' || (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN' || (ur.role?.name || ur.roles?.name) === 'BASE_MANAGER' || (ur.role?.name || ur.roles?.name) === 'INSTRUCTOR'
     );
   };
@@ -1242,11 +1281,11 @@ export default function FlightLogs() {
       `${log.pilot.firstName} ${log.pilot.lastName}` : 
       log.pilotId || 'Unknown';
     
-    const isPilot = currentUser.userRoles?.some((ur: unknown) => (ur.role?.name || ur.roles?.name) === 'PILOT');
-    const isStudent = currentUser.userRoles?.some((ur: unknown) => (ur.role?.name || ur.roles?.name) === 'STUDENT');
-    const isInstructor = currentUser.userRoles?.some((ur: unknown) => (ur.role?.name || ur.roles?.name) === 'INSTRUCTOR');
-    const isAdmin = currentUser.userRoles?.some((ur: unknown) => (ur.role?.name || ur.roles?.name) === 'ADMIN' || (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN');
-    const isBaseManager = currentUser.userRoles?.some((ur: unknown) => (ur.role?.name || ur.roles?.name) === 'BASE_MANAGER');
+    const isPilot = currentUser.userRoles?.some((ur: UserRole) => (ur.role?.name || ur.roles?.name) === 'PILOT');
+    const isStudent = currentUser.userRoles?.some((ur: UserRole) => (ur.role?.name || ur.roles?.name) === 'STUDENT');
+    const isInstructor = currentUser.userRoles?.some((ur: UserRole) => (ur.role?.name || ur.roles?.name) === 'INSTRUCTOR');
+    const isAdmin = currentUser.userRoles?.some((ur: UserRole) => (ur.role?.name || ur.roles?.name) === 'ADMIN' || (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN');
+    const isBaseManager = currentUser.userRoles?.some((ur: UserRole) => (ur.role?.name || ur.roles?.name) === 'BASE_MANAGER');
     
     // In company view, always show the actual pilot name
     if (viewMode === 'company') {
@@ -1454,7 +1493,8 @@ export default function FlightLogs() {
     } catch (error: unknown) {
       console.error('Error importing flight logs:', error);
       setImportProgress(null);
-      toast.error('Import failed: ' + error.message);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      toast.error('Import failed: ' + errorMessage);
     }
   };
 
