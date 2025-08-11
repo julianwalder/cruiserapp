@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth } from '@/lib/middleware';
 import { getSupabaseClient } from '@/lib/supabase';
 
 async function getUpdates(request: NextRequest, currentUser: any) {
@@ -9,6 +9,7 @@ async function getUpdates(request: NextRequest, currentUser: any) {
 
     const supabase = getSupabaseClient();
     if (!supabase) {
+      console.error('Supabase client not initialized');
       return NextResponse.json(
         { error: 'Database connection error' },
         { status: 500 }
@@ -17,54 +18,61 @@ async function getUpdates(request: NextRequest, currentUser: any) {
 
     const updates: any[] = [];
     const checkTime = new Date(lastCheckTime || 0);
+    
+    console.log('Checking for updates since:', checkTime.toISOString());
 
     // Check for new posts
-    const { data: newPosts, error: postsError } = await supabase
-      .from('help_posts')
-      .select(`
-        id,
-        type,
-        title,
-        body,
-        base_icao,
-        category,
-        status,
-        created_at,
-        updated_at,
-        author_id,
-        users!help_posts_author_id_fkey (
-          first_name,
-          last_name,
-          avatar_url
-        )
-      `)
-      .gte('created_at', checkTime.toISOString())
-      .order('created_at', { ascending: false });
+    try {
+      const { data: newPosts, error: postsError } = await supabase
+        .from('help_posts')
+        .select(`
+          id,
+          type,
+          title,
+          body,
+          base_icao,
+          category,
+          status,
+          created_at,
+          updated_at,
+          author_id,
+          users!help_posts_author_id_fkey (
+            first_name,
+            last_name,
+            avatar_url
+          )
+        `)
+        .gte('created_at', checkTime.toISOString())
+        .order('created_at', { ascending: false });
 
-    if (postsError) {
-      console.error('Error fetching new posts:', postsError);
-    } else if (newPosts) {
-      newPosts.forEach(post => {
-        updates.push({
-          type: 'post_created',
-          data: {
-            id: post.id,
-            type: post.type,
-            title: post.title,
-            body: post.body,
-            baseIcao: post.base_icao,
-            category: post.category,
-            status: post.status,
-            createdAt: post.created_at,
-            updatedAt: post.updated_at,
-            authorId: post.author_id,
-            authorFirstName: post.users?.first_name,
-            authorLastName: post.users?.last_name,
-            authorAvatarUrl: post.users?.avatar_url,
-            responseCount: 0,
-          }
+      if (postsError) {
+        console.error('Error fetching new posts:', postsError);
+      } else if (newPosts) {
+        console.log('Found', newPosts.length, 'new posts');
+        newPosts.forEach(post => {
+          updates.push({
+            type: 'post_created',
+            data: {
+              id: post.id,
+              type: post.type,
+              title: post.title,
+              body: post.body,
+              baseIcao: post.base_icao,
+              category: post.category,
+              status: post.status,
+              createdAt: post.created_at,
+              updatedAt: post.updated_at,
+              authorId: post.author_id,
+              authorFirstName: post.users?.first_name,
+              authorLastName: post.users?.last_name,
+              authorAvatarUrl: post.users?.avatar_url,
+              responseCount: 0,
+            }
+          });
         });
-      });
+      }
+    } catch (error) {
+      console.error('Error in new posts query:', error);
     }
 
     // Check for new responses
@@ -142,11 +150,12 @@ async function getUpdates(request: NextRequest, currentUser: any) {
       });
     }
 
+    console.log('Returning', updates.length, 'updates');
     return NextResponse.json(updates);
   } catch (error) {
     console.error('Error in getUpdates:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
@@ -156,4 +165,13 @@ export async function POST(request: NextRequest) {
   return requireAuth(async (request: NextRequest, currentUser: any) => {
     return await getUpdates(request, currentUser);
   })(request);
+}
+
+export async function GET(request: NextRequest) {
+  // Simple test endpoint
+  return NextResponse.json({ 
+    status: 'ok', 
+    message: 'Realtime updates endpoint is working',
+    timestamp: new Date().toISOString()
+  });
 }
