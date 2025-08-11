@@ -86,8 +86,15 @@ npm run ws
 
 ### Environment Variables
 ```bash
-# Production
-NEXT_PUBLIC_WEBSOCKET_URL=wss://app.cruiseraviation.com
+# Development
+NEXT_PUBLIC_WEBSOCKET_URL=ws://localhost:3003
+
+# Production (when WebSocket server is deployed)
+NEXT_PUBLIC_WEBSOCKET_URL=wss://app.cruiseraviation.com/ws
+
+# Production (without WebSocket server - real-time disabled)
+# NEXT_PUBLIC_WEBSOCKET_URL= (leave empty)
+
 WS_PORT=3003
 NEXT_PUBLIC_APP_URL=https://app.cruiseraviation.com
 ```
@@ -104,6 +111,8 @@ location /ws {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 86400;
+    proxy_send_timeout 86400;
 }
 ```
 
@@ -163,6 +172,72 @@ curl http://localhost:3003/stats
 - Validate all incoming WebSocket messages
 - Sanitize data before broadcasting
 - Log suspicious activity
+
+## Production Deployment
+
+### Option 1: Deploy WebSocket Server (Recommended for full real-time features)
+
+#### 1. Deploy WebSocket Server
+```bash
+# On your production server
+npm install ws
+node websocket-server.js
+```
+
+#### 2. Use PM2 for Process Management
+```bash
+# Install PM2
+npm install -g pm2
+
+# Start WebSocket server with PM2
+pm2 start websocket-server.js --name "cruiser-websocket"
+
+# Save PM2 configuration
+pm2 save
+
+# Setup PM2 to start on boot
+pm2 startup
+```
+
+#### 3. Configure Environment Variables
+```bash
+# In your production environment
+NEXT_PUBLIC_WEBSOCKET_URL=wss://app.cruiseraviation.com/ws
+```
+
+### Option 2: Disable Real-time Features (Fallback)
+
+If you don't want to deploy the WebSocket server yet:
+
+#### 1. Set Environment Variable
+```bash
+# Leave empty to disable WebSocket connections
+NEXT_PUBLIC_WEBSOCKET_URL=
+```
+
+#### 2. Community Board Still Works
+- All features work except real-time updates
+- Users need to refresh to see new posts/responses
+- No connection errors in browser console
+
+### Option 3: Vercel Deployment (Alternative)
+
+For Vercel deployment, you can use Vercel's WebSocket support:
+
+#### 1. Create WebSocket API Route
+```typescript
+// src/app/api/ws/route.ts
+import { NextRequest } from 'next/server';
+
+export async function GET(request: NextRequest) {
+  // WebSocket upgrade logic
+}
+```
+
+#### 2. Update WebSocket URL
+```bash
+NEXT_PUBLIC_WEBSOCKET_URL=wss://app.cruiseraviation.com/api/ws
+```
 
 ## Future Enhancements
 

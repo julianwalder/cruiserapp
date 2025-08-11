@@ -25,6 +25,7 @@ import { PostCard } from './PostCard';
 import { InviteFriendsModal } from './InviteFriendsModal';
 import { toast } from 'sonner';
 import { websocketService } from '@/lib/websocket-service';
+import { realtimeService } from '@/lib/realtime-service';
 
 interface Post {
   id: string;
@@ -69,6 +70,7 @@ export function CommunityBoard() {
     
     return () => {
       websocketService.disconnect();
+      realtimeService.disconnect();
     };
   }, []);
 
@@ -157,65 +159,124 @@ export function CommunityBoard() {
     const token = localStorage.getItem('token');
     if (!token) return;
 
-    // Connect to WebSocket (optional - won't break if server isn't running)
-    try {
-      websocketService.connect(token);
-    } catch (error) {
-      console.warn('WebSocket connection failed (server may not be running):', error);
-      // Don't break the UI if WebSocket fails
+    // Check if we're on Vercel (production)
+    const isVercel = typeof window !== 'undefined' && 
+      (window.location.hostname.includes('vercel.app') || 
+       window.location.hostname.includes('cruiseraviation.com'));
+
+    if (isVercel) {
+      // Use polling-based real-time service for Vercel
+      console.log('Using polling-based real-time service for Vercel deployment');
+      realtimeService.connect(token);
+      
+      const unsubscribePostCreated = realtimeService.subscribe('post_created', (data) => {
+        setPosts(prevPosts => [data, ...prevPosts]);
+      });
+
+      const unsubscribeResponseCreated = realtimeService.subscribe('response_created', (data) => {
+        setPosts(prevPosts => 
+          prevPosts.map(post => 
+            post.id === data.postId 
+              ? { ...post, responseCount: post.responseCount + 1 }
+              : post
+          )
+        );
+      });
+
+      const unsubscribePostUpdated = realtimeService.subscribe('post_updated', (data) => {
+        setPosts(prevPosts => 
+          prevPosts.map(post => 
+            post.id === data.id ? { ...post, ...data } : post
+          )
+        );
+      });
+
+      const unsubscribePostDeleted = realtimeService.subscribe('post_deleted', (data) => {
+        setPosts(prevPosts => prevPosts.filter(post => post.id !== data.id));
+      });
+
+      const unsubscribePostExpired = realtimeService.subscribe('post_expired', (data) => {
+        setPosts(prevPosts => 
+          prevPosts.map(post => 
+            post.id === data.id ? { ...post, status: 'expired' } : post
+          )
+        );
+      });
+
+      // Update connection status
+      const checkConnection = () => {
+        setIsConnected(realtimeService.isConnectedState());
+      };
+
+      const interval = setInterval(checkConnection, 1000);
+
+      return () => {
+        unsubscribePostCreated();
+        unsubscribeResponseCreated();
+        unsubscribePostUpdated();
+        unsubscribePostDeleted();
+        unsubscribePostExpired();
+        clearInterval(interval);
+        realtimeService.disconnect();
+      };
+    } else {
+      // Use WebSocket service for local development
+      console.log('Using WebSocket service for local development');
+      try {
+        websocketService.connect(token);
+      } catch (error) {
+        console.warn('WebSocket connection failed (server may not be running):', error);
+      }
+
+      const unsubscribePostCreated = websocketService.subscribe('post_created', (data) => {
+        setPosts(prevPosts => [data, ...prevPosts]);
+      });
+
+      const unsubscribeResponseCreated = websocketService.subscribe('response_created', (data) => {
+        setPosts(prevPosts => 
+          prevPosts.map(post => 
+            post.id === data.postId 
+              ? { ...post, responseCount: post.responseCount + 1 }
+              : post
+          )
+        );
+      });
+
+      const unsubscribePostUpdated = websocketService.subscribe('post_updated', (data) => {
+        setPosts(prevPosts => 
+          prevPosts.map(post => 
+            post.id === data.id ? { ...post, ...data } : post
+          )
+        );
+      });
+
+      const unsubscribePostDeleted = websocketService.subscribe('post_deleted', (data) => {
+        setPosts(prevPosts => prevPosts.filter(post => post.id !== data.id));
+      });
+
+      const unsubscribePostExpired = websocketService.subscribe('post_expired', (data) => {
+        setPosts(prevPosts => 
+          prevPosts.map(post => 
+            post.id === data.id ? { ...post, status: 'expired' } : post
+          )
+        );
+      });
+
+      const checkConnection = () => {
+        setIsConnected(websocketService.isConnectedState());
+      };
+
+      const interval = setInterval(checkConnection, 1000);
+
+      return () => {
+        unsubscribePostCreated();
+        unsubscribeResponseCreated();
+        unsubscribePostUpdated();
+        unsubscribePostDeleted();
+        unsubscribePostExpired();
+        clearInterval(interval);
+      };
     }
-
-    // Subscribe to real-time updates
-    const unsubscribePostCreated = websocketService.subscribe('post_created', (data) => {
-      setPosts(prevPosts => [data, ...prevPosts]);
-    });
-
-    const unsubscribeResponseCreated = websocketService.subscribe('response_created', (data) => {
-      // Update response count for the post
-      setPosts(prevPosts => 
-        prevPosts.map(post => 
-          post.id === data.postId 
-            ? { ...post, responseCount: post.responseCount + 1 }
-            : post
-        )
-      );
-    });
-
-    const unsubscribePostUpdated = websocketService.subscribe('post_updated', (data) => {
-      setPosts(prevPosts => 
-        prevPosts.map(post => 
-          post.id === data.id ? { ...post, ...data } : post
-        )
-      );
-    });
-
-    const unsubscribePostDeleted = websocketService.subscribe('post_deleted', (data) => {
-      setPosts(prevPosts => prevPosts.filter(post => post.id !== data.id));
-    });
-
-    const unsubscribePostExpired = websocketService.subscribe('post_expired', (data) => {
-      setPosts(prevPosts => 
-        prevPosts.map(post => 
-          post.id === data.id ? { ...post, status: 'expired' } : post
-        )
-      );
-    });
-
-    // Update connection status
-    const checkConnection = () => {
-      setIsConnected(websocketService.isConnectedState());
-    };
-
-    const interval = setInterval(checkConnection, 1000);
-
-    return () => {
-      unsubscribePostCreated();
-      unsubscribeResponseCreated();
-      unsubscribePostUpdated();
-      unsubscribePostDeleted();
-      unsubscribePostExpired();
-      clearInterval(interval);
-    };
   }, []);
 
   const filteredPosts = posts.filter(post => {
