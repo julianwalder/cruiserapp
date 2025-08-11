@@ -1,6 +1,6 @@
 {
   "name": "cruiserapp",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "private": true,
   "overrides": {
     "openai": {
@@ -36,7 +36,9 @@
     "build:info": "node scripts/set-build-info.js all",
     "prebuild": "npm run build:info",
     "setup-hour-packages": "node scripts/setup-hour-packages.js",
-    "setup-orders-table": "node scripts/setup-orders-table.js"
+    "setup-orders-table": "node scripts/setup-orders-table.js",
+    "ws": "node websocket-server.js",
+    "dev:ws": "concurrently \"npm run dev\" \"npm run ws\""
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -99,6 +101,7 @@
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^1.1.2",
+    "ws": "^8.18.3",
     "xml2js": "^0.6.2",
     "zod": "^4.0.15"
   },
@@ -110,8 +113,10 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/ws": "^8.5.10",
     "@typescript-eslint/eslint-plugin": "^8.38.0",
     "@typescript-eslint/parser": "^8.38.0",
+    "concurrently": "^8.2.2",
     "eslint": "^9",
     "eslint-config-next": "^15.4.5",
     "tailwindcss": "^4.1.11",

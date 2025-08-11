@@ -146,7 +146,7 @@ export default function DashboardPage() {
   }
 
   return (
-          <div className="space-y-6 mt-6">
+    <div className="space-y-6 mt-6">
       {/* Content based on user role */}
       {isPilotOrStudent() && !isAdminOrManager() && (
         <PilotOverview />

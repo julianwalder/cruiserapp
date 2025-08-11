@@ -27,7 +27,7 @@ export default function AccountingPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mt-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-card-foreground">Accounting & Invoicing</h2>

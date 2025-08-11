@@ -22,5 +22,9 @@ export default function BasesPage() {
     fetchUser();
   }, []);
 
-  return <BaseManagement canEdit={canEdit} />;
+  return (
+    <div className="space-y-6 mt-6">
+      <BaseManagement canEdit={canEdit} />
+    </div>
+  );
 } 

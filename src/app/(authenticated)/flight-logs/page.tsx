@@ -7,5 +7,9 @@ export default function FlightLogsPage() {
   const searchParams = useSearchParams();
   const openCreateModal = searchParams.get('create') === 'true';
   
-  return <FlightLogs openCreateModal={openCreateModal} />;
+  return (
+    <div className="space-y-6 mt-6">
+      <FlightLogs openCreateModal={openCreateModal} />
+    </div>
+  );
 } 

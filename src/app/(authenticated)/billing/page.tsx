@@ -31,7 +31,7 @@ export default function BillingPage() {
   }, []);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mt-6">
       <UserBilling userId={userId} />
     </div>
   );

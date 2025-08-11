@@ -6,7 +6,7 @@ import { Calendar, Clock, Plane, Users } from 'lucide-react';
 
 export default function SchedulingPage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mt-6">
         <div>
           <h2 className="text-2xl font-bold text-card-foreground">Flight Scheduling</h2>
           <p className="text-muted-foreground">Schedule and manage flight sessions</p>

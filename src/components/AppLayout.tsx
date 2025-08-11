@@ -109,6 +109,8 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
         return 'Buy Flight Hours';
       case 'usage':
         return 'Usage';
+      case 'community-board':
+        return 'Community Board';
       case 'reports':
         return 'Reports';
       case 'billing':

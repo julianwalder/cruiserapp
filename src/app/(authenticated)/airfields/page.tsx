@@ -3,5 +3,9 @@
 import AirfieldsManagement from '@/components/AirfieldsManagement';
 
 export default function AirfieldsPage() {
-  return <AirfieldsManagement />;
+  return (
+    <div className="space-y-6 mt-6">
+      <AirfieldsManagement />
+    </div>
+  );
 } 

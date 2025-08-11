@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8] - 2025-01-27
+
+### Added
+- **Community Board System**
+  - Open community board for pilots to post Asks and Offers
+  - Real-time feed with WebSocket integration
+  - Post types: Ask (requests for help) and Offer (ways to help)
+  - Response system with "I Can Help" functionality
+  - Peer invitation system with shareable invite links
+  - Email notifications for responses
+  - Post filtering by base, category, and date
+  - Response management for post authors (accept/reject)
+  - Real-time updates for post counts and status changes
+  - Mobile-responsive design with modern UI
+- **WebSocket Infrastructure**
+  - Standalone WebSocket server on port 3003
+  - Real-time communication for community board
+  - Connection status indicators
+  - Automatic reconnection and heartbeat
+  - Event-driven notifications system
+- **Next.js 15 Compatibility**
+  - Updated params handling for dynamic routes
+  - React.use() integration for Promise-based params
+  - Improved TypeScript type safety
+
+### Fixed
+- Next.js 15 params Promise compatibility in invite routes
+- Response count updates after submitting responses
+- Post status updates when responses are accepted
+- Share functionality error handling for user cancellation
+- Page spacing consistency across all authenticated pages
+- Email notification service integration
+- WebSocket connection error handling
+
+### Changed
+- Enhanced community board UI with better spacing and layout
+- Improved error handling and user feedback
+- Updated invite system with better share functionality
+- Enhanced response management interface
+
 ## [0.1.7] - 2025-08-09
 
 ### Added

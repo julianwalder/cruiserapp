@@ -204,7 +204,7 @@ export default function NotificationsPage() {
   const notificationTypes = ['flight', 'system', 'billing', 'fleet', 'weather'];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mt-6">
       {/* Header */}
       <div className="flex items-center justify-end">
         <div className="flex items-center space-x-2">

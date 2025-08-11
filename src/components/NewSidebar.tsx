@@ -19,7 +19,8 @@ import {
   Menu,
   X,
   Clock,
-  ShoppingCart
+  ShoppingCart,
+  MessageSquare
 } from 'lucide-react';
 import { Logo } from '@/components/ui/logo';
 
@@ -103,6 +104,12 @@ const navigationItems = [
     url: '/usage',
     icon: Clock,
     description: 'Hour packages and usage tracking'
+  },
+  {
+    title: 'Community Board',
+    url: '/community-board',
+    icon: MessageSquare,
+    description: 'Ask for help and offer support'
   },
   {
     title: 'Reports',

@@ -444,7 +444,7 @@ export default function MyAccountPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mt-6">
       {/* User Profile Header */}
       <Card>
         <CardContent className="p-6">
