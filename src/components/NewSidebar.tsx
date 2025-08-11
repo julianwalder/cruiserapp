@@ -20,7 +20,8 @@ import {
   X,
   Clock,
   ShoppingCart,
-  MessageSquare
+  MessageSquare,
+  Settings
 } from 'lucide-react';
 import { Logo } from '@/components/ui/logo';
 
@@ -56,6 +57,12 @@ const navigationItems = [
     url: '/users',
     icon: Users,
     description: 'Manage users and roles'
+  },
+  {
+    title: 'Role Management',
+    url: '/role-management',
+    icon: Settings,
+    description: 'Manage roles and capabilities'
   },
   {
     title: 'Airfields',
@@ -168,12 +175,23 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
     return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT') || hasRole('STUDENT');
   };
 
+  const canAccessFlightLogs = () => {
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT') || hasRole('STUDENT') || hasRole('INSTRUCTOR');
+  };
+
+  const canAccessRoleManagement = () => {
+    return hasRole('SUPER_ADMIN');
+  };
+
   // Filter navigation items based on user permissions
   const filteredNavigationItems = navigationItems.filter(item => {
     let hasAccess = true;
     switch (item.title) {
       case 'Users':
         hasAccess = canAccessUsers();
+        break;
+      case 'Role Management':
+        hasAccess = canAccessRoleManagement();
         break;
       case 'Airfields':
         hasAccess = canAccessAirfields();
@@ -183,6 +201,9 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
         break;
       case 'Fleet':
         hasAccess = canAccessFleet();
+        break;
+      case 'Flight Logs':
+        hasAccess = canAccessFlightLogs();
         break;
       case 'Settings':
         hasAccess = canAccessSettings();
@@ -360,24 +381,7 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
               
 
               
-              {/* Role Management for Super Admin */}
-              {user?.userRoles.some(userRole => userRole.roles.name === 'SUPER_ADMIN') && (
-                <Button
-                  variant="ghost"
-                  className={`
-                    w-full justify-start h-11 px-3 text-sm font-medium transition-all duration-200
-                    ${isActive('/dashboard?tab=roles') 
-                      ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm' 
-                      : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
-                    }
-                    ${isCollapsed ? 'justify-center px-2' : ''}
-                  `}
-                  onClick={() => handleNavigation('/dashboard?tab=roles')}
-                >
-                  <Shield className={`h-4 w-4 ${isCollapsed ? '' : 'mr-3'}`} />
-                  {!isCollapsed && <span>Role Management</span>}
-                </Button>
-              )}
+
             </nav>
           </div>
         </div>

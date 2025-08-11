@@ -439,6 +439,8 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
     pages: 1,
   });
 
+
+
   // Filter state
   const [filters, setFilters] = useState({
     aircraftId: '',
@@ -736,6 +738,17 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         return;
       }
 
+      // Check if current user is a prospect - if so, don't make API calls
+      if (currentUser) {
+        const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
+        const isProspect = userRoles.includes('PROSPECT');
+        if (isProspect) {
+          console.log('🔍 User is prospect, skipping flight logs API call');
+          setFlightLogs([]);
+          return;
+        }
+      }
+
       console.log('🔍 Building query parameters...');
       // Build query parameters
       const params = new URLSearchParams({
@@ -817,6 +830,16 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
 
   const fetchAircraft = async () => {
     try {
+      // Check if current user is a prospect - if so, don't make API calls
+      if (currentUser) {
+        const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
+        const isProspect = userRoles.includes('PROSPECT');
+        if (isProspect) {
+          console.log('🔍 User is prospect, skipping aircraft API call');
+          return;
+        }
+      }
+
       const token = localStorage.getItem('token');
       if (!token) {
         console.error('No authentication token found');
@@ -844,6 +867,16 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
 
   const fetchPilots = async () => {
     try {
+      // Check if current user is a prospect - if so, don't make API calls
+      if (currentUser) {
+        const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
+        const isProspect = userRoles.includes('PROSPECT');
+        if (isProspect) {
+          console.log('🔍 User is prospect, skipping pilots API call');
+          return;
+        }
+      }
+
       const token = localStorage.getItem('token');
       if (!token) {
         console.error('No authentication token found');
@@ -911,6 +944,16 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
 
   const fetchInstructors = async () => {
     try {
+      // Check if current user is a prospect - if so, don't make API calls
+      if (currentUser) {
+        const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
+        const isProspect = userRoles.includes('PROSPECT');
+        if (isProspect) {
+          console.log('🔍 User is prospect, skipping instructors API call');
+          return;
+        }
+      }
+
       const token = localStorage.getItem('token');
       if (!token) {
         console.error('No authentication token found');
@@ -944,6 +987,16 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
 
   const fetchAirfields = async () => {
     try {
+      // Check if current user is a prospect - if so, don't make API calls
+      if (currentUser) {
+        const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
+        const isProspect = userRoles.includes('PROSPECT');
+        if (isProspect) {
+          console.log('🔍 User is prospect, skipping airfields API call');
+          return;
+        }
+      }
+
       const token = localStorage.getItem('token');
       if (!token) {
         console.error('No authentication token found');

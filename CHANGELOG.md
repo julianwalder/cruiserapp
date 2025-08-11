@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.9] - 2025-01-27
+
+### Added
+- **Role Management System**
+  - Comprehensive role-based access control (RBAC) system
+  - Role management interface with capability matrix
+  - Three-tier capability system: Menu, Data, and API access
+  - Super admin-only access to role management
+  - Real-time capability updates and role creation
+  - Database schema for roles, capabilities, and menu items
+  - PostgreSQL functions for role capability management
+- **Enhanced Security Architecture**
+  - Edge Middleware for route-level access control
+  - Server-side guards for robust authentication
+  - Multi-layered security with fail-closed approach
+  - JWT token validation with proper claims (iss, aud, sub, nbf, iat)
+  - Role-based route protection with 404 redirects
+  - Next.js 15 compatible middleware implementation
+- **Access Control Improvements**
+  - Prospect users restricted from flight logs access
+  - Fleet management view-only access for prospects
+  - Role-based navigation filtering in sidebar
+  - Secure API endpoints with proper authorization headers
+  - Clean 404 redirects for unauthorized access
+
+### Fixed
+- Next.js 15 compatibility issues with params handling
+- Role capabilities API params destructuring errors
+- Duplicate Role Management menu items in sidebar
+- Role management page header showing "Dashboard" instead of "Role Management"
+- Redundant text in role management page content
+- Login redirect loop issues with middleware
+- JWT verification errors in Edge Runtime
+- Role management API authorization header issues
+- Array handling errors in role management client
+
+### Changed
+- Improved role management UI with clean, minimal design
+- Enhanced security posture with proper JWT implementation
+- Better user experience with role-based navigation
+- Streamlined access control with clear permission boundaries
+- Updated middleware configuration for better performance
+
 ## [0.1.8] - 2025-01-27
 
 ### Added

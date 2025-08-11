@@ -51,6 +51,15 @@ export async function GET(request: NextRequest) {
     const isBaseManager = userRoles.includes('BASE_MANAGER');
     const isInstructor = userRoles.includes('INSTRUCTOR');
     const isPilot = userRoles.includes('PILOT');
+    const isProspect = userRoles.includes('PROSPECT');
+
+    // Block prospects from accessing flight logs
+    if (isProspect) {
+      console.log('❌ Prospect user attempted to access flight logs:', decoded.userId);
+      return NextResponse.json({ 
+        error: 'Access denied. Flight logs are not available for prospect users.' 
+      }, { status: 403 });
+    }
 
     console.log('🔍 User roles:', userRoles);
     console.log('🔍 Permissions - Admin:', isAdmin, 'BaseManager:', isBaseManager, 'Instructor:', isInstructor, 'Pilot:', isPilot);
@@ -366,7 +375,11 @@ export async function GET(request: NextRequest) {
       console.log('❌ Error details:', flightLogsError);
       
       // Try a simple query without relationships
-      const { data: simpleFlightLogs, error: simpleError } = await supabase
+      if (!supabase) {
+        return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
+      }
+      
+      const { data: simpleFlightLogs, error: simpleError } = await supabase!
         .from(tableName)
         .select('*')
         .order('date', { ascending: false })
@@ -397,11 +410,11 @@ export async function GET(request: NextRequest) {
 
           // Fetch all related data
           const [aircraftData, pilotsData, instructorsData, airfieldsData, createdByData] = await Promise.all([
-            aircraftIds.length > 0 ? supabase.from('aircraft').select('*').in('id', aircraftIds) : { data: [], error: null },
-            pilotIds.length > 0 ? supabase.from('users').select('*').in('id', pilotIds) : { data: [], error: null },
-            instructorIds.length > 0 ? supabase.from('users').select('*').in('id', instructorIds) : { data: [], error: null },
-            airfieldIds.length > 0 ? supabase.from('airfields').select('*').in('id', airfieldIds) : { data: [], error: null },
-            createdByIds.length > 0 ? supabase.from('users').select('*').in('id', createdByIds) : { data: [], error: null }
+            aircraftIds.length > 0 ? supabase!.from('aircraft').select('*').in('id', aircraftIds) : { data: [], error: null },
+            pilotIds.length > 0 ? supabase!.from('users').select('*').in('id', pilotIds) : { data: [], error: null },
+            instructorIds.length > 0 ? supabase!.from('users').select('*').in('id', instructorIds) : { data: [], error: null },
+            airfieldIds.length > 0 ? supabase!.from('airfields').select('*').in('id', airfieldIds) : { data: [], error: null },
+            createdByIds.length > 0 ? supabase!.from('users').select('*').in('id', createdByIds) : { data: [], error: null }
           ]);
 
           // Create lookup maps
@@ -514,6 +527,15 @@ export async function POST(request: NextRequest) {
     const isInstructor = userRoles.includes('INSTRUCTOR');
     const isPilot = userRoles.includes('PILOT');
     const isStudent = userRoles.includes('STUDENT');
+    const isProspect = userRoles.includes('PROSPECT');
+
+    // Block prospects from creating flight logs
+    if (isProspect) {
+      console.log('❌ Prospect user attempted to create flight log:', decoded.userId);
+      return NextResponse.json({ 
+        error: 'Access denied. Flight logs are not available for prospect users.' 
+      }, { status: 403 });
+    }
 
     const hasPermission = isAdmin || isBaseManager || isInstructor || isPilot || isStudent;
 

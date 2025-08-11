@@ -53,9 +53,12 @@ export default function LoginPage() {
         throw new Error(result.error || 'Login failed');
       }
 
-      // Store token in localStorage
+      // Store token in localStorage and cookie
       localStorage.setItem('token', result.token);
       localStorage.setItem('user', JSON.stringify(result.user));
+      
+      // Also set cookie for middleware
+      document.cookie = `token=${result.token}; path=/; max-age=${24 * 60 * 60}; SameSite=Strict`;
 
       // Dispatch auth-change event to notify other components
       window.dispatchEvent(new Event('auth-change'));

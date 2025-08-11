@@ -90,6 +90,20 @@ export async function POST(request: NextRequest) {
       roles,
     });
 
+    // Generate refresh token (temporarily disabled until Phase 2 is applied)
+    let refreshToken = null;
+    try {
+      refreshToken = await AuthService.generateRefreshToken(
+        user.id,
+        (AuthService.verifyToken(token) as any).jti,
+        request.headers.get('user-agent') || 'unknown',
+        request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
+      );
+    } catch (error) {
+      console.log('Refresh token generation failed (Phase 2 not applied yet):', error);
+      // Continue without refresh token for now
+    }
+
     // Update last login time
     await AuthService.updateLastLogin(user.id);
 
@@ -117,11 +131,18 @@ export async function POST(request: NextRequest) {
       lastLoginAt: new Date().toISOString(),
     };
 
-    return NextResponse.json({
+    const response: any = {
       message: 'Login successful',
       user: userData,
       token,
-    });
+    };
+
+    // Only include refreshToken if it was generated successfully
+    if (refreshToken) {
+      response.refreshToken = refreshToken;
+    }
+
+    return NextResponse.json(response);
   } catch (error: any) {
     console.error('Login error:', error);
     

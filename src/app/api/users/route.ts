@@ -26,48 +26,8 @@ async function getUsers(request: NextRequest, currentUser: any) {
       );
     }
     
-    // Build query with role information
-    let query = supabase
-      .from('users')
-      .select(`
-        id,
-        email,
-        "firstName",
-        "lastName",
-        status,
-        "createdAt",
-        "updatedAt",
-        "avatarUrl",
-        user_roles (
-          roles (
-            name
-          )
-        )
-      `, { count: 'exact' });
-    
-    // Apply filters
-    if (status) {
-      query = query.eq('status', status);
-    }
-    
-    if (search) {
-      query = query.or(`firstName.ilike.%${search}%,lastName.ilike.%${search}%,email.ilike.%${search}%`);
-    }
-    
-    // Get total count first
-    const { count: total } = await query;
-    
-    // Apply pagination only if not filtering by role (since we need to check all users for role filtering)
-    if (!role) {
-    const from = (page - 1) * limit;
-    const to = from + limit - 1;
-      query = query.range(from, to);
-    }
-    
-    query = query.order('createdAt', { ascending: false });
-    
-    // Execute query
-    const { data: users, error } = await query;
+    // Use the new secure list_users function
+    const { data: users, error } = await supabase.rpc('list_users');
     
     if (error) {
       console.error('Error fetching users:', error);
@@ -77,27 +37,81 @@ async function getUsers(request: NextRequest, currentUser: any) {
       );
     }
     
-    // Filter by role if specified (since Supabase doesn't support complex joins in filters)
-    let filteredUsers = users || [];
-    if (role) {
-      filteredUsers = filteredUsers.filter(user => 
-        user.user_roles.some((ur: any) => ur.roles.name === role)
+    // Apply client-side filtering since the function handles basic security
+    let filteredUsers = (users || []) as any[];
+    
+    // Apply status filter
+    if (status) {
+      filteredUsers = filteredUsers.filter((user: any) => user.status === status);
+    }
+    
+    // Apply search filter
+    if (search) {
+      filteredUsers = filteredUsers.filter((user: any) => 
+        user.firstName?.toLowerCase().includes(search.toLowerCase()) ||
+        user.lastName?.toLowerCase().includes(search.toLowerCase()) ||
+        user.email?.toLowerCase().includes(search.toLowerCase())
       );
     }
     
-    // Map roles to array of strings for each user
-    const usersWithRoles = filteredUsers.map((user) => ({
-      ...user,
-      roles: user.user_roles.map((ur: any) => ur.roles.name),
-    }));
+    // Get total count
+    const total = filteredUsers.length;
+    
+    // Apply pagination
+    const from = (page - 1) * limit;
+    const to = from + limit;
+    const paginatedUsers = filteredUsers.slice(from, to);
+    
+    // For role filtering, we need to get role information separately
+    // This is a limitation of the current approach - we could enhance the function
+    let usersWithRoles = paginatedUsers;
+    if (role) {
+      // Get role information for the filtered users
+      const userIds = paginatedUsers.map((u: any) => u.id);
+      const { data: userRoles, error: rolesError } = await supabase
+        .from('user_roles')
+        .select(`
+          userId,
+          roles (
+            name
+          )
+        `)
+        .in('userId', userIds);
+      
+      if (!rolesError && userRoles) {
+        const roleMap = new Map();
+        (userRoles as any[]).forEach((ur: any) => {
+          if (!roleMap.has(ur.userId)) {
+            roleMap.set(ur.userId, []);
+          }
+          roleMap.get(ur.userId).push(ur.roles.name);
+        });
+        
+        usersWithRoles = paginatedUsers.map((user: any) => ({
+          ...user,
+          roles: roleMap.get(user.id) || []
+        }));
+        
+        // Filter by role
+        usersWithRoles = usersWithRoles.filter((user: any) => 
+          user.roles.includes(role)
+        );
+      }
+    } else {
+      // Add empty roles array for consistency
+      usersWithRoles = paginatedUsers.map((user: any) => ({
+        ...user,
+        roles: []
+      }));
+    }
     
     return NextResponse.json({
       users: usersWithRoles,
       pagination: {
-        page: role ? 1 : page, // Always page 1 when filtering by role
-        limit: role ? usersWithRoles.length : limit, // Show all results when filtering by role
-        total: role ? usersWithRoles.length : (total || 0),
-        pages: role ? 1 : Math.ceil((total || 0) / limit),
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
       },
     });
     

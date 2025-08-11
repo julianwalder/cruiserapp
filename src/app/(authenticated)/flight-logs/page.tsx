@@ -1,15 +1,18 @@
-'use client';
-
-import { useSearchParams } from 'next/navigation';
+import { cookies } from 'next/headers';
 import FlightLogs from '@/components/FlightLogs';
+import { requireFlightLogsAccessServer } from '@/lib/server-guards';
 
-export default function FlightLogsPage() {
-  const searchParams = useSearchParams();
-  const openCreateModal = searchParams.get('create') === 'true';
+export default async function FlightLogsPage() {
+  // Get token from cookies (server-side)
+  const cookieStore = await cookies();
+  const token = cookieStore.get('token')?.value;
+  
+  // Server-side role check - will call notFound() if unauthorized
+  await requireFlightLogsAccessServer(token || '');
   
   return (
     <div className="space-y-6 mt-6">
-      <FlightLogs openCreateModal={openCreateModal} />
+      <FlightLogs openCreateModal={false} />
     </div>
   );
 } 
