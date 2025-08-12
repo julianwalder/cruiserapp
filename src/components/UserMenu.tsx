@@ -186,10 +186,14 @@ export function UserMenu({ user, onLogout, notificationCount = 0 }: UserMenuProp
           )}
         </DropdownMenuItem>
         
-        <DropdownMenuItem onClick={() => handleNavigate('/settings')}>
-          <Settings className="mr-2 h-4 w-4" />
-          <span>System Settings</span>
-        </DropdownMenuItem>
+        {user.userRoles?.some(userRole => 
+          ['SUPER_ADMIN', 'ADMIN'].includes(userRole.roles.name)
+        ) && (
+          <DropdownMenuItem onClick={() => handleNavigate('/settings')}>
+            <Settings className="mr-2 h-4 w-4" />
+            <span>System Settings</span>
+          </DropdownMenuItem>
+        )}
         
         <div className="h-px bg-gray-300 dark:bg-gray-600 my-2 mx-2" />
         

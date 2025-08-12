@@ -1,6 +1,6 @@
 'use client';
 
-import UserBilling from '@/components/UserBilling';
+import EnhancedUserBilling from '@/components/EnhancedUserBilling';
 import { useState, useEffect } from 'react';
 
 export default function BillingPage() {
@@ -32,7 +32,7 @@ export default function BillingPage() {
 
   return (
     <div className="space-y-6 mt-6">
-      <UserBilling userId={userId} />
+      <EnhancedUserBilling userId={userId} />
     </div>
   );
 } 

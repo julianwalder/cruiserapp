@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Logo } from '@/components/ui/logo';
 
+
 interface User {
   id: string;
   email: string;
@@ -359,6 +360,7 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
 
               {filteredNavigationItems.map((item) => {
                 const active = isActive(item.url);
+                
                 return (
                   <Button
                     key={item.title}

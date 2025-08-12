@@ -14,7 +14,7 @@ export function useNotificationCount() {
           return;
         }
 
-        const response = await fetch('/api/activity', {
+        const response = await fetch('/api/notifications?status=unread&limit=1', {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -22,9 +22,8 @@ export function useNotificationCount() {
 
         if (response.ok) {
           const data = await response.json();
-          // Count unread notifications (for now, we'll count recent activities as notifications)
-          // In a real app, you'd have a separate notifications table with read/unread status
-          setCount(Math.min(data.activities?.length || 0, 5)); // Limit to 5 for demo
+          // Get the total count of unread notifications from pagination
+          setCount(data.pagination?.total || 0);
         } else {
           setCount(0);
         }
@@ -37,6 +36,21 @@ export function useNotificationCount() {
     };
 
     fetchNotificationCount();
+
+    // Set up polling to refresh notification count every 30 seconds
+    const interval = setInterval(fetchNotificationCount, 30000);
+
+    // Listen for notification updates
+    const handleNotificationUpdate = () => {
+      fetchNotificationCount();
+    };
+
+    window.addEventListener('notification-updated', handleNotificationUpdate);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('notification-updated', handleNotificationUpdate);
+    };
   }, []);
 
   return { count, loading };

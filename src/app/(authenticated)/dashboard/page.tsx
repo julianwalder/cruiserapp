@@ -20,6 +20,7 @@ import PilotOverview from '@/components/PilotOverview';
 
 import { User } from "@/types/uuid-types";
 import { cn } from "@/lib/utils";
+import { GreetingCard } from "@/components/GreetingCard";
 
 // Extended User interface for dashboard with userRoles
 interface DashboardUser extends User {
@@ -110,6 +111,8 @@ export default function DashboardPage() {
 
         if (response.ok) {
           const userData = await response.json();
+          console.log('🔍 Dashboard: User data loaded:', userData);
+          console.log('🔍 Dashboard: User roles:', userData.userRoles);
           setUser(userData);
         }
       } catch (error) {
@@ -147,6 +150,16 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 mt-6">
+      {/* Greeting Card for Pilots, Students, Instructors, and Prospects */}
+      {(() => {
+        const shouldShowGreeting = user?.userRoles?.some(userRole => 
+          ['PILOT', 'STUDENT', 'INSTRUCTOR', 'PROSPECT'].includes(userRole.roles.name)
+        );
+        console.log('🔍 Dashboard: Should show greeting card:', shouldShowGreeting);
+        console.log('🔍 Dashboard: User roles for greeting check:', user?.userRoles);
+        return shouldShowGreeting && <GreetingCard user={user} />;
+      })()}
+      
       {/* Content based on user role */}
       {isPilotOrStudent() && !isAdminOrManager() && (
         <PilotOverview />

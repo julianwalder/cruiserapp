@@ -21,51 +21,20 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
-// Interface for activity data from API
-interface ActivityData {
+// Interface for notification data from API
+interface NotificationData {
   id: string;
   title: string;
-  description: string;
-  time: string;
+  message: string;
   type: string;
-  entityType: string;
-  entityId: string;
-  user: {
-    id: string;
-    name: string;
-    email: string;
-  } | null;
+  isRead: boolean;
+  isDeleted: boolean;
   metadata: any;
+  createdAt: string;
+  readAt: string | null;
+  deletedAt: string | null;
+  timeString: string;
 }
-
-// Convert activity data to notification format
-const convertActivityToNotification = (activity: ActivityData) => {
-  const getTypeFromAction = (action: string) => {
-    if (action.includes('FLIGHT')) return 'flight';
-    if (action.includes('USER')) return 'system';
-    if (action.includes('INVOICE') || action.includes('BILLING')) return 'billing';
-    if (action.includes('AIRCRAFT') || action.includes('FLEET')) return 'fleet';
-    if (action.includes('AIRFIELD')) return 'system';
-    return 'system';
-  };
-
-  const getAvatar = (user: { name: string } | null) => {
-    if (!user) return 'SYS';
-    return user.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  };
-
-  return {
-    id: activity.id,
-    type: getTypeFromAction(activity.type),
-    title: activity.title,
-    message: activity.description || `${activity.title} performed by ${activity.user?.name || 'System'}`,
-    timestamp: new Date(), // We'll use the time string for display
-    timeString: activity.time,
-    read: false, // All activities are considered unread initially
-    avatar: getAvatar(activity.user),
-    user: activity.user
-  };
-};
 
 const getNotificationIcon = (type: string) => {
   switch (type) {
@@ -118,79 +87,163 @@ const getTypeLabel = (type: string) => {
   }
 };
 
+const getNotificationAvatar = (type: string) => {
+  switch (type) {
+    case 'flight':
+      return 'FL';
+    case 'system':
+      return 'SYS';
+    case 'billing':
+      return 'BILL';
+    case 'fleet':
+      return 'FLEET';
+    case 'weather':
+      return 'WX';
+    default:
+      return 'NOT';
+  }
+};
+
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState('all');
 
-  // Fetch real activity data
-  useEffect(() => {
-    const fetchActivities = async () => {
-      try {
-        setLoading(true);
-        const token = localStorage.getItem('token');
-        if (!token) {
-          setError('No authentication token found');
-          return;
-        }
-
-        const response = await fetch('/api/activity?page=1&limit=50', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch activities');
-        }
-
-        const data = await response.json();
-        const convertedNotifications = data.activities.map(convertActivityToNotification);
-        setNotifications(convertedNotifications);
-      } catch (err) {
-        console.error('Error fetching activities:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load notifications');
-      } finally {
-        setLoading(false);
+  // Fetch notifications data
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('No authentication token found');
+        return;
       }
-    };
 
-    fetchActivities();
-  }, []);
+      const params = new URLSearchParams();
+      params.append('page', '1');
+      params.append('limit', '50');
+      
+      if (activeTab === 'read') {
+        params.append('status', 'read');
+      } else if (activeTab === 'unread') {
+        params.append('status', 'unread');
+      }
+
+      const response = await fetch(`/api/notifications?${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch notifications');
+      }
+
+      const data = await response.json();
+      setNotifications(data.notifications || []);
+    } catch (err) {
+      console.error('Error fetching notifications:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load notifications');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [activeTab]);
 
   const filteredNotifications = notifications.filter(notification => {
     const matchesSearch = notification.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          notification.message.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesType = selectedTypes.length === 0 || selectedTypes.includes(notification.type);
-    
-    const matchesTab = activeTab === 'all' || 
-                      (activeTab === 'unread' && !notification.read) ||
-                      (activeTab === 'read' && notification.read);
 
-    return matchesSearch && matchesType && matchesTab;
+    return matchesSearch && matchesType;
   });
 
-  const unreadCount = notifications.filter(n => !n.read).length;
-  const readCount = notifications.filter(n => n.read).length;
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const readCount = notifications.filter(n => n.isRead).length;
 
-  const markAsRead = (id: number) => {
-    setNotifications(prev => 
-      prev.map(n => n.id === id ? { ...n, read: true } : n)
-    );
+  const markAsRead = async (id: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch(`/api/notifications/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: 'mark_read' }),
+      });
+
+      if (response.ok) {
+        // Update local state
+        setNotifications(prev => 
+          prev.map(n => n.id === id ? { ...n, isRead: true } : n)
+        );
+        
+        // Trigger notification count refresh
+        window.dispatchEvent(new Event('notification-updated'));
+      }
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev => 
-      prev.map(n => ({ ...n, read: true }))
-    );
+  const markAllAsRead = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch('/api/notifications/mark-all-read', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        // Update local state
+        setNotifications(prev => 
+          prev.map(n => ({ ...n, isRead: true }))
+        );
+        
+        // Trigger notification count refresh
+        window.dispatchEvent(new Event('notification-updated'));
+      }
+    } catch (error) {
+      console.error('Error marking all notifications as read:', error);
+    }
   };
 
-  const deleteNotification = (id: number) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+  const deleteNotification = async (id: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch(`/api/notifications/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        // Remove from local state
+        setNotifications(prev => prev.filter(n => n.id !== id));
+        
+        // Trigger notification count refresh
+        window.dispatchEvent(new Event('notification-updated'));
+      }
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
   };
 
   const toggleTypeFilter = (type: string) => {
@@ -283,22 +336,22 @@ export default function NotificationsPage() {
                 <div
                   key={notification.id}
                   className={`flex items-start space-x-4 p-4 rounded-lg border ${
-                    !notification.read ? 'bg-accent/50' : ''
+                    !notification.isRead ? 'bg-accent/50' : ''
                   }`}
                 >
                   <Avatar className="h-10 w-10 flex-shrink-0">
                     <AvatarFallback className={`text-sm ${getNotificationColor(notification.type)}`}>
-                      {notification.avatar}
+                      {getNotificationAvatar(notification.type)}
                     </AvatarFallback>
                   </Avatar>
                   
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-2 mb-1">
                       <span className="text-sm">{getNotificationIcon(notification.type)}</span>
-                      <h3 className={`text-sm font-medium ${!notification.read ? 'text-foreground' : 'text-muted-foreground'}`}>
-                        {notification.user?.name ? `${notification.user.name} - ${notification.title}` : notification.title}
+                      <h3 className={`text-sm font-medium ${!notification.isRead ? 'text-foreground' : 'text-muted-foreground'}`}>
+                        {notification.title}
                       </h3>
-                      {!notification.read && (
+                      {!notification.isRead && (
                         <Badge variant="secondary" className="text-xs">
                           New
                         </Badge>
@@ -312,13 +365,13 @@ export default function NotificationsPage() {
                     </p>
                     <div className="flex items-center justify-between">
                       <p className="text-xs text-muted-foreground">
-                        {notification.user?.name || 'System'} • {notification.timeString}
+                        {notification.timeString}
                       </p>
                     </div>
                   </div>
                   
                   <div className="flex items-center space-x-2">
-                    {!notification.read && (
+                    {!notification.isRead && (
                       <Button
                         variant="ghost"
                         size="sm"

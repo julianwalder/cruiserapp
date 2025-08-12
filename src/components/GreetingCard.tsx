@@ -92,12 +92,17 @@ export function GreetingCard({ user }: GreetingCardProps) {
       setLoading(true);
       setError(null);
 
+      console.log('🔍 GreetingCard: Starting to fetch AI greeting');
+      console.log('🔍 GreetingCard: User data:', user);
+
       const token = localStorage.getItem('token');
       if (!token) {
+        console.log('🔍 GreetingCard: No token found, using default greeting');
         setGreeting(getDefaultGreeting());
         return;
       }
 
+      console.log('🔍 GreetingCard: Making API call to /api/greeting');
       const response = await fetch('/api/greeting', {
         method: 'POST',
         headers: {
@@ -112,15 +117,21 @@ export function GreetingCard({ user }: GreetingCardProps) {
         }),
       });
 
+      console.log('🔍 GreetingCard: API response status:', response.status);
+
       if (response.ok) {
         const data = await response.json();
+        console.log('🔍 GreetingCard: API response data:', data);
         setGreeting(data.greeting);
       } else {
+        console.log('🔍 GreetingCard: API failed, using default greeting');
+        const errorText = await response.text();
+        console.log('🔍 GreetingCard: API error response:', errorText);
         // Fallback to default greeting if API fails
         setGreeting(getDefaultGreeting());
       }
     } catch (error) {
-      console.error('Error fetching AI greeting:', error);
+      console.error('🔍 GreetingCard: Error fetching AI greeting:', error);
       setError('Failed to load personalized greeting');
       setGreeting(getDefaultGreeting());
     } finally {
