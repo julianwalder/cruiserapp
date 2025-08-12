@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
-import { HourPackageService } from '@/lib/hour-package-service';
 
 export async function GET(request: NextRequest) {
   console.log('🚀 Pilot stats API called');
@@ -53,20 +52,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied - pilot/student only' }, { status: 403 });
     }
 
-    // Get hour package summary
-    let hourSummary;
-    try {
-      hourSummary = await HourPackageService.getUserHourSummary(user.id);
-    } catch (error) {
-      console.error('Error fetching hour summary:', error);
-      // Fallback to old system if hour packages table doesn't exist
-      hourSummary = {
-        totalBought: user.totalFlightHours || 0,
-        totalUsed: 0,
-        totalRemaining: user.totalFlightHours || 0,
-        packages: []
-      };
-    }
+    // Hour package data is not currently used in the UI, so we'll use user's totalFlightHours
+    const hourSummary = {
+      totalBought: user.totalFlightHours || 0,
+      totalUsed: 0,
+      totalRemaining: user.totalFlightHours || 0,
+      packages: []
+    };
 
     // Fetch flight logs to get actual used hours and EASA currency data
     const { data: flightLogs, error: flightLogsError } = await supabase
