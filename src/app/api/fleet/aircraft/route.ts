@@ -64,6 +64,11 @@ export async function GET(request: NextRequest) {
     const icaoOnly = searchParams.get('icaoOnly') === 'true';
     const skip = (page - 1) * limit;
 
+    // Check if user is super admin
+    const isSuperAdmin = user.user_roles.some(
+      (userRole: any) => userRole.roles.name === 'SUPER_ADMIN'
+    );
+
     // Build query
     let query = supabase
       .from('aircraft')
@@ -74,6 +79,11 @@ export async function GET(request: NextRequest) {
         )
       `);
 
+    // Filter out hidden aircraft for non-superadmin users
+    if (!isSuperAdmin) {
+      query = query.eq('hidden', false);
+    }
+
     if (search) {
       query = query.or(`callSign.ilike.%${search}%,serialNumber.ilike.%${search}%`);
     }
@@ -83,10 +93,16 @@ export async function GET(request: NextRequest) {
       query = query.not('icaoReferenceTypeId', 'is', null);
     }
 
-    // Get total count
-    const { count: total } = await supabase
+    // Get total count (also filter hidden aircraft for non-superadmin users)
+    let countQuery = supabase
       .from('aircraft')
       .select('*', { count: 'exact', head: true });
+    
+    if (!isSuperAdmin) {
+      countQuery = countQuery.eq('hidden', false);
+    }
+    
+    const { count: total } = await countQuery;
 
     // Get aircraft with pagination
     const { data: aircraft, error: aircraftError } = await query

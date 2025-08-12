@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       supabase.from('airfields').select('id', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
       
       // Total aircraft
-      supabase.from('aircraft').select('id', { count: 'exact', head: true })
+      supabase.from('aircraft').select('id', { count: 'exact', head: true }).eq('hidden', false)
     ]);
 
     // Extract counts from results

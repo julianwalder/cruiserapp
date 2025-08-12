@@ -43,7 +43,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { OptimizedImage } from "@/components/ui/optimized-image";
 import { Progress } from "@/components/ui/progress";
 import { Modal } from './ui/Modal';
-import { Aircraft, Airfield, FlightLog } from "@/types/uuid-types";
+import { FlightLog } from "@/types/uuid-types";
 
 // Aircraft creation schema
 const createAircraftSchema = z.object({
@@ -74,6 +74,33 @@ const fleetManagementSchema = z.object({
 type CreateAircraftForm = z.infer<typeof createAircraftSchema>;
 type FleetManagementForm = z.infer<typeof fleetManagementSchema>;
 
+interface User {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
+interface ICAOReferenceTypeOption {
+  id: string;
+  typeDesignator: string;
+  model: string;
+  manufacturer: string;
+}
+
+interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+}
+
+interface Airfield {
+  id: string;
+  name: string;
+  code: string;
+}
+
 // 1. Update the Aircraft interface to match the backend response
 interface Aircraft {
   id: string;
@@ -82,6 +109,7 @@ interface Aircraft {
   yearOfManufacture: number;
   imagePath?: string;
   status: string;
+  hidden?: boolean;
   createdAt: string;
   updatedAt: string;
   icaoReferenceType: {
@@ -167,7 +195,7 @@ interface FleetManagementProps {
 
 export default function FleetManagement({ canEdit = true }: FleetManagementProps) {
   const { formatDate } = useDateFormatUtils();
-  const [aircraft, setAircraft] = useState<ExtendedAircraft[]>([]);
+  const [aircraft, setAircraft] = useState<Aircraft[]>([]);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     limit: 10,
@@ -184,10 +212,10 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
   const [fleetLoading, setFleetLoading] = useState(false);
   const [airfields, setAirfields] = useState<Airfield[]>([]);
   const [pilots, setPilots] = useState<User[]>([]);
-  const [icaoAircraftTypes, setIcaoAircraftTypes] = useState<ExtendedAircraft[]>([]);
+  const [icaoAircraftTypes, setIcaoAircraftTypes] = useState<Aircraft[]>([]);
   const [selectedIcaoDesignator, setSelectedIcaoDesignator] = useState<string>('');
   const [selectedManufacturer, setSelectedManufacturer] = useState<string>('');
-  const [availableManufacturers, setAvailableManufacturers] = useState<ExtendedAircraft[]>([]);
+  const [availableManufacturers, setAvailableManufacturers] = useState<Aircraft[]>([]);
   // 1. Add state for ICAO reference types
   const [icaoReferenceTypes, setIcaoReferenceTypes] = useState<ICAOReferenceTypeOption[]>([]);
   // Add state for aircraft image
@@ -198,6 +226,8 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
   const [editLoading, setEditLoading] = useState(false);
   // State for view mode (table or card)
   const [viewMode, setViewMode] = useState<'table' | 'card'>('card');
+  // State for superadmin status
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   // 2. Fetch ICAO reference types on mount
   useEffect(() => {
@@ -285,7 +315,7 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
         // Create a map of Hobbs data by aircraft ID
         const aircraftHobbsMap = new Map<string, { hobbs: number; date: string }>();
         
-        hobbsData.forEach((item: unknown) => {
+        hobbsData.forEach((item: any) => {
           if (item.aircraft_id && item.last_hobbs_reading && item.last_hobbs_date) {
             aircraftHobbsMap.set(item.aircraft_id, {
               hobbs: item.last_hobbs_reading,
@@ -349,8 +379,8 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
       
       // Preload critical images for faster loading
       preloadAircraftImages(aircraftWithHobbs);
-    } catch (err: unknown) {
-      setError(err.message);
+    } catch (err: any) {
+      setError(err.message || 'An error occurred');
     } finally {
       setLoading(false);
     }
@@ -410,11 +440,36 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
     }
   };
 
+  // Check if user is superadmin
+  const checkSuperAdminStatus = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (response.ok) {
+        const userData = await response.json();
+        console.log('🔍 User data for superadmin check:', userData);
+        const hasSuperAdminRole = userData.userRoles?.some(
+          (userRole: any) => userRole.roles.name === 'SUPER_ADMIN'
+        );
+        console.log('🔍 Is superadmin:', hasSuperAdminRole);
+        setIsSuperAdmin(hasSuperAdminRole || false);
+      }
+    } catch (err) {
+      console.error('Failed to check superadmin status:', err);
+    }
+  };
+
   useEffect(() => {
     fetchAircraft();
     fetchAirfields();
     fetchPilots();
     fetchIcaoAircraftTypes();
+    checkSuperAdminStatus();
   }, [pagination.page]);
 
   // Reset state when dialog is closed
@@ -519,10 +574,10 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
       toast.success('Aircraft created successfully!', {
         description: `${data.callSign} has been added to the fleet.`
       });
-    } catch (err: unknown) {
-      setError(err.message);
+    } catch (err: any) {
+      setError(err.message || 'An error occurred');
       toast.error('Failed to create aircraft', {
-        description: err.message
+        description: err.message || 'An error occurred'
       });
     } finally {
       setCreateLoading(false);
@@ -572,10 +627,10 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
       toast.success('Aircraft updated successfully!', {
         description: `${data.callSign} has been updated.`
       });
-    } catch (err: unknown) {
-      setError(err.message);
+    } catch (err: any) {
+      setError(err.message || 'An error occurred');
       toast.error('Failed to update aircraft', {
-        description: err.message
+        description: err.message || 'An error occurred'
       });
     } finally {
       setEditLoading(false);
@@ -609,10 +664,10 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
       toast.success('Fleet management updated successfully!', {
         description: `Fleet management settings for ${selectedAircraft.callSign} has been updated.`
       });
-    } catch (err: unknown) {
-      setError(err.message);
+    } catch (err: any) {
+      setError(err.message || 'An error occurred');
       toast.error('Failed to update fleet management', {
-        description: err.message
+        description: err.message || 'An error occurred'
       });
     } finally {
       setFleetLoading(false);
@@ -640,10 +695,10 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
       toast.success('Aircraft status updated successfully!', {
         description: `Aircraft status has been changed to ${newStatus.toLowerCase().replace('_', ' ')}.`
       });
-    } catch (err: unknown) {
-      setError(err.message);
+    } catch (err: any) {
+      setError(err.message || 'An error occurred');
       toast.error('Failed to update aircraft status', {
-        description: err.message
+        description: err.message || 'An error occurred'
       });
     }
   };
@@ -674,10 +729,40 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
       toast.success('Aircraft deleted successfully!', {
         description: 'The aircraft has been removed from the fleet.'
       });
-    } catch (err: unknown) {
-      setError(err.message);
+    } catch (err: any) {
+      setError(err.message || 'An error occurred');
       toast.error('Failed to delete aircraft', {
-        description: err.message
+        description: err.message || 'An error occurred'
+      });
+    }
+  };
+
+  const handleToggleHidden = async (aircraftId: string, currentHidden: boolean) => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      const response = await fetch(`/api/fleet/aircraft/${aircraftId}/hide`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ hidden: !currentHidden }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update aircraft visibility');
+      }
+
+      fetchAircraft();
+      toast.success(`Aircraft ${!currentHidden ? 'hidden' : 'unhidden'} successfully!`, {
+        description: `The aircraft is now ${!currentHidden ? 'hidden from other users' : 'visible to all users'}.`
+      });
+    } catch (err: any) {
+      setError(err.message || 'An error occurred');
+      toast.error('Failed to update aircraft visibility', {
+        description: err.message || 'An error occurred'
       });
     }
   };
@@ -927,6 +1012,21 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
                         <Edit className="mr-2 h-4 w-4" />
                         Edit
                       </DropdownMenuItem>
+                      {isSuperAdmin && (
+                        <DropdownMenuItem onClick={() => handleToggleHidden(aircraft.id, aircraft.hidden || false)}>
+                          {aircraft.hidden ? (
+                            <>
+                              <Eye className="mr-2 h-4 w-4" />
+                              Unhide Aircraft
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="mr-2 h-4 w-4" />
+                              Hide Aircraft
+                            </>
+                          )}
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem onClick={() => handleDeleteAircraft(aircraft.id)} className="text-destructive">
                         <Trash2 className="mr-2 h-4 w-4" />
                         Delete
@@ -983,9 +1083,16 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
                 </div>
 
                 <div className="flex items-center justify-between pt-2 border-t border-gray-200 dark:border-gray-700">
-                  <Badge className={getStatusBadgeColor(aircraft.status)}>
-                    {getStatusLabel(aircraft.status)}
-                  </Badge>
+                  <div className="flex items-center space-x-2">
+                    <Badge className={getStatusBadgeColor(aircraft.status)}>
+                      {getStatusLabel(aircraft.status)}
+                    </Badge>
+                    {aircraft.hidden && isSuperAdmin && (
+                      <Badge variant="secondary" className="text-xs">
+                        Hidden
+                      </Badge>
+                    )}
+                  </div>
                   <div className="text-xs text-muted-foreground">
                     Created {formatDate(aircraft.createdAt)}
                   </div>
@@ -1062,6 +1169,21 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
                                 <Edit className="mr-2 h-4 w-4" />
                                 Edit
                               </DropdownMenuItem>
+                              {isSuperAdmin && (
+                                <DropdownMenuItem onClick={() => handleToggleHidden(aircraft.id, aircraft.hidden || false)}>
+                                  {aircraft.hidden ? (
+                                    <>
+                                      <Eye className="mr-2 h-4 w-4" />
+                                      Unhide Aircraft
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Eye className="mr-2 h-4 w-4" />
+                                      Hide Aircraft
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem onClick={() => handleDeleteAircraft(aircraft.id)} className="text-destructive">
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 Delete

@@ -14,11 +14,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Modal } from './ui/Modal';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Search, Trash2, MapPin, Plane, Phone, Globe, Eye, ChevronsUpDown, Check } from 'lucide-react';
+import { Search, Trash2, MapPin, Plane, Phone, Globe, Eye, ChevronsUpDown, Check, MoreVertical, Edit } from 'lucide-react';
 import { useDateFormatUtils } from '@/hooks/use-date-format';
 import { cn } from '@/lib/utils';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 // Airfield creation schema
 const createAirfieldSchema = z.object({
@@ -44,7 +45,7 @@ type CreateAirfieldForm = z.infer<typeof createAirfieldSchema>;
 import { Airfield } from "@/types/uuid-types";
 
 // Extended Airfield interface for this component
-interface ExtendedAirfield extends Omit<Airfield, 'type'> {
+interface ExtendedAirfield extends Omit<Airfield, 'type' | 'isBase'> {
   type: string; // Allow any string type for OurAirports compatibility
   isBase?: boolean;
   source?: 'manual' | 'imported';
@@ -162,6 +163,7 @@ export default function AirfieldsManagement() {
   const [createLoading, setCreateLoading] = useState(false);
   const [availableTypes, setAvailableTypes] = useState<string[]>([]);
   const [availableCountries, setAvailableCountries] = useState<string[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   const {
     register,
@@ -219,14 +221,14 @@ export default function AirfieldsManagement() {
       }
 
       // Create a set of imported airfield IDs for quick lookup
-      const importedAirfieldIds = new Set(importedData.airfields.map((airfield: unknown) => airfield.id));
+      const importedAirfieldIds = new Set(importedData.airfields.map((airfield: any) => airfield.id));
 
       // Mark airfields with their source and base status
-      const airfieldsWithSource = airfieldsData.airfields.map((airfield: unknown) => ({
+      const airfieldsWithSource = airfieldsData.airfields.map((airfield: any) => ({
         ...airfield,
         source: importedAirfieldIds.has(airfield.id) ? 'imported' as const : 'manual' as const,
         isBase: importedAirfieldIds.has(airfield.id) ? 
-          (importedData.airfields.find((imp: unknown) => imp.id === airfield.id) as any)?.isBase || false : false
+          (importedData.airfields.find((imp: any) => imp.id === airfield.id) as any)?.isBase || false : false
       }));
 
       setAirfields(airfieldsWithSource);
@@ -239,7 +241,7 @@ export default function AirfieldsManagement() {
       // Fetch unique airfield types for the filter
       await fetchAvailableTypes();
     } catch (err: unknown) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
     }
@@ -258,7 +260,7 @@ export default function AirfieldsManagement() {
 
       if (response.ok) {
         const data = await response.json();
-        const types = [...new Set(data.airfields.map((airfield: unknown) => airfield.type as string))] as string[];
+        const types = [...new Set(data.airfields.map((airfield: any) => airfield.type as string))] as string[];
         setAvailableTypes(types.sort());
       }
     } catch (err) {
@@ -279,7 +281,7 @@ export default function AirfieldsManagement() {
 
       if (response.ok) {
         const data = await response.json();
-        const countries = [...new Set(data.airfields.map((airfield: unknown) => airfield.country as string))] as string[];
+        const countries = [...new Set(data.airfields.map((airfield: any) => airfield.country as string))] as string[];
         setAvailableCountries(countries.sort());
       }
     } catch (err) {
@@ -310,6 +312,39 @@ export default function AirfieldsManagement() {
     fetchAllAirfields();
   }, []);
 
+  // Fetch current user to check permissions
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        const response = await fetch('/api/auth/me', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const userData = await response.json();
+          setCurrentUser(userData);
+        }
+      } catch (error) {
+        console.error('Failed to fetch current user:', error);
+      }
+    };
+
+    fetchCurrentUser();
+  }, []);
+
+  // Check if user can edit (ADMIN or SUPER_ADMIN)
+  const canEdit = useMemo(() => {
+    if (!currentUser?.userRoles) return false;
+    return currentUser.userRoles.some((userRole: any) => 
+      userRole.roles.name === 'ADMIN' || userRole.roles.name === 'SUPER_ADMIN'
+    );
+  }, [currentUser]);
+
   // Generate unique type, country, status, and province options from allAirfields
   const allTypes = useMemo(() => Array.from(new Set(allAirfields.map(a => a.type).filter(Boolean))).sort(), [allAirfields]);
   const allCountries = useMemo(() => Array.from(new Set(allAirfields.map(a => a.country).filter(Boolean))).sort(), [allAirfields]);
@@ -322,11 +357,14 @@ export default function AirfieldsManagement() {
   ], [allTypes]);
   const countryOptions = useMemo(() => [
     { value: 'ALL_COUNTRIES', label: 'All countries' },
-    ...allCountries.map(c => ({ value: c, label: c }))
+    ...allCountries.map(c => ({ value: c || '', label: c || '' }))
   ], [allCountries]);
   const statusOptions = useMemo(() => [
     { value: 'ALL_STATUSES', label: 'All statuses' },
-    ...allStatuses.map(s => ({ value: s, label: s }))
+    ...allStatuses.map(s => ({ 
+      value: s, 
+      label: s.replace('_', ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase()) 
+    }))
   ], [allStatuses]);
   const provinceOptions = useMemo(() => [
     { value: 'ALL_PROVINCES', label: 'All provinces' },
@@ -377,7 +415,7 @@ export default function AirfieldsManagement() {
       // Clear any errors
       setError('');
     } catch (err: unknown) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setCreateLoading(false);
     }
@@ -417,7 +455,7 @@ export default function AirfieldsManagement() {
       // Refresh airfields list
       fetchAirfields();
     } catch (err: unknown) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'An error occurred');
     }
   };
 
@@ -442,7 +480,7 @@ export default function AirfieldsManagement() {
       // Refresh airfields list
       fetchAirfields();
     } catch (err: unknown) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'An error occurred');
     }
   };
 
@@ -516,6 +554,11 @@ export default function AirfieldsManagement() {
         // Fallback for any unrecognized types
         return airfield.type.replace('_', ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
     }
+  };
+
+  const handleRowClick = (airfield: ExtendedAirfield) => {
+    setSelectedAirfield(airfield);
+    setShowAirfieldDialog(true);
   };
 
   return (
@@ -615,7 +658,11 @@ export default function AirfieldsManagement() {
                   </TableRow>
                 ) : (
                   filteredAirfields.map((airfield) => (
-                    <TableRow key={airfield.id} className="hover:bg-muted/30 transition-colors">
+                    <TableRow 
+                      key={airfield.id} 
+                      className="hover:bg-muted/30 transition-colors cursor-pointer"
+                      onClick={() => handleRowClick(airfield)}
+                    >
                       <TableCell>
                         <div className="flex items-center space-x-3">
                           <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
@@ -645,7 +692,7 @@ export default function AirfieldsManagement() {
                           <div className="text-sm text-muted-foreground">{airfield.country}</div>
                           {airfield.latitude && airfield.longitude && (
                             <div className="text-xs text-muted-foreground">
-                              {parseFloat(airfield.latitude).toFixed(4)}, {parseFloat(airfield.longitude).toFixed(4)}
+                              {Number(airfield.latitude || 0).toFixed(4)}, {Number(airfield.longitude || 0).toFixed(4)}
                             </div>
                           )}
                         </div>
@@ -657,47 +704,41 @@ export default function AirfieldsManagement() {
                       </TableCell>
                       <TableCell>
                         <Badge className={`${getStatusBadgeColor(airfield.status)} text-xs`}>
-                          {airfield.status.replace('_', ' ')}
+                          {airfield.status.replace('_', ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
                         </Badge>
                       </TableCell>
 
-                      <TableCell>
-                        <div className="flex items-center justify-end space-x-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedAirfield(airfield);
-                              setShowAirfieldDialog(true);
-                            }}
-                            className="h-8 w-8 p-0"
-                            title="View details"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          {(
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleStatusChange(airfield.id, airfield.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE')}
-                                className="h-8 w-8 p-0"
-                                title={airfield.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
-                              >
-                                <MapPin className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteAirfield(airfield.id)}
-                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                title="Delete airfield"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              title="Actions"
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleRowClick(airfield)}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              View Details
+                            </DropdownMenuItem>
+                            {canEdit && (
+                              <>
+                                <DropdownMenuItem onClick={() => handleStatusChange(airfield.id, airfield.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE')}>
+                                  <MapPin className="h-4 w-4 mr-2" />
+                                  {airfield.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleDeleteAirfield(airfield.id)} className="text-destructive">
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  Delete Airfield
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   ))
@@ -1059,7 +1100,7 @@ export default function AirfieldsManagement() {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Status</Label>
                     <Badge className={getStatusBadgeColor(selectedAirfield.status)}>
-                      {selectedAirfield.status.replace('_', ' ')}
+                      {selectedAirfield.status.replace('_', ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
                     </Badge>
                   </div>
 
@@ -1110,11 +1151,11 @@ export default function AirfieldsManagement() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Runway Length</Label>
-                    <p className="text-base text-card-foreground">{selectedAirfield.runwayLength ? `${selectedAirfield.runwayLength} ft` : '-'}</p>
+                    <p className="text-base text-card-foreground">-</p>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Runway Surface</Label>
-                    <p className="text-base text-card-foreground">{selectedAirfield.runwaySurface || '-'}</p>
+                    <p className="text-base text-card-foreground">-</p>
                   </div>
                 </div>
               </div>

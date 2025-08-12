@@ -18,6 +18,7 @@ import { OptimizedImage } from '@/components/ui/optimized-image';
 import { Plane, MapPin, User as UserIcon, Edit, Trash2, Plus, Shield, MoreVertical, Upload, Clock, Phone, Eye, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDateWithCurrentFormat } from '@/lib/date-utils';
+import { useDateFormat } from '@/contexts/DateFormatContext';
 // import type { BaseManagement as BaseManagementType, Airfield, User } from "@/types/uuid-types";
 
 // Temporary inline type definitions
@@ -94,6 +95,7 @@ interface BaseManagementProps {
 }
 
 export default function BaseManagement({ canEdit = true }: BaseManagementProps) {
+  const { dateFormat } = useDateFormat();
   const [baseManagements, setBaseManagements] = useState<ExtendedBaseManagement[]>([]);
   const [airfields, setAirfields] = useState<Airfield[]>([]);
   const [baseManagers, setBaseManagers] = useState<User[]>([]);
@@ -1181,13 +1183,13 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground">Created</Label>
                       <p className="text-base text-card-foreground">
-                        {new Date(selectedBase.createdAt).toLocaleDateString()}
+                        {formatDateWithCurrentFormat(selectedBase.createdAt)}
                       </p>
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-medium text-muted-foreground">Last Updated</Label>
                       <p className="text-base text-card-foreground">
-                        {new Date(selectedBase.updatedAt).toLocaleDateString()}
+                        {formatDateWithCurrentFormat(selectedBase.updatedAt)}
                       </p>
                     </div>
                   </div>

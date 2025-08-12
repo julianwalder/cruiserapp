@@ -110,6 +110,34 @@ export async function GET(request: NextRequest) {
 
     const previousPeriod = getPreviousPeriod(startDate, endDate);
 
+    // Check if user is super admin
+    const { data: currentUser, error: userError } = await supabase
+      .from('users')
+      .select(`
+        id,
+        user_roles (
+          roles (
+            name
+          )
+        )
+      `)
+      .eq('id', payload?.userId)
+      .single();
+
+    if (userError || !currentUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    const isSuperAdmin = currentUser.user_roles.some(
+      (userRole: any) => userRole.roles.name === 'SUPER_ADMIN'
+    );
+
+    // Build aircraft filter for non-superadmin users
+    let aircraftFilter = {};
+    if (!isSuperAdmin) {
+      aircraftFilter = { hidden: false };
+    }
+
     // Fetch comprehensive statistics using Supabase
     const [
       // Current period flight logs
@@ -197,13 +225,13 @@ export async function GET(request: NextRequest) {
         `),
       
       // Total aircraft
-      supabase.from('aircraft').select('id', { count: 'exact', head: true }),
+      supabase.from('aircraft').select('id', { count: 'exact', head: true }).match(aircraftFilter),
       
       // Active aircraft
-      supabase.from('aircraft').select('id', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
+      supabase.from('aircraft').select('id', { count: 'exact', head: true }).eq('status', 'ACTIVE').match(aircraftFilter),
       
       // Aircraft in maintenance
-      supabase.from('aircraft').select('id', { count: 'exact', head: true }).eq('status', 'MAINTENANCE'),
+      supabase.from('aircraft').select('id', { count: 'exact', head: true }).eq('status', 'MAINTENANCE').match(aircraftFilter),
       
       // Top utilized aircraft (simplified - would need more complex aggregation in production)
       supabase
@@ -258,6 +286,7 @@ export async function GET(request: NextRequest) {
       supabase
         .from('aircraft')
         .select('id, callSign, serialNumber')
+        .match(aircraftFilter)
         .limit(1000),
       
       // Get user names for top instructors
