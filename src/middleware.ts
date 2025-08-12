@@ -137,7 +137,20 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith('/favicon.ico') ||
     pathname.startsWith('/api/og') ||
     pathname.startsWith('/api/version') ||
-    pathname.startsWith('/api/ws')
+    pathname.startsWith('/api/ws') ||
+    pathname.startsWith('/logo_') ||
+    pathname.startsWith('/globe.svg') ||
+    pathname.startsWith('/next.svg') ||
+    pathname.startsWith('/vercel.svg') ||
+    pathname.startsWith('/file.svg') ||
+    pathname.startsWith('/window.svg') ||
+    pathname.endsWith('.svg') ||
+    pathname.endsWith('.png') ||
+    pathname.endsWith('.jpg') ||
+    pathname.endsWith('.jpeg') ||
+    pathname.endsWith('.gif') ||
+    pathname.endsWith('.ico') ||
+    pathname.endsWith('.webp')
   ) {
     return NextResponse.next();
   }
@@ -209,7 +222,8 @@ export const config = {
      * - api/og (public API routes)
      * - api/version (public API routes)
      * - api/ws (public API routes)
+     * - static files (images, SVGs, etc.)
      */
-    '/((?!_next/static|_next/image|favicon.ico|api/og|api/version|api/ws).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/og|api/version|api/ws|logo_|globe.svg|next.svg|vercel.svg|file.svg|window.svg).*)',
   ],
 };

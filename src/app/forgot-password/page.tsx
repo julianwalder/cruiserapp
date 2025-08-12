@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ArrowLeft, Mail, CheckCircle, AlertCircle } from 'lucide-react';
+import { Logo } from '@/components/ui/logo';
 
 const forgotPasswordSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -64,9 +65,8 @@ export default function ForgotPasswordPage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white dark:from-gray-900 to-muted p-4">
         <Card className="w-full max-w-md">
           <CardHeader className="space-y-1 text-center">
-            <div className="flex items-center justify-center space-x-2">
-              <CheckCircle className="h-8 w-8 text-green-600" />
-              <CardTitle className="text-2xl font-bold">Check Your Email</CardTitle>
+            <div className="flex items-center justify-center">
+              <Logo width={200} height={48} className="h-12 w-auto" />
             </div>
             <CardDescription>
               We've sent a password reset link to your email address.
@@ -107,9 +107,8 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white dark:from-gray-900 to-muted p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center space-x-2">
-            <Mail className="h-8 w-8 text-primary" />
-            <CardTitle className="text-2xl font-bold">Forgot Password</CardTitle>
+          <div className="flex items-center justify-center">
+            <Logo width={200} height={48} className="h-12 w-auto" />
           </div>
           <CardDescription className="text-center">
             Enter your email address and we'll send you a link to reset your password.
