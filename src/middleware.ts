@@ -20,6 +20,7 @@ const ROUTE_ACCESS = {
     '/api/og/stats',
     '/api/version',
     '/api/ws',
+
     '/invite',
   ],
   
@@ -71,8 +72,8 @@ const ROUTE_ACCESS = {
     '/accounting': ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER'],
     '/api/accounting': ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER'],
     
-    '/billing': ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER'],
-    '/api/billing': ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER'],
+    '/billing': ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER', 'PILOT', 'STUDENT', 'INSTRUCTOR', 'PROSPECT'],
+    '/api/billing': ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER', 'PILOT', 'STUDENT', 'INSTRUCTOR', 'PROSPECT'],
     
     '/orders': ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER', 'PILOT', 'STUDENT', 'INSTRUCTOR'],
     '/api/orders': ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER', 'PILOT', 'STUDENT', 'INSTRUCTOR'],
