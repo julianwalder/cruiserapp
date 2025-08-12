@@ -114,13 +114,13 @@ export default function NotificationsPage() {
 
   // Fetch notifications data
   const fetchNotifications = async () => {
-    try {
-      setLoading(true);
-      const token = localStorage.getItem('token');
-      if (!token) {
-        setError('No authentication token found');
-        return;
-      }
+      try {
+        setLoading(true);
+        const token = localStorage.getItem('token');
+        if (!token) {
+          setError('No authentication token found');
+          return;
+        }
 
       const params = new URLSearchParams();
       params.append('page', '1');
@@ -133,24 +133,24 @@ export default function NotificationsPage() {
       }
 
       const response = await fetch(`/api/notifications?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
 
-      if (!response.ok) {
+        if (!response.ok) {
         throw new Error('Failed to fetch notifications');
-      }
+        }
 
-      const data = await response.json();
+        const data = await response.json();
       setNotifications(data.notifications || []);
-    } catch (err) {
+      } catch (err) {
       console.error('Error fetching notifications:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load notifications');
-    } finally {
-      setLoading(false);
-    }
-  };
+        setError(err instanceof Error ? err.message : 'Failed to load notifications');
+      } finally {
+        setLoading(false);
+      }
+    };
 
   useEffect(() => {
     fetchNotifications();
@@ -161,7 +161,7 @@ export default function NotificationsPage() {
                          notification.message.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesType = selectedTypes.length === 0 || selectedTypes.includes(notification.type);
-
+    
     return matchesSearch && matchesType;
   });
 
@@ -184,7 +184,7 @@ export default function NotificationsPage() {
 
       if (response.ok) {
         // Update local state
-        setNotifications(prev => 
+    setNotifications(prev => 
           prev.map(n => n.id === id ? { ...n, isRead: true } : n)
         );
         
@@ -210,7 +210,7 @@ export default function NotificationsPage() {
 
       if (response.ok) {
         // Update local state
-        setNotifications(prev => 
+    setNotifications(prev => 
           prev.map(n => ({ ...n, isRead: true }))
         );
         
@@ -236,7 +236,7 @@ export default function NotificationsPage() {
 
       if (response.ok) {
         // Remove from local state
-        setNotifications(prev => prev.filter(n => n.id !== id));
+    setNotifications(prev => prev.filter(n => n.id !== id));
         
         // Trigger notification count refresh
         window.dispatchEvent(new Event('notification-updated'));

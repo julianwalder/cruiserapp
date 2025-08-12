@@ -15,39 +15,40 @@ function getSeason() {
 
 function getFriendlyFallbackMessage(firstName: string, lastName: string, role: string, timeOfDay: string, isWeekend: boolean, season: string, weatherContext?: any) {
   const timeContext = timeOfDay === 'morning' ? 'morning' : timeOfDay === 'afternoon' ? 'afternoon' : 'evening';
+  const displayName = firstName || lastName || 'there';
   
   // Weather-related messages when available
   if (weatherContext && weatherContext.summary) {
     const weatherMessages = [
-      `Perfect flying conditions at both bases today!`,
-      `Excellent weather for flying - clear skies and light winds!`,
-      `Great flying weather with ${weatherContext.summary.split('|')[0]?.split(':')[1]?.trim() || 'ideal conditions'}!`,
-      `Beautiful flying conditions at Strejnic and Dezmir!`,
-      `Clear skies and good visibility for your flights!`
+      `perfect day VFR conditions today!`,
+      `excellent weather for daytime flying!`,
+      `beautiful day VFR conditions await!`,
+      `clear skies and light winds for day flying!`,
+      `ideal day VFR conditions for aviation!`
     ];
     return weatherMessages[Math.floor(Math.random() * weatherMessages.length)];
   }
   
   const roleMessages = {
     PILOT: [
-      `Good ${timeContext}, Captain ${lastName}!`,
-      `Welcome back, Captain ${lastName}!`,
-      `Hello Captain ${lastName}!`
+      `ready for today's day VFR flights!`,
+      `skies are calling for daytime flying!`,
+      `another day of day VFR aviation excellence!`
     ],
     STUDENT: [
-      `Good ${timeContext}, soon to be Captain ${lastName}!`,
-      `Welcome back, soon to be Captain ${lastName}!`,
-      `Hello soon to be Captain ${lastName}!`
+      `keep learning and building day VFR experience!`,
+      `every daytime flight brings you closer to your wings!`,
+      `your day VFR pilot journey continues!`
     ],
     INSTRUCTOR: [
-      `Good ${timeContext}, Captain ${lastName}!`,
-      `Welcome back, Captain ${lastName}!`,
-      `Hello Captain ${lastName}!`
+      `shaping future pilots with day VFR training!`,
+      `your day VFR guidance inspires!`,
+      `leading the next generation of day VFR pilots!`
     ],
     PROSPECT: [
-      `Good ${timeContext}, ${firstName}!`,
-      `Welcome, ${firstName}!`,
-      `Hello ${firstName}!`
+      `your day VFR aviation journey begins!`,
+      `welcome to the world of daytime flight!`,
+      `the daytime sky is your destination!`
     ]
   };
 
@@ -56,6 +57,8 @@ function getFriendlyFallbackMessage(firstName: string, lastName: string, role: s
 }
 
 export async function POST(request: NextRequest) {
+  let firstName: string = '', lastName: string = '', role: string = 'PILOT', timeOfDay: string = 'morning';
+  
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     
@@ -69,7 +72,30 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { firstName, lastName, role, timeOfDay } = body;
+    
+    console.log('🔍 Greeting API: Received body:', body);
+    
+    // Extract fields with proper destructuring
+    firstName = body.firstName;
+    lastName = body.lastName;
+    role = body.role;
+    timeOfDay = body.timeOfDay;
+    
+    console.log('🔍 Greeting API: Extracted fields:', { firstName, lastName, role, timeOfDay });
+
+    // Validate required fields
+    if (!firstName || !lastName || !role || !timeOfDay) {
+      console.log('🔍 Greeting API: Validation failed - missing fields:', {
+        hasFirstName: !!firstName,
+        hasLastName: !!lastName,
+        hasRole: !!role,
+        hasTimeOfDay: !!timeOfDay
+      });
+      return NextResponse.json({ 
+        error: 'Missing required fields: firstName, lastName, role, timeOfDay',
+        received: { firstName, lastName, role, timeOfDay }
+      }, { status: 400 });
+    }
 
     // Get additional context for more personalized messages
     const currentHour = new Date().getHours();
@@ -176,7 +202,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({
       greeting: {
         greeting: `Good ${timeOfDay}, ${firstName}!`,
-        message: getFriendlyFallbackMessage(firstName, lastName, role, timeOfDay, isWeekend, season, weatherContext),
+        message: getFriendlyFallbackMessage(firstName, lastName, role, timeOfDay, isWeekend, season),
         icon: timeOfDay === 'morning' ? 'sun' : timeOfDay === 'evening' ? 'moon' : 'plane',
         mood: timeOfDay === 'morning' ? 'energetic' : timeOfDay === 'evening' ? 'reflective' : 'friendly'
       }
@@ -191,75 +217,53 @@ export async function POST(request: NextRequest) {
       PROSPECT: `You are an aviation professional greeting someone interested in becoming a pilot. Create a very short welcoming greeting. Keep it brief.`
     };
 
-    const systemPrompt = rolePrompts[role as keyof typeof rolePrompts] || 
-      `You are a friendly aviation assistant greeting a user. Create a warm, professional greeting.`;
+    const systemPrompt = `You are a professional aviation colleague greeting ${role === 'STUDENT' ? 'soon to be Captain' : 'Captain'} ${lastName}. Create a short, natural greeting. Keep it brief and professional.`;
 
-    const userPrompt = `Create a natural, professional greeting for ${role === 'STUDENT' ? 'soon to be Captain' : 'Captain'} ${lastName}, a ${role.toLowerCase()}, at ${timeOfDay} time. 
+    const userPrompt = `Create a greeting for ${firstName} ${lastName}, a ${role.toLowerCase()}, at ${timeOfDay} time.
 
 Context:
-- Time: ${timeOfDay} (${currentHour}:00)
-- Day: ${isWeekend ? 'Weekend' : 'Weekday'}
-- Season: ${season}
-${pilotContext ? `
-- EASA Currency (90 days): ${pilotContext.easaCurrency?.last90Days?.flights || 0}/${pilotContext.easaCurrency?.last90Days?.required?.flights || 0} flights, ${pilotContext.easaCurrency?.last90Days?.hours || 0}/${pilotContext.easaCurrency?.last90Days?.required?.hours || 0} hours
-- Individual Flight Hours: ${pilotContext.totalFlightHours} (this is ${role === 'STUDENT' ? 'soon to be Captain' : 'Captain'} ${lastName}'s personal flight hours only)
-- Recent Flights: ${pilotContext.recentFlights} flights in the last 90 days
-` : ''}
-${weatherContext ? `
-- Weather: ${weatherContext.summary}
-- Flying Conditions: ${weatherContext.status.summary}
-` : ''}
+- Time: ${timeOfDay}
+- Flight Hours: ${pilotContext?.totalFlightHours || 0} (personal hours)
+- Recent Flights: ${pilotContext?.recentFlights || 0} flights
+- Weather: ${weatherContext ? weatherContext.summary : 'Weather data unavailable'}
 
 Requirements:
-- Use "${role === 'STUDENT' ? 'soon to be Captain' : 'Captain'} ${lastName}" in the greeting
-- Keep messages very short and concise (max 2-3 sentences)
-- PRIORITY: If weather data is available, focus on weather conditions and flying opportunities
-- Weather context: ${weatherContext ? `Excellent flying conditions at both bases - ${weatherContext.summary}` : 'Weather data unavailable'}
-- If no weather data, focus on one key fact: flight hours, EASA currency, or recent activity
-- IMPORTANT: The flight hours shown (${pilotContext?.totalFlightHours || 0}) are ${role === 'STUDENT' ? 'soon to be Captain' : 'Captain'} ${lastName}'s individual flight hours only
-- Use natural, professional tone
-- End greetings with exclamation marks (!) not periods
-- Avoid cheesy or motivational language
-- Suggest an appropriate icon (sun, moon, plane, user, award, book, graduation, cloud, thermometer, wind)
-- Suggest a mood (energetic, productive, reflective, motivated, focused, friendly)
+- Greeting MUST start with "Captain ${lastName}"
+- Generate a short greeting (1-2 sentences max)
+- Focus on weather conditions if available
+- Use natural, conversational tone
+- End with exclamation mark (!)
+- Avoid generic phrases like "Ready to soar through the skies!"
+- IMPORTANT: Only mention day VFR flying - no night flying
 
-Return the response in this exact JSON format:
+MESSAGE REQUIREMENTS (subtitle):
+- Transform weather and flight data into natural conversation
+- Example: "Beautiful 24°C in Strejnic with light winds. You've logged 26.8 hours with 9 flights this quarter."
+- Make it sound like natural speech
+
+Return JSON:
 {
-  "greeting": "A short greeting using ${role === 'STUDENT' ? 'soon to be Captain' : 'Captain'} ${lastName}",
-  "message": "One brief fact about their aviation status or weather conditions",
-  "icon": "icon_name",
-  "mood": "mood_name"
+  "greeting": "Captain ${lastName}, [short natural greeting]",
+  "message": "Natural conversation about weather and flight data"
 }`;
 
-    console.log('🤖 AI Prompt includes weather context:', !!weatherContext);
-    if (weatherContext) {
-      console.log('🌤️ Weather context in prompt:', {
-        summary: weatherContext.summary,
-        status: weatherContext.status.summary
-      });
-    }
+    console.log('🤖 Using gpt-4o-mini model with simplified prompt');
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-4o-mini',
         messages: [
-          {
-            role: 'system',
-            content: systemPrompt
-          },
-          {
-            role: 'user',
-            content: userPrompt
-          }
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
         ],
-        max_tokens: 200,
         temperature: 0.7,
-      }),
+        max_tokens: 200
+      })
     });
 
     if (!response.ok) {
@@ -285,9 +289,9 @@ Return the response in this exact JSON format:
       // If parsing fails, create a fallback greeting
       greeting = {
         greeting: `Good ${timeOfDay}, ${role === 'STUDENT' ? 'soon to be Captain' : 'Captain'} ${lastName}!`,
-        message: getFriendlyFallbackMessage(firstName, lastName, role, timeOfDay, isWeekend, season, weatherContext),
+        message: getFriendlyFallbackMessage(firstName, lastName, role, timeOfDay, isWeekend, season),
         icon: timeOfDay === 'morning' ? 'sun' : timeOfDay === 'evening' ? 'moon' : 'plane',
-        mood: timeOfDay === 'morning' ? 'energetic' : timeOfDay === 'evening' ? 'reflective' : 'productive'
+        mood: timeOfDay === 'morning' ? 'energetic' : timeOfDay === 'evening' ? 'reflective' : 'friendly'
       };
     }
 
@@ -296,19 +300,16 @@ Return the response in this exact JSON format:
   } catch (error) {
     console.error('Error generating greeting:', error);
     
-    // Return a fallback greeting
-    const { firstName, lastName, role, timeOfDay } = await request.json();
+    // Return a fallback greeting without trying to read request body again
     const currentHour = new Date().getHours();
     const isWeekend = [0, 6].includes(new Date().getDay());
     const season = getSeason();
     
-    return NextResponse.json({
-      greeting: {
-        greeting: `Good ${timeOfDay}, ${firstName}!`,
-        message: getFriendlyFallbackMessage(firstName, lastName, role, timeOfDay, isWeekend, season),
-        icon: timeOfDay === 'morning' ? 'sun' : timeOfDay === 'evening' ? 'moon' : 'plane',
-        mood: timeOfDay === 'morning' ? 'energetic' : timeOfDay === 'evening' ? 'reflective' : 'friendly'
-      }
-    });
+            return NextResponse.json({
+          greeting: {
+            greeting: `Good ${timeOfDay || 'day'}, ${firstName || 'there'}!`,
+            message: getFriendlyFallbackMessage(firstName || '', lastName || '', role || 'PILOT', timeOfDay || 'morning', isWeekend, season)
+          }
+        });
   }
 }

@@ -5,14 +5,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
-  Sun, 
-  Moon, 
-  Cloud, 
-  Plane, 
-  User, 
-  Award, 
-  BookOpen, 
-  GraduationCap,
   RefreshCw
 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -32,14 +24,22 @@ interface GreetingCardProps {
 interface GreetingData {
   greeting: string;
   message: string;
-  icon: string;
-  mood: string;
+}
+
+interface WeatherData {
+  temperature?: number;
+  windSpeed?: number;
+  visibility?: number;
+  conditions?: string;
 }
 
 export function GreetingCard({ user }: GreetingCardProps) {
   const [greeting, setGreeting] = useState<GreetingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showContext, setShowContext] = useState(false);
+  const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
+  const [flightStats, setFlightStats] = useState<{totalFlights: number, recentFlights: number} | null>(null);
 
   const getTimeOfDay = () => {
     const hour = new Date().getHours();
@@ -58,82 +58,97 @@ export function GreetingCard({ user }: GreetingCardProps) {
     }
   };
 
-  const getDefaultGreeting = (): GreetingData => {
-    const timeOfDay = getTimeOfDay();
-    const role = user?.userRoles?.[0]?.roles?.name || 'User';
-    const roleDisplay = getRoleDisplayName(role);
-    
-    const greetings = {
-      morning: {
-        greeting: `Good morning, ${user?.firstName || 'there'}!`,
-        message: `Ready to start your day as a ${roleDisplay.toLowerCase()}?`,
-        icon: 'sun',
-        mood: 'energetic'
-      },
-      afternoon: {
-        greeting: `Good afternoon, ${user?.firstName || 'there'}!`,
-        message: `How's your ${roleDisplay.toLowerCase()} journey going today?`,
-        icon: 'sun',
-        mood: 'productive'
-      },
-      evening: {
-        greeting: `Good evening, ${user?.firstName || 'there'}!`,
-        message: `Wrapping up another day as a ${roleDisplay.toLowerCase()}?`,
-        icon: 'moon',
-        mood: 'reflective'
-      }
-    };
+  const fetchWeatherData = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
 
-    return greetings[timeOfDay as keyof typeof greetings];
+      const response = await fetch('/api/weather', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setWeatherData(data);
+      }
+    } catch (error) {
+      console.log('Weather data not available');
+    }
+  };
+
+  const fetchFlightStats = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await fetch('/api/dashboard/pilot-stats', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setFlightStats({
+          totalFlights: data.flights?.total || 0,
+          recentFlights: data.flights?.recent?.length || 0
+        });
+      }
+    } catch (error) {
+      console.log('Flight stats not available');
+    }
   };
 
   const fetchAIGreeting = async () => {
     try {
       setLoading(true);
-      setError(null);
-
-      console.log('🔍 GreetingCard: Starting to fetch AI greeting');
-      console.log('🔍 GreetingCard: User data:', user);
-
       const token = localStorage.getItem('token');
       if (!token) {
-        console.log('🔍 GreetingCard: No token found, using default greeting');
-        setGreeting(getDefaultGreeting());
+        console.log('No token available for greeting API');
+        setLoading(false);
         return;
       }
 
-      console.log('🔍 GreetingCard: Making API call to /api/greeting');
+      // Fetch weather and flight stats in parallel
+      const [weatherResponse, flightStatsResponse] = await Promise.allSettled([
+        fetchWeatherData(),
+        fetchFlightStats()
+      ]);
+
+      const requestData = {
+        firstName: user?.firstName,
+        lastName: user?.lastName,
+        role: user?.userRoles?.[0]?.roles?.name,
+        timeOfDay: getTimeOfDay(),
+        weatherData: weatherResponse.status === 'fulfilled' ? weatherResponse.value : null,
+        flightStats: flightStatsResponse.status === 'fulfilled' ? flightStatsResponse.value : null
+      };
+
+      console.log('🔍 GreetingCard: Sending data:', requestData);
+
       const response = await fetch('/api/greeting', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          firstName: user?.firstName,
-          lastName: user?.lastName,
-          role: user?.userRoles?.[0]?.roles?.name,
-          timeOfDay: getTimeOfDay()
-        }),
+        body: JSON.stringify(requestData)
       });
-
-      console.log('🔍 GreetingCard: API response status:', response.status);
 
       if (response.ok) {
         const data = await response.json();
-        console.log('🔍 GreetingCard: API response data:', data);
-        setGreeting(data.greeting);
+        console.log('🔍 GreetingCard: Received data:', data);
+        setGreeting(data.greeting || data);
+        // Show contextual message after a short delay for smooth transition
+        setTimeout(() => setShowContext(true), 500);
       } else {
-        console.log('🔍 GreetingCard: API failed, using default greeting');
-        const errorText = await response.text();
-        console.log('🔍 GreetingCard: API error response:', errorText);
-        // Fallback to default greeting if API fails
-        setGreeting(getDefaultGreeting());
+        const errorData = await response.json();
+        console.error('🔍 GreetingCard: API error:', response.status, errorData);
       }
     } catch (error) {
-      console.error('🔍 GreetingCard: Error fetching AI greeting:', error);
-      setError('Failed to load personalized greeting');
-      setGreeting(getDefaultGreeting());
+      console.error('Error fetching AI greeting:', error);
     } finally {
       setLoading(false);
     }
@@ -141,51 +156,26 @@ export function GreetingCard({ user }: GreetingCardProps) {
 
   useEffect(() => {
     if (user) {
+      console.log('🔍 GreetingCard: User object:', user);
+      console.log('🔍 GreetingCard: User roles:', user.userRoles);
       fetchAIGreeting();
     }
   }, [user]);
 
-  const getIcon = (iconName: string) => {
-    switch (iconName.toLowerCase()) {
-      case 'sun': return <Sun className="h-6 w-6" />;
-      case 'moon': return <Moon className="h-6 w-6" />;
-      case 'cloud': return <Cloud className="h-6 w-6" />;
-      case 'plane': return <Plane className="h-6 w-6" />;
-      case 'user': return <User className="h-6 w-6" />;
-      case 'award': return <Award className="h-6 w-6" />;
-      case 'book': return <BookOpen className="h-6 w-6" />;
-      case 'graduation': return <GraduationCap className="h-6 w-6" />;
-      default: return <Sun className="h-6 w-6" />;
-    }
-  };
 
-  const getMoodColor = (mood: string) => {
-    switch (mood.toLowerCase()) {
-      case 'energetic': return 'bg-gradient-to-r from-amber-100 to-orange-200 dark:from-amber-800/20 dark:to-orange-900/20';
-      case 'productive': return 'bg-gradient-to-r from-blue-100 to-indigo-200 dark:from-blue-800/20 dark:to-indigo-900/20';
-      case 'reflective': return 'bg-gradient-to-r from-slate-100 to-gray-200 dark:from-slate-800/20 dark:to-gray-900/20';
-      case 'motivated': return 'bg-gradient-to-r from-emerald-100 to-teal-200 dark:from-emerald-800/20 dark:to-teal-900/20';
-      case 'focused': return 'bg-gradient-to-r from-violet-100 to-purple-200 dark:from-violet-800/20 dark:to-purple-900/20';
-      case 'friendly': return 'bg-gradient-to-r from-rose-100 to-pink-200 dark:from-rose-800/20 dark:to-pink-900/20';
-      default: return 'bg-gradient-to-r from-blue-100 to-indigo-200 dark:from-blue-800/20 dark:to-indigo-900/20';
-    }
-  };
 
   if (!user) return null;
 
   const role = user.userRoles?.[0]?.roles?.name;
   const roleDisplay = getRoleDisplayName(role || 'User');
 
-    return (
-    <div className="p-6 border rounded-lg bg-card">
+  return (
+    <div className="p-6 border rounded-lg bg-card transition-all duration-500 h-40">
       {/* Top row with greeting and controls */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
-          <div className="flex items-center justify-center w-12 h-12 bg-primary/10 rounded-full">
-            {greeting ? getIcon(greeting.icon) : <Sun className="h-6 w-6 text-primary" />}
-          </div>
           <h2 className="text-2xl font-semibold text-foreground">
-            {greeting?.greeting || `Hello, ${user.firstName}!`}
+            {greeting?.greeting || `Captain ${user.lastName}`}
           </h2>
         </div>
         
@@ -205,10 +195,14 @@ export function GreetingCard({ user }: GreetingCardProps) {
         </div>
       </div>
       
-      {/* Contextual message below */}
-      <div>
+      {/* Contextual message with smooth transition */}
+      <div className={`transition-all duration-700 ease-in-out ${
+        showContext 
+          ? 'opacity-100 transform translate-y-0' 
+          : 'opacity-0 transform translate-y-4'
+      }`}>
         <p className="text-foreground/80 text-base leading-relaxed">
-          {greeting?.message || `Welcome back, ${roleDisplay.toLowerCase()}!`}
+          {showContext ? (greeting?.message || 'Loading...') : ''}
         </p>
       </div>
     </div>
