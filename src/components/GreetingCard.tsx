@@ -61,7 +61,7 @@ export function GreetingCard({ user }: GreetingCardProps) {
   const fetchWeatherData = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) return;
+      if (!token) return null;
 
       const response = await fetch('/api/weather', {
         headers: {
@@ -72,16 +72,19 @@ export function GreetingCard({ user }: GreetingCardProps) {
       if (response.ok) {
         const data = await response.json();
         setWeatherData(data);
+        return data;
       }
+      return null;
     } catch (error) {
       console.log('Weather data not available');
+      return null;
     }
   };
 
   const fetchFlightStats = async () => {
     try {
       const token = localStorage.getItem('token');
-      if (!token) return;
+      if (!token) return null;
 
       const response = await fetch('/api/dashboard/pilot-stats', {
         headers: {
@@ -91,13 +94,17 @@ export function GreetingCard({ user }: GreetingCardProps) {
 
       if (response.ok) {
         const data = await response.json();
-        setFlightStats({
+        const stats = {
           totalFlights: data.flights?.total || 0,
           recentFlights: data.flights?.recent?.length || 0
-        });
+        };
+        setFlightStats(stats);
+        return stats;
       }
+      return null;
     } catch (error) {
       console.log('Flight stats not available');
+      return null;
     }
   };
 

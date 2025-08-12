@@ -20,11 +20,9 @@ export class WeatherService {
   private static checkWxApiKey = process.env.CHECKWX_API_KEY;
   private static baseUrl = 'https://api.checkwx.com';
 
-  // ICAO codes for the bases
-  private static readonly STREJNIC_ICAO = 'LRPW'; // Strejnic Airfield
-  private static readonly DEZMIR_ICAO = 'LRCJ';   // Dezmir Airfield
-  private static readonly STREJNIC_BACKUP = 'LROP'; // Otopeni/Bucharest Airport (closest to Strejnic)
-  private static readonly DEZMIR_BACKUP = 'LRCL';  // Cluj-Napoca Airport (closest to Dezmir)
+  // ICAO codes for the bases - using the backup airports directly
+  private static readonly STREJNIC_ICAO = 'LROP'; // Otopeni/Bucharest Airport (closest to Strejnic)
+  private static readonly DEZMIR_ICAO = 'LRCL';   // Cluj-Napoca Airport (closest to Dezmir)
 
   /**
    * Get weather data for both bases
@@ -36,34 +34,23 @@ export class WeatherService {
     }
 
     try {
-      // Try to get weather for both bases, with specific fallbacks for each
-      // Add timeout to prevent hanging
+      // Get weather directly from the main airports
       const weatherPromise = Promise.allSettled([
         this.getWeatherForAirfield(this.STREJNIC_ICAO),
-        this.getWeatherForAirfield(this.DEZMIR_ICAO),
-        this.getWeatherForAirfield(this.STREJNIC_BACKUP),
-        this.getWeatherForAirfield(this.DEZMIR_BACKUP)
+        this.getWeatherForAirfield(this.DEZMIR_ICAO)
       ]);
 
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Weather API timeout')), 10000)
       );
 
-      const [strejnicWeather, dezmirWeather, strejnicBackup, dezmirBackup] = await Promise.race([
+      const [strejnicWeather, dezmirWeather] = await Promise.race([
         weatherPromise,
         timeoutPromise
       ]) as PromiseSettledResult<WeatherData | null>[];
 
-
-
-      // Use specific backup weather for each base
-      const strejnic = (strejnicWeather.status === 'fulfilled' && strejnicWeather.value) ? strejnicWeather.value : 
-                      (strejnicBackup.status === 'fulfilled' && strejnicBackup.value) ? strejnicBackup.value : null;
-      
-      const dezmir = (dezmirWeather.status === 'fulfilled' && dezmirWeather.value) ? dezmirWeather.value : 
-                    (dezmirBackup.status === 'fulfilled' && dezmirBackup.value) ? dezmirBackup.value : null;
-
-
+      const strejnic = (strejnicWeather.status === 'fulfilled' && strejnicWeather.value) ? strejnicWeather.value : null;
+      const dezmir = (dezmirWeather.status === 'fulfilled' && dezmirWeather.value) ? dezmirWeather.value : null;
 
       return { strejnic, dezmir };
     } catch (error) {
@@ -175,7 +162,7 @@ export class WeatherService {
       const temp = weather.strejnic.temperature;
       const wind = weather.strejnic.windSpeed;
       const vis = Math.round(weather.strejnic.visibility / 1000);
-      const source = weather.strejnic.icao === this.STREJNIC_BACKUP ? ' (Bucharest area)' : '';
+      const source = weather.strejnic.icao === this.STREJNIC_ICAO ? ' (Bucharest area)' : '';
       
       summaries.push(`Strejnic${source}: ${temp}°C, ${wind}kt wind, ${vis}km visibility`);
     }
@@ -184,7 +171,7 @@ export class WeatherService {
       const temp = weather.dezmir.temperature;
       const wind = weather.dezmir.windSpeed;
       const vis = Math.round(weather.dezmir.visibility / 1000);
-      const source = weather.dezmir.icao === this.DEZMIR_BACKUP ? ' (Cluj area)' : '';
+      const source = weather.dezmir.icao === this.DEZMIR_ICAO ? ' (Cluj area)' : '';
       
       summaries.push(`Dezmir${source}: ${temp}°C, ${wind}kt wind, ${vis}km visibility`);
     }
@@ -230,10 +217,10 @@ export class WeatherService {
     }
 
     // Add note if using backup weather data
-    if (weather.strejnic?.icao === this.STREJNIC_BACKUP || weather.dezmir?.icao === this.DEZMIR_BACKUP) {
+    if (weather.strejnic?.icao === this.STREJNIC_ICAO || weather.dezmir?.icao === this.DEZMIR_ICAO) {
       const backupSources = [];
-      if (weather.strejnic?.icao === this.STREJNIC_BACKUP) backupSources.push('Bucharest area');
-      if (weather.dezmir?.icao === this.DEZMIR_BACKUP) backupSources.push('Cluj area');
+      if (weather.strejnic?.icao === this.STREJNIC_ICAO) backupSources.push('Bucharest area');
+      if (weather.dezmir?.icao === this.DEZMIR_ICAO) backupSources.push('Cluj area');
       summary += ` (${backupSources.join(', ')} data)`;
     }
 
