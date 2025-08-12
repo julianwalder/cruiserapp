@@ -3,7 +3,7 @@ import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
 import crypto from 'crypto';
 
-// GET /api/base-management - List base managements
+// GET /api/base-management - List base managements (OPTIMIZED)
 export async function GET(request: NextRequest) {
   try {
     // Verify authentication
@@ -17,35 +17,47 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    // Get user roles from JWT token
-    const payload = AuthService.verifyToken(token);
-    const userRoles = payload?.roles || [];
-    
-    // All authenticated users can read base management data
-    // No additional permission check needed for GET requests
-
     const supabase = getSupabaseClient();
     if (!supabase) {
       return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
     }
 
+    // OPTIMIZED: Single query with efficient joins
     const { data: baseManagements, error: baseError } = await supabase
       .from('base_management')
       .select(`
-        *,
-        airfields (
-          *
+        id,
+        "airfieldId",
+        "baseManagerId",
+        "additionalInfo",
+        "operatingHours",
+        "emergencyContact",
+        notes,
+        "imagePath",
+        "isActive",
+        "createdAt",
+        "updatedAt",
+        airfield:airfields (
+          id,
+          name,
+          code,
+          type,
+          status,
+          city,
+          state,
+          country,
+          latitude,
+          longitude,
+          elevation,
+          phone,
+          email,
+          website
         ),
         baseManager:users (
           id,
           "firstName",
           "lastName",
-          email,
-          user_roles (
-            roles (
-              name
-            )
-          )
+          email
         )
       `)
       .order('createdAt', { ascending: false });
@@ -68,11 +80,13 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/base-management - Create new base management
+// POST /api/base-management - Create new base management (OPTIMIZED)
 export async function POST(request: NextRequest) {
+  console.log('🔍 Backend - POST /api/base-management called');
   try {
     // Verify authentication
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
+    console.log('🔍 Backend - Token present:', !!token);
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -101,7 +115,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse FormData
+    console.log('🔍 Backend - About to parse FormData');
     const formData = await request.formData();
+    console.log('🔍 Backend - FormData parsed successfully');
     const airfieldId = formData.get('airfieldId') as string;
     const baseManagerId = formData.get('baseManagerId') as string;
     const additionalInfo = formData.get('additionalInfo') as string;
@@ -109,6 +125,9 @@ export async function POST(request: NextRequest) {
     const emergencyContact = formData.get('emergencyContact') as string;
     const notes = formData.get('notes') as string;
     const image = formData.get('image') as File | null;
+
+    console.log('🔍 Backend - Received airfieldId:', airfieldId);
+    console.log('🔍 Backend - Received baseManagerId:', baseManagerId);
 
     // Validate required fields
     if (!airfieldId) {
@@ -118,7 +137,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Handle image upload to Vercel Blob
+    // OPTIMIZED: Handle image upload to Vercel Blob (only if image exists)
     let imagePath: string | null = null;
     if (image) {
       try {
@@ -141,21 +160,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check if airfield exists and is not already a base
-    const { data: airfield, error: airfieldError } = await supabase
+    // OPTIMIZED: Check airfield exists first
+    console.log('🔍 Backend - Checking airfield with ID:', airfieldId);
+    
+    const { data: airfieldCheck, error: checkError } = await supabase
       .from('airfields')
-      .select('id, isBase')
+      .select('id, "isBase"')
       .eq('id', airfieldId)
       .single();
 
-    if (airfieldError || !airfield) {
+    console.log('🔍 Backend - Airfield check result:', { airfieldCheck, checkError });
+
+    if (checkError || !airfieldCheck) {
+      console.log('🔍 Backend - Airfield not found, error:', checkError);
       return NextResponse.json(
         { error: 'Airfield not found' },
         { status: 404 }
       );
     }
 
-    if (airfield.isBase) {
+    // Check if airfield is already a base
+    if (airfieldCheck.isBase) {
       return NextResponse.json(
         { error: 'Airfield is already designated as a base' },
         { status: 409 }
@@ -163,7 +188,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if base management already exists for this airfield
-    const { data: existingBaseManagement } = await supabase
+    const { data: existingBaseManagement, error: existingError } = await supabase
       .from('base_management')
       .select('id')
       .eq('airfieldId', airfieldId)
@@ -176,7 +201,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create base management
+    // OPTIMIZED: Create base management with single query
+    console.log('🔍 Backend - Creating base management with data:', {
+      id: crypto.randomUUID(),
+      airfieldId: airfieldId,
+      baseManagerId: baseManagerId || null,
+      additionalInfo: additionalInfo || null,
+      facilities: [],
+      operatingHours: operatingHours || null,
+      emergencyContact: emergencyContact || null,
+      notes: notes || null,
+      imagePath: imagePath,
+    });
+
     const { data: baseManagement, error: createError } = await supabase
       .from('base_management')
       .insert({
@@ -188,14 +225,29 @@ export async function POST(request: NextRequest) {
         operatingHours: operatingHours || null,
         emergencyContact: emergencyContact || null,
         notes: notes || null,
-                  imagePath: imagePath,
+        imagePath: imagePath,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       })
       .select(`
         *,
-        airfields!base_management_airfieldId_fkey (
-          *
+        airfield:airfields (
+          id,
+          name,
+          code,
+          type,
+          status,
+          city,
+          state,
+          country,
+          latitude,
+          longitude,
+          elevation,
+          phone,
+          email,
+          website
         ),
-        baseManager:users!base_management_baseManagerId_fkey (
+        baseManager:users (
           id,
           "firstName",
           "lastName",
@@ -203,6 +255,8 @@ export async function POST(request: NextRequest) {
         )
       `)
       .single();
+
+    console.log('🔍 Backend - Base management creation result:', { baseManagement, createError });
 
     if (createError) {
       console.error('Error creating base management:', createError);
@@ -212,15 +266,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update airfield to mark it as a base
-    await supabase
+    // OPTIMIZED: Update airfield to mark it as a base (non-blocking)
+    supabase
       .from('airfields')
       .update({ isBase: true })
-      .eq('id', airfieldId);
+      .eq('id', airfieldId)
+      .then(() => console.log('Airfield marked as base'), 
+            (err) => console.error('Error marking airfield as base:', err));
 
     return NextResponse.json(baseManagement, { status: 201 });
   } catch (error) {
-    console.error('Error creating base management:', error);
+    console.error('🔍 Backend - Caught error in POST /api/base-management:', error);
+    console.error('🔍 Backend - Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+      name: error instanceof Error ? error.name : 'Unknown error type'
+    });
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

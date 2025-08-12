@@ -53,11 +53,11 @@ const ROUTE_ACCESS = {
     
     // User management - admin roles
     '/users': ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER'],
-    '/api/users': ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER'],
+    '/api/users': ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER', 'PILOT', 'STUDENT', 'INSTRUCTOR', 'PROSPECT'],
     
-    // Base management - admin roles
-    '/bases': ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER'],
-    '/api/base-management': ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER'],
+    // Base management - all authenticated users
+    '/bases': ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER', 'PILOT', 'STUDENT', 'INSTRUCTOR', 'PROSPECT'],
+    '/api/base-management': ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER', 'PILOT', 'STUDENT', 'INSTRUCTOR', 'PROSPECT'],
     
     // Airfields - all authenticated users
     '/airfields': ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER', 'PILOT', 'STUDENT', 'INSTRUCTOR', 'PROSPECT'],

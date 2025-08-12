@@ -127,14 +127,25 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
 
 
   useEffect(() => {
-    fetchBaseManagements();
-    fetchAirfields();
-    fetchBaseManagers();
+    console.log('🔍 BaseManagement - Component mounted');
+    const initializeData = async () => {
+      console.log('🔍 BaseManagement - Initializing data...');
+      await Promise.all([
+        fetchBaseManagements(),
+        fetchAirfields(),
+        fetchBaseManagers()
+      ]);
+    };
+    
+    initializeData();
   }, []);
+
+
 
   const fetchBaseManagements = async () => {
     try {
-      const response = await fetch('/api/base-management', {
+      // Use optimized endpoint for faster data retrieval
+      const response = await fetch('/api/base-management/optimized', {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -178,24 +189,89 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
   const fetchBaseManagers = async () => {
     try {
       setBaseManagersLoading(true);
-      const response = await fetch('/api/users?role=BASE_MANAGER', {
+      console.log('🔍 Fetching base managers...');
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.error('🔍 No token found in localStorage');
+        setBaseManagers([]);
+        return;
+      }
+      
+      // First try to get BASE_MANAGER users
+      let response = await fetch('/api/users?role=BASE_MANAGER', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${token}`
         }
       });
       
+      console.log('🔍 Base managers response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
-        setBaseManagers(data.users || []);
+        console.log('🔍 Base managers API response:', data);
+        console.log('🔍 Base managers array:', data.users);
+        console.log('🔍 Number of base managers found:', data.users?.length || 0);
+        
+        // If no BASE_MANAGER users found, try to get ADMIN users as fallback
+        if (data.users?.length === 0) {
+          console.log('🔍 No BASE_MANAGER users found, trying ADMIN users...');
+          response = await fetch('/api/users?role=ADMIN', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            const adminData = await response.json();
+            console.log('🔍 Admin users found:', adminData.users?.length || 0);
+            
+            // If still no users, try to get SUPER_ADMIN users as final fallback
+            if (adminData.users?.length === 0) {
+              console.log('🔍 No ADMIN users found, trying SUPER_ADMIN users...');
+              response = await fetch('/api/users?role=SUPER_ADMIN', {
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                }
+              });
+              
+              if (response.ok) {
+                const superAdminData = await response.json();
+                console.log('🔍 Super Admin users found:', superAdminData.users?.length || 0);
+                setBaseManagers(superAdminData.users || []);
+              } else {
+                console.error('🔍 Failed to fetch SUPER_ADMIN users:', response.status);
+                setBaseManagers([]);
+              }
+            } else {
+              setBaseManagers(adminData.users || []);
+            }
+          } else {
+            console.error('🔍 Failed to fetch ADMIN users:', response.status);
+            setBaseManagers([]);
+          }
+        } else {
+          setBaseManagers(data.users || []);
+        }
+      } else if (response.status === 401) {
+        console.error('🔍 Authentication failed - token may be invalid');
+        setBaseManagers([]);
       } else if (response.status === 403) {
         // User doesn't have permission to fetch base managers
         setBaseManagers([]);
         console.log('User does not have permission to fetch base managers');
+      } else if (response.status === 404) {
+        // API endpoint not found
+        setBaseManagers([]);
+        console.error('Base managers API endpoint not found');
       } else {
-        console.error('Failed to fetch base managers:', response.status);
+        const errorText = await response.text();
+        console.error('Failed to fetch base managers:', response.status, errorText);
+        setBaseManagers([]);
       }
     } catch (error) {
       console.error('Error fetching base managers:', error);
+      setBaseManagers([]);
     } finally {
       setBaseManagersLoading(false);
     }
@@ -203,6 +279,31 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
 
   const handleCreateBase = async () => {
     try {
+      console.log('🔍 Creating base with data:', formData);
+      console.log('🔍 Selected airfield ID:', formData.airfieldId);
+      console.log('🔍 Available airfields:', airfields.length);
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Authentication required');
+        return;
+      }
+      
+      // Validate airfield ID
+      if (!formData.airfieldId) {
+        toast.error('Please select an airfield');
+        return;
+      }
+      
+      // Check if airfield exists in our list
+      const selectedAirfield = airfields.find(af => af.id === formData.airfieldId);
+      console.log('🔍 Selected airfield:', selectedAirfield);
+      
+      if (!selectedAirfield) {
+        toast.error('Selected airfield not found in available airfields');
+        return;
+      }
+      
       // Create FormData to handle file upload
       const formDataToSend = new FormData();
       formDataToSend.append('airfieldId', formData.airfieldId);
@@ -216,15 +317,21 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
         formDataToSend.append('image', baseImage);
       }
 
+      console.log('🔍 Sending POST request to /api/base-management');
+      console.log('🔍 FormData airfieldId:', formDataToSend.get('airfieldId'));
       const response = await fetch('/api/base-management', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${token}`
         },
         body: formDataToSend
       });
 
+      console.log('🔍 Create base response status:', response.status);
+
       if (response.ok) {
+        const result = await response.json();
+        console.log('🔍 Base created successfully:', result);
         toast.success('Base created successfully');
         setShowCreateDialog(false);
         resetForm();
@@ -232,8 +339,17 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
         setImagePreview(null);
         fetchBaseManagements();
       } else {
-        const error = await response.json();
-        toast.error(error.error || 'Failed to create base');
+        const errorText = await response.text();
+        console.error('🔍 Failed to create base:', response.status, errorText);
+        let errorMessage = 'Failed to create base';
+        try {
+          const error = JSON.parse(errorText);
+          errorMessage = error.error || errorMessage;
+        } catch (e) {
+          // If not JSON, use the text as error message
+          errorMessage = errorText || errorMessage;
+        }
+        toast.error(errorMessage);
       }
     } catch (error) {
       console.error('Error creating base:', error);
@@ -245,6 +361,9 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
     if (!selectedBase) return;
 
     try {
+      console.log('🔍 Updating base with data:', formData);
+      console.log('🔍 Selected base:', selectedBase);
+      
       // Create FormData to handle file upload
       const formDataToSend = new FormData();
       formDataToSend.append('managerId', formData.baseManagerId || '');
@@ -257,6 +376,9 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
         formDataToSend.append('image', baseImage);
       }
 
+      console.log('🔍 Sending request to:', `/api/base-management/${selectedBase.airfieldId}`);
+      console.log('🔍 Manager ID being sent:', formData.baseManagerId);
+
       const response = await fetch(`/api/base-management/${selectedBase.airfieldId}`, {
         method: 'PUT',
         headers: {
@@ -265,7 +387,11 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
         body: formDataToSend
       });
 
+      console.log('🔍 Response status:', response.status);
+
       if (response.ok) {
+        const result = await response.json();
+        console.log('🔍 Success response:', result);
         toast.success('Base updated successfully');
         setShowEditDialog(false);
         resetForm();
@@ -274,6 +400,7 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
         fetchBaseManagements();
       } else {
         const error = await response.json();
+        console.log('🔍 Error response:', error);
         toast.error(error.error || 'Failed to update base');
       }
     } catch (error) {
@@ -327,7 +454,7 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
       airfieldId: base.airfieldId,
       baseManagerId: base.baseManagerId || undefined,
       additionalInfo: base.additionalInfo || '',
-      facilities: base.facilities,
+      facilities: base.facilities || [],
       operatingHours: base.operatingHours || '',
       emergencyContact: base.emergencyContact || '',
       notes: base.notes || ''
@@ -391,15 +518,17 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
   };
 
   // Helper function to get airfield data from either airfield or airfields property
-  const getAirfieldData = (base: BaseManagement): Airfield => {
-    return base.airfield || base.airfields || {
+  const getAirfieldData = (base: ExtendedBaseManagement): Airfield => {
+    return base.airfield || {
       id: base.airfieldId,
       name: 'Unknown Airfield',
       code: 'N/A',
-      type: 'unknown',
+      type: 'AIRPORT',
       city: 'Unknown',
       country: 'Unknown',
-      isBase: false
+      status: 'ACTIVE',
+      createdAt: new Date(),
+      updatedAt: new Date()
     };
   };
 
@@ -469,7 +598,7 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
                   <Label htmlFor="airfieldId">Select Airfield</Label>
                   <Combobox
                     options={airfields
-                      .filter(af => !af.isBase)
+                      .filter(af => !baseManagements.some(bm => bm.airfieldId === af.id))
                       .map(airfield => ({
                         value: airfield.id,
                         label: `${airfield.name} (${airfield.code}) • ${airfield.city}, ${airfield.country}`
@@ -489,12 +618,12 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
                     </SelectTrigger>
                     <SelectContent>
                       {baseManagersLoading ? (
-                        <SelectItem value="" disabled>
-                          Loading base managers...
+                        <SelectItem value="loading" disabled>
+                          Loading base managers... ({baseManagers.length} loaded)
                         </SelectItem>
                       ) : baseManagers.length === 0 ? (
-                        <SelectItem value="" disabled>
-                          No base managers available
+                        <SelectItem value="no-managers" disabled>
+                          No base managers available (Debug: {baseManagers.length} in state)
                         </SelectItem>
                       ) : (
                         baseManagers.map((manager) => (
@@ -762,12 +891,12 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
                     </SelectTrigger>
                     <SelectContent>
                       {baseManagersLoading ? (
-                        <SelectItem value="" disabled>
-                          Loading base managers...
+                        <SelectItem value="loading" disabled>
+                          Loading base managers... ({baseManagers.length} loaded)
                         </SelectItem>
                       ) : baseManagers.length === 0 ? (
-                        <SelectItem value="" disabled>
-                          No base managers available
+                        <SelectItem value="no-managers" disabled>
+                          No base managers available (Debug: {baseManagers.length} in state)
                         </SelectItem>
                       ) : (
                         baseManagers.map((manager) => (

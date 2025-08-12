@@ -7,7 +7,9 @@ export default function BasesPage() {
   const [canEdit, setCanEdit] = useState(false);
 
   useEffect(() => {
+    console.log('🔍 BasesPage - Component mounted');
     const fetchUser = async () => {
+      console.log('🔍 BasesPage - Fetching user data');
       const token = localStorage.getItem('token');
       if (token) {
         const response = await fetch('/api/auth/me', {
@@ -15,7 +17,10 @@ export default function BasesPage() {
         });
         if (response.ok) {
           const userData = await response.json();
-          setCanEdit(userData?.userRoles?.some((ur: any) => ['SUPER_ADMIN', 'ADMIN'].includes(ur.roles.name)));
+          console.log('🔍 BasesPage - User data:', userData);
+          const hasEditPermission = userData?.userRoles?.some((ur: any) => ['SUPER_ADMIN', 'ADMIN'].includes(ur.roles.name));
+          console.log('🔍 BasesPage - Can edit:', hasEditPermission);
+          setCanEdit(hasEditPermission);
         }
       }
     };

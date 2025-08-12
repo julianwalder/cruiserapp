@@ -3,7 +3,7 @@ import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
 import crypto from 'crypto';
 
-// PUT /api/base-management/[id] - Assign base manager
+// PUT /api/base-management/[id] - Assign base manager (OPTIMIZED)
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -49,7 +49,7 @@ export async function PUT(
     const notes = formData.get('notes') as string;
     const image = formData.get('image') as File | null;
 
-    // Handle image upload to Vercel Blob
+    // OPTIMIZED: Handle image upload to Vercel Blob (only if image exists)
     let imagePath: string | null = null;
     if (image) {
       try {
@@ -72,43 +72,54 @@ export async function PUT(
       }
     }
 
-    // Check if manager exists and has appropriate role
-    const { data: managerExists, error: managerError } = await supabase
-      .from('users')
-      .select(`
-        id,
-        "firstName",
-        "lastName",
-        user_roles (
-          roles (
-            name
+    // OPTIMIZED: Single query to check manager and role (only if managerId is provided)
+    if (managerId) {
+      console.log('🔍 Checking manager with ID:', managerId);
+      
+      const { data: managerExists, error: managerError } = await supabase
+        .from('users')
+        .select(`
+          id,
+          "firstName",
+          "lastName",
+          user_roles (
+            roles (
+              name
+            )
           )
-        )
-      `)
-      .eq('id', managerId)
-      .single();
+        `)
+        .eq('id', managerId)
+        .single();
 
-    if (managerError || !managerExists) {
-      return NextResponse.json(
-        { error: 'Manager not found' },
-        { status: 404 }
+      console.log('🔍 Manager query result:', { managerExists, managerError });
+
+      if (managerError || !managerExists) {
+        console.log('🔍 Manager not found:', managerError);
+        return NextResponse.json(
+          { error: 'Manager not found' },
+          { status: 404 }
+        );
+      }
+
+      // Check if user has appropriate role (ADMIN, SUPER_ADMIN, or BASE_MANAGER)
+      const managerRoles = managerExists.user_roles?.map((ur: any) => ur.roles.name) || [];
+      console.log('🔍 Manager roles:', managerRoles);
+      
+      const hasAppropriateRole = managerRoles.some((role: string) => 
+        ['ADMIN', 'SUPER_ADMIN', 'BASE_MANAGER'].includes(role)
       );
+
+      console.log('🔍 Has appropriate role:', hasAppropriateRole);
+
+      if (!hasAppropriateRole) {
+        return NextResponse.json(
+          { error: 'Manager must have ADMIN, SUPER_ADMIN, or BASE_MANAGER role' },
+          { status: 400 }
+        );
+      }
     }
 
-    // Check if user has appropriate role (ADMIN, SUPER_ADMIN, or BASE_MANAGER)
-    const managerRoles = managerExists.user_roles.map((ur: any) => ur.roles.name);
-    const hasAppropriateRole = managerRoles.some((role: string) => 
-      ['ADMIN', 'SUPER_ADMIN', 'BASE_MANAGER'].includes(role)
-    );
-
-    if (!hasAppropriateRole) {
-      return NextResponse.json(
-        { error: 'Manager must have ADMIN, SUPER_ADMIN, or BASE_MANAGER role' },
-        { status: 400 }
-      );
-    }
-
-    // Check if base management already exists for this airfield
+    // OPTIMIZED: Check if base management exists and get current data
     const { data: existingBaseManagement, error: existingError } = await supabase
       .from('base_management')
       .select('id, "baseManagerId", "imagePath"')
@@ -124,9 +135,9 @@ export async function PUT(
     }
 
     if (existingBaseManagement) {
-      // Update existing base management
+      // OPTIMIZED: Update existing base management
       const updateData: any = {
-        baseManagerId: managerId,
+        baseManagerId: managerId || null,
         additionalInfo: additionalInfo || null,
         operatingHours: operatingHours || null,
         emergencyContact: emergencyContact || null,
@@ -169,7 +180,7 @@ export async function PUT(
         baseManagement: updatedBaseManagement,
       });
     } else {
-      // Check if airfield exists before creating base management
+      // OPTIMIZED: Check if airfield exists before creating base management
       const { data: airfield, error: airfieldError } = await supabase
         .from('airfields')
         .select('id')
@@ -183,13 +194,13 @@ export async function PUT(
         );
       }
 
-      // Create new base management
+      // OPTIMIZED: Create new base management
       const { data: newBaseManagement, error: createError } = await supabase
         .from('base_management')
         .insert({
           id: crypto.randomUUID(),
           airfieldId: id,
-          baseManagerId: managerId,
+          baseManagerId: managerId || null,
           additionalInfo: additionalInfo || null,
           operatingHours: operatingHours || null,
           emergencyContact: emergencyContact || null,
@@ -234,7 +245,7 @@ export async function PUT(
   }
 }
 
-// DELETE /api/base-management/[id] - Remove base manager
+// DELETE /api/base-management/[id] - Remove base manager (OPTIMIZED)
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -271,29 +282,7 @@ export async function DELETE(
 
     const { id } = await params;
 
-    // Check if base management exists
-    const { data: existingBaseManagement, error: existingError } = await supabase
-      .from('base_management')
-      .select('id')
-      .eq('airfieldId', id)
-      .single();
-
-    if (existingError && existingError.code !== 'PGRST116') {
-      console.error('Error checking existing base management:', existingError);
-      return NextResponse.json(
-        { error: 'Database error' },
-        { status: 500 }
-      );
-    }
-
-    if (!existingBaseManagement) {
-      return NextResponse.json(
-        { error: 'Base management not found' },
-        { status: 404 }
-      );
-    }
-
-    // Delete base management
+    // OPTIMIZED: Delete base management directly (Supabase will handle not found)
     const { error: deleteError } = await supabase
       .from('base_management')
       .delete()

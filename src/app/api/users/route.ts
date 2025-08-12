@@ -10,6 +10,7 @@ import { UUID } from '@/types/uuid-types';
 
 // GET /api/users - List users (ADMIN+ only)
 async function getUsers(request: NextRequest, currentUser: any) {
+  console.log('🔍 getUsers called with currentUser:', currentUser?.email);
   try {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
@@ -26,8 +27,47 @@ async function getUsers(request: NextRequest, currentUser: any) {
       );
     }
     
-    // Use the new secure list_users function
-    const { data: users, error } = await supabase.rpc('list_users');
+    // Check if current user is admin
+    const { data: currentUserRoles, error: roleCheckError } = await supabase
+      .from('user_roles')
+      .select(`
+        roles (
+          name
+        )
+      `)
+      .eq('userId', currentUser.id);
+
+    if (roleCheckError) {
+      console.error('Error checking user roles:', roleCheckError);
+      return NextResponse.json(
+        { error: 'Database error' },
+        { status: 500 }
+      );
+    }
+
+    const currentUserRoleNames = currentUserRoles?.map((ur: any) => ur.roles.name) || [];
+    const isAdmin = currentUserRoleNames.includes('ADMIN') || currentUserRoleNames.includes('SUPER_ADMIN');
+
+    let users;
+    let error;
+
+    if (isAdmin) {
+      // For admins, fetch all users directly
+      const { data: allUsers, error: allUsersError } = await supabase
+        .from('users')
+        .select('*')
+        .order('createdAt', { ascending: false });
+      
+      users = allUsers;
+      error = allUsersError;
+    } else {
+      // For regular users, use the secure list_users function
+      const { data: listUsersResult, error: listUsersError } = await supabase.rpc('list_users');
+      users = listUsersResult;
+      error = listUsersError;
+    }
+    
+
     
     if (error) {
       console.error('Error fetching users:', error);
@@ -54,56 +94,55 @@ async function getUsers(request: NextRequest, currentUser: any) {
       );
     }
     
-    // Get total count
-    const total = filteredUsers.length;
+    // Always get role information for ALL users (not just when filtering)
+    const userIds = filteredUsers.map((u: any) => u.id);
     
-    // Apply pagination
-    const from = (page - 1) * limit;
-    const to = from + limit;
-    const paginatedUsers = filteredUsers.slice(from, to);
+    const { data: userRoles, error: rolesError } = await supabase
+      .from('user_roles')
+      .select(`
+        userId,
+        roles (
+          name
+        )
+      `)
+      .in('userId', userIds);
     
-    // For role filtering, we need to get role information separately
-    // This is a limitation of the current approach - we could enhance the function
-    let usersWithRoles = paginatedUsers;
-    if (role) {
-      // Get role information for the filtered users
-      const userIds = paginatedUsers.map((u: any) => u.id);
-      const { data: userRoles, error: rolesError } = await supabase
-        .from('user_roles')
-        .select(`
-          userId,
-          roles (
-            name
-          )
-        `)
-        .in('userId', userIds);
+    let usersWithRoles = filteredUsers;
+    if (!rolesError && userRoles) {
+      const roleMap = new Map();
+      (userRoles as any[]).forEach((ur: any) => {
+        if (!roleMap.has(ur.userId)) {
+          roleMap.set(ur.userId, []);
+        }
+        roleMap.get(ur.userId).push(ur.roles.name);
+      });
       
-      if (!rolesError && userRoles) {
-        const roleMap = new Map();
-        (userRoles as any[]).forEach((ur: any) => {
-          if (!roleMap.has(ur.userId)) {
-            roleMap.set(ur.userId, []);
-          }
-          roleMap.get(ur.userId).push(ur.roles.name);
-        });
-        
-        usersWithRoles = paginatedUsers.map((user: any) => ({
-          ...user,
-          roles: roleMap.get(user.id) || []
-        }));
-        
-        // Filter by role
+      usersWithRoles = filteredUsers.map((user: any) => ({
+        ...user,
+        roles: roleMap.get(user.id) || []
+      }));
+      
+      // Apply role filter if specified
+      if (role) {
         usersWithRoles = usersWithRoles.filter((user: any) => 
           user.roles.includes(role)
         );
       }
     } else {
-      // Add empty roles array for consistency
-      usersWithRoles = paginatedUsers.map((user: any) => ({
+      // Add empty roles array for consistency if role fetch failed
+      usersWithRoles = filteredUsers.map((user: any) => ({
         ...user,
         roles: []
       }));
     }
+    
+    // Get total count AFTER role filtering
+    const total = usersWithRoles.length;
+    
+    // Apply pagination AFTER role filtering
+    const from = (page - 1) * limit;
+    const to = from + limit;
+    const paginatedUsers = usersWithRoles.slice(from, to);
     
     return NextResponse.json({
       users: usersWithRoles,
