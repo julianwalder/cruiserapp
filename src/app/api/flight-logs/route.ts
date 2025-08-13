@@ -265,6 +265,7 @@ export async function GET(request: NextRequest) {
           .from(tableName)
           .select('*')
           .order('date', { ascending: false })
+          .order('departureTime', { ascending: false })
           .range(skip, skip + limit - 1);
         
         if (simpleError) {
@@ -293,13 +294,15 @@ export async function GET(request: NextRequest) {
           ...(flightLogsData?.map(log => log.arrivalAirfieldId) || [])
         ])];
         const createdByIds = [...new Set(flightLogsData?.map(log => log.createdById) || [])];
+        const updatedByIds = [...new Set(flightLogsData?.map(log => log.updatedBy).filter(Boolean) || [])];
 
         console.log('🔍 Manual joins - IDs found:', {
           aircraftIds: aircraftIds.length,
           pilotIds: pilotIds.length,
           instructorIds: instructorIds.length,
           airfieldIds: airfieldIds.length,
-          createdByIds: createdByIds.length
+          createdByIds: createdByIds.length,
+          updatedByIds: updatedByIds.length
         });
         console.log('🔍 Aircraft IDs in flight logs:', aircraftIds);
 
@@ -308,16 +311,23 @@ export async function GET(request: NextRequest) {
           pilotIds: pilotIds.length,
           instructorIds: instructorIds.length,
           airfieldIds: airfieldIds.length,
-          createdByIds: createdByIds.length
+          createdByIds: createdByIds.length,
+          updatedByIds: updatedByIds.length
         });
 
         // Fetch all related data
-        const [aircraftData, pilotsData, instructorsData, airfieldsData, createdByData] = await Promise.all([
-          aircraftIds.length > 0 ? supabase.from('aircraft').select('*').in('id', aircraftIds) : { data: [], error: null },
+        const [aircraftData, pilotsData, instructorsData, airfieldsData, createdByData, updatedByData] = await Promise.all([
+          aircraftIds.length > 0 ? supabase.from('aircraft').select(`
+            *,
+            icao_reference_type (
+              *
+            )
+          `).in('id', aircraftIds) : { data: [], error: null },
           pilotIds.length > 0 ? supabase.from('users').select('*').in('id', pilotIds) : { data: [], error: null },
           instructorIds.length > 0 ? supabase.from('users').select('*').in('id', instructorIds) : { data: [], error: null },
           airfieldIds.length > 0 ? supabase.from('airfields').select('*').in('id', airfieldIds) : { data: [], error: null },
-          createdByIds.length > 0 ? supabase.from('users').select('*').in('id', createdByIds) : { data: [], error: null }
+          createdByIds.length > 0 ? supabase.from('users').select('*').in('id', createdByIds) : { data: [], error: null },
+          updatedByIds.length > 0 ? supabase.from('users').select('*').in('id', updatedByIds) : { data: [], error: null }
         ]);
 
         // Create lookup maps
@@ -326,13 +336,15 @@ export async function GET(request: NextRequest) {
         const instructorsMap = new Map(instructorsData.data?.map(i => [i.id, i]) || []);
         const airfieldsMap = new Map(airfieldsData.data?.map(af => [af.id, af]) || []);
         const createdByMap = new Map(createdByData.data?.map(cb => [cb.id, cb]) || []);
+        const updatedByMap = new Map(updatedByData.data?.map(ub => [ub.id, ub]) || []);
 
         console.log('🔍 Lookup maps created:', {
           aircraft: aircraftMap.size,
           pilots: pilotsMap.size,
           instructors: instructorsMap.size,
           airfields: airfieldsMap.size,
-          createdBy: createdByMap.size
+          createdBy: createdByMap.size,
+          updatedBy: updatedByMap.size
         });
 
         // Combine the data
@@ -343,7 +355,8 @@ export async function GET(request: NextRequest) {
           instructor: log.instructorId ? instructorsMap.get(log.instructorId) || null : null,
           departureAirfield: airfieldsMap.get(log.departureAirfieldId) || null,
           arrivalAirfield: airfieldsMap.get(log.arrivalAirfieldId) || null,
-          createdBy: createdByMap.get(log.createdById) || null
+          createdBy: createdByMap.get(log.createdById) || null,
+          updatedByUser: log.updatedBy ? updatedByMap.get(log.updatedBy) || null : null
         })) || [];
 
         console.log('✅ Manual joins succeeded for admin user, returning enriched data');
@@ -596,7 +609,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate required fields
-    if (!aircraftId || !pilotId || !date || !departureTime || !arrivalTime || !departureAirfieldId || !arrivalAirfieldId || !flightType) {
+    if (!aircraftId || !pilotId || !date || !departureTime || !arrivalTime || !departureAirfieldId || !arrivalAirfieldId) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -617,10 +630,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate pilot exists
+    // Validate pilot exists and get their roles for automatic flight type
     const { data: pilot, error: pilotError } = await supabase
       .from('users')
-      .select('id, totalFlightHours')
+      .select(`
+        id, 
+        totalFlightHours,
+        user_roles (
+          roles (
+            name
+          )
+        )
+      `)
       .eq('id', pilotId)
       .single();
 
@@ -629,6 +650,58 @@ export async function POST(request: NextRequest) {
         { error: 'Pilot not found' },
         { status: 404 }
       );
+    }
+
+    // Automatic flight type logic based on pilot's roles
+    const getDefaultFlightType = (pilotData: any): "SCHOOL" | "INVOICED" | "FERRY" => {
+      if (!pilotData) return "SCHOOL";
+      
+      const userRoles = pilotData.user_roles || [];
+      const roleNames = userRoles.map((ur: any) => ur.roles?.name || '').filter(Boolean);
+      
+      // Check if user has PILOT role (graduates from school)
+      const hasPilotRole = roleNames.includes('PILOT');
+      const hasStudentRole = roleNames.includes('STUDENT');
+      const hasBaseManagerRole = roleNames.includes('BASE_MANAGER');
+      const hasAdminRole = roleNames.includes('ADMIN') || roleNames.includes('SUPER_ADMIN');
+      
+      // If user has PILOT role (even if they also have STUDENT), all flights are INVOICED
+      if (hasPilotRole) {
+        return "INVOICED";
+      }
+      
+      // If user is only STUDENT (no PILOT role), flights are SCHOOL
+      if (hasStudentRole && !hasPilotRole) {
+        return "SCHOOL";
+      }
+      
+      // If user is BASE_MANAGER or ADMIN logging their own flights, it's FERRY
+      if ((hasBaseManagerRole || hasAdminRole) && !hasPilotRole && !hasStudentRole) {
+        return "FERRY";
+      }
+      
+      // Default fallback
+      return "SCHOOL";
+    };
+
+    // Determine the correct flight type automatically
+    const automaticFlightType = getDefaultFlightType(pilot);
+    
+    // For creating new flight logs, always use automatic flight type
+    const finalFlightType = automaticFlightType;
+    
+    // Log the automatic flight type determination
+    const pilotRoles = pilot.user_roles?.map((ur: any) => ur.roles?.name || '').filter(Boolean) || [];
+    console.log(`🔍 Automatic flight type for pilot ${pilotId} (CREATE mode):`, {
+      pilotRoles,
+      providedFlightType: flightType,
+      automaticFlightType,
+      finalFlightType
+    });
+    
+    // Log if there was a mismatch
+    if (flightType && flightType !== automaticFlightType) {
+      console.log(`✅ Overriding provided "${flightType}" with automatic "${automaticFlightType}" for new flight log`);
     }
 
     // Validate instructor if provided
@@ -694,12 +767,12 @@ export async function POST(request: NextRequest) {
         aircraftId,
         pilotId,
         instructorId,
-        date: new Date(date).toISOString(),
+        date: date, // Keep the date as a string to avoid timezone conversion
         departureTime,
         arrivalTime,
         departureAirfieldId,
         arrivalAirfieldId,
-        flightType,
+        flightType: finalFlightType,
         purpose: purpose || null,
         remarks: remarks || null,
         totalHours,
@@ -727,6 +800,7 @@ export async function POST(request: NextRequest) {
         route: route || null,
         conditions: conditions || null,
         createdById: user.id,
+        updatedBy: user.id, // Set updatedBy to the same as createdBy for new records
         createdAt: now,
         updatedAt: now,
       })

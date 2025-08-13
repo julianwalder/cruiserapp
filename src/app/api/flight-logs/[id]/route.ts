@@ -34,9 +34,9 @@ export async function GET(
     }
 
     console.log('👤 User found:', user.email);
-    console.log('🔑 User roles:', user.user_roles.map((ur: any) => ur.roles.name));
+    console.log('🔑 User roles:', (user as any).user_roles?.map((ur: any) => ur.roles.name) || []);
 
-    const userRoles = user.user_roles.map((ur: any) => ur.roles.name);
+    const userRoles = (user as any).user_roles?.map((ur: any) => ur.roles.name) || [];
     const isAdmin = userRoles.includes('SUPER_ADMIN') || userRoles.includes('ADMIN');
     const isBaseManager = userRoles.includes('BASE_MANAGER');
     const isInstructor = userRoles.includes('INSTRUCTOR');
@@ -118,15 +118,15 @@ export async function PUT(
     }
 
     console.log('👤 User found:', user.email);
-    console.log('🔑 User roles:', user.user_roles.map((ur: any) => ur.roles.name));
+    console.log('🔑 User roles:', (user as any).user_roles?.map((ur: any) => ur.roles.name) || []);
 
-    const hasPermission = user.user_roles.some(
+    const hasPermission = (user as any).user_roles?.some(
       (userRole: any) =>
         userRole.roles.name === 'SUPER_ADMIN' ||
         userRole.roles.name === 'ADMIN' ||
         userRole.roles.name === 'BASE_MANAGER' ||
         userRole.roles.name === 'INSTRUCTOR'
-    );
+    ) || false;
 
     console.log('🔐 Has permission:', hasPermission);
 
@@ -219,10 +219,18 @@ export async function PUT(
 
     console.log('✅ Aircraft validation passed');
 
-    // Validate pilot exists
+    // Validate pilot exists and get their roles for automatic flight type
     const { data: pilot, error: pilotError } = await supabase
       .from('users')
-      .select('id, totalFlightHours')
+      .select(`
+        id, 
+        totalFlightHours,
+        user_roles (
+          roles (
+            name
+          )
+        )
+      `)
       .eq('id', pilotId)
       .single();
 
@@ -231,6 +239,58 @@ export async function PUT(
         { error: 'Pilot not found' },
         { status: 404 }
       );
+    }
+
+    // Automatic flight type logic based on pilot's roles
+    const getDefaultFlightType = (pilotData: any): "SCHOOL" | "INVOICED" | "FERRY" => {
+      if (!pilotData) return "SCHOOL";
+      
+      const userRoles = pilotData.user_roles || [];
+      const roleNames = userRoles.map((ur: any) => ur.roles?.name || '').filter(Boolean);
+      
+      // Check if user has PILOT role (graduates from school)
+      const hasPilotRole = roleNames.includes('PILOT');
+      const hasStudentRole = roleNames.includes('STUDENT');
+      const hasBaseManagerRole = roleNames.includes('BASE_MANAGER');
+      const hasAdminRole = roleNames.includes('ADMIN') || roleNames.includes('SUPER_ADMIN');
+      
+      // If user has PILOT role (even if they also have STUDENT), all flights are INVOICED
+      if (hasPilotRole) {
+        return "INVOICED";
+      }
+      
+      // If user is only STUDENT (no PILOT role), flights are SCHOOL
+      if (hasStudentRole && !hasPilotRole) {
+        return "SCHOOL";
+      }
+      
+      // If user is BASE_MANAGER or ADMIN logging their own flights, it's FERRY
+      if ((hasBaseManagerRole || hasAdminRole) && !hasPilotRole && !hasStudentRole) {
+        return "FERRY";
+      }
+      
+      // Default fallback
+      return "SCHOOL";
+    };
+
+    // Determine the correct flight type automatically
+    const automaticFlightType = getDefaultFlightType(pilot);
+    
+    // For editing, allow manual flight type selection but log suggestions
+    const finalFlightType = flightType || automaticFlightType;
+    
+    // Log the automatic flight type determination
+    const pilotRoles = pilot.user_roles?.map((ur: any) => ur.roles?.name || '').filter(Boolean) || [];
+    console.log(`🔍 Flight type for pilot ${pilotId} (EDIT mode):`, {
+      pilotRoles,
+      providedFlightType: flightType,
+      automaticFlightType,
+      finalFlightType
+    });
+    
+    // Log suggestions but allow override
+    if (flightType && flightType !== automaticFlightType) {
+      console.log(`💡 Suggestion: For pilot ${pilotId}, automatic logic suggests "${automaticFlightType}" but using provided "${flightType}"`);
     }
 
     // Validate instructor if provided
@@ -299,14 +359,14 @@ export async function PUT(
         aircraftId,
         pilotId,
         instructorId,
-        date: new Date(date).toISOString(),
+        date: date, // Keep the date as a string to avoid timezone conversion
         departureTime,
         arrivalTime,
         departureAirfieldId,
         arrivalAirfieldId,
         departureHobbs,
         arrivalHobbs,
-        flightType,
+        flightType: finalFlightType,
         purpose,
         remarks: updatedRemarks,
         totalHours: newTotalHours,
@@ -324,6 +384,8 @@ export async function PUT(
         nightLandings,
         oilAdded,
         fuelAdded,
+        updatedBy: user.id, // Track who updated the record
+        updatedAt: new Date().toISOString(), // Update the timestamp
       })
       .eq('id', id)
       .select('*')

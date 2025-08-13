@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Modal } from "@/components/ui/Modal";
+import { FlightLogForm } from "@/components/FlightLogForm";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -216,6 +218,7 @@ interface FlightLog {
   createdAt: string;
   updatedAt: string;
   createdById: string;
+  updatedBy?: string;
   
   // Related data
   aircraft: Aircraft;
@@ -224,6 +227,7 @@ interface FlightLog {
   departureAirfield: Airfield;
   arrivalAirfield: Airfield;
   createdBy: User;
+  updatedByUser?: User;
   
   // Handle both camelCase and snake_case relationship names
   departure_airfield?: Airfield;
@@ -428,6 +432,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedFlightLog, setSelectedFlightLog] = useState<FlightLog | null>(null);
+  const [viewModalMode, setViewModalMode] = useState<'view' | 'edit'>('view');
   const [showPPLView, setShowPPLView] = useState(true);
   const [viewMode, setViewMode] = useState<"personal" | "company">("personal");
   const [activeTab, setActiveTab] = useState("all");
@@ -1265,6 +1270,54 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
     }
   };
 
+  const handleEditFromView = () => {
+    setViewModalMode('edit');
+  };
+
+  const handleCancelEdit = () => {
+    setViewModalMode('view');
+  };
+
+  const handleUpdateFlightLog = async (data: CreateFlightLogForm) => {
+    if (!selectedFlightLog) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        toast.error('Authentication required');
+        return;
+      }
+
+      const response = await fetch(`/api/flight-logs/${selectedFlightLog.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update flight log');
+      }
+
+      const updatedFlightLog = await response.json();
+      
+      // Refresh the flight logs data to get the latest information
+      await fetchFlightLogs();
+      
+      // Close the modal completely
+      setShowViewDialog(false);
+      setViewModalMode('view');
+      setSelectedFlightLog(null);
+      
+      toast.success('Flight log updated successfully');
+    } catch (error) {
+      console.error('Error updating flight log:', error);
+      toast.error('Failed to update flight log');
+    }
+  };
+
   const handleCloseModal = () => {
     setShowCreateDialog(false);
     setIsEditMode(false);
@@ -1294,6 +1347,18 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       PROMO: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-300',
     };
     return colors[type as keyof typeof colors] || 'bg-gray-100 text-gray-800';
+  };
+
+  const getFlightTypeBorderColor = (type: string) => {
+    const colors = {
+      INVOICED: 'border-l-green-500',
+      SCHOOL: 'border-l-blue-500',
+      FERRY: 'border-l-orange-500',
+      CHARTER: 'border-l-purple-500',
+      DEMO: 'border-l-yellow-500',
+      PROMO: 'border-l-pink-500',
+    };
+    return colors[type as keyof typeof colors] || 'border-l-gray-500';
   };
 
   const calculateFlightHours = (departureTime: string, arrivalTime: string) => {
@@ -2127,11 +2192,12 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                                 className="hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                                 onClick={() => {
                                   setSelectedFlightLog(log);
+                                  setViewModalMode('view');
                                   setShowViewDialog(true);
                                 }}
                               >
                                 {/* Column 1: Date */}
-                                <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
+                                <TableCell className={`text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700 border-l-4 ${getFlightTypeBorderColor(log.flightType)}`}>
                                   <FormattedDate date={log.date} />
                                 </TableCell>
                                 
@@ -2291,6 +2357,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                                       <DropdownMenuItem
                                         onClick={() => {
                                           setSelectedFlightLog(log);
+                                          setViewModalMode('view');
                                           setShowViewDialog(true);
                                         }}
                                       >
@@ -2904,102 +2971,44 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
           </DialogContent>
         </Dialog>
 
-        {/* View Flight Log Dialog */}
-        <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Flight Log Details</DialogTitle>
-              <DialogDescription>
-                View detailed information about this flight log entry.
-              </DialogDescription>
-            </DialogHeader>
-            {selectedFlightLog && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Date</Label>
-                    <p className="text-sm"><FormattedDate date={selectedFlightLog.date} /></p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Flight Type</Label>
-                    <Badge className={getFlightTypeBadgeColor(selectedFlightLog.flightType)}>
-                      {getFlightTypeLabel(selectedFlightLog.flightType)}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Aircraft</Label>
-                    <p className="text-sm">{selectedFlightLog.aircraft.callSign} - {selectedFlightLog.aircraft.icaoReferenceType?.typeDesignator || selectedFlightLog.aircraft.icao_reference_type?.type_designator}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Total Hours</Label>
-                    <p className="text-sm">{formatHours(selectedFlightLog.totalHours)}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Pilot</Label>
-                    <p className="text-sm">{selectedFlightLog.pilot?.firstName && selectedFlightLog.pilot?.lastName ? 
-                      `${selectedFlightLog.pilot.firstName} ${selectedFlightLog.pilot.lastName}` : 
-                      selectedFlightLog.pilotId || 'Unknown'}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Instructor</Label>
-                    <p className="text-sm">
-                      {selectedFlightLog.instructor 
-                        ? `${selectedFlightLog.instructor.firstName} ${selectedFlightLog.instructor.lastName}`
-                        : "None"
-                      }
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Departure</Label>
-                    <p className="text-sm">{selectedFlightLog.departureAirfield.code} - {selectedFlightLog.departureAirfield.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {selectedFlightLog.departureTime} UTC | Hobbs: {selectedFlightLog.departureHobbs ? selectedFlightLog.departureHobbs.toFixed(1) : 'N/A'}
-                    </p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Arrival</Label>
-                    <p className="text-sm">{selectedFlightLog.arrivalAirfield.code} - {selectedFlightLog.arrivalAirfield.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {selectedFlightLog.arrivalTime} UTC | Hobbs: {selectedFlightLog.arrivalHobbs ? selectedFlightLog.arrivalHobbs.toFixed(1) : 'N/A'}
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <Label className="text-sm font-medium text-muted-foreground">Purpose</Label>
-                  <p className="text-sm">{selectedFlightLog.purpose}</p>
-                </div>
-
-                {selectedFlightLog.remarks && (
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Remarks</Label>
-                    <p className="text-sm">{selectedFlightLog.remarks}</p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Created By</Label>
-                    <p className="text-sm">{selectedFlightLog.createdBy.firstName} {selectedFlightLog.createdBy.lastName}</p>
-                  </div>
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Created On</Label>
-                    <p className="text-sm"><FormattedDate date={selectedFlightLog.createdAt} /></p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        {/* View Flight Log Modal */}
+        <Modal
+          open={showViewDialog}
+          onClose={() => {
+            setShowViewDialog(false);
+            setViewModalMode('view');
+          }}
+          title={viewModalMode === 'edit' ? 'Edit Flight Log' : 'Flight Log Details'}
+          description={viewModalMode === 'edit' ? 'Update the flight log details below.' : 'View detailed information about this flight log entry.'}
+          headerActions={
+            viewModalMode === 'view' ? (
+              <Button onClick={handleEditFromView}>
+                Edit Flight Log
+              </Button>
+            ) : (
+              <Button onClick={() => document.querySelector('form')?.requestSubmit()}>
+                Update Flight Log
+              </Button>
+            )
+          }
+        >
+          {selectedFlightLog && (
+            <FlightLogForm
+              mode={viewModalMode}
+              data={selectedFlightLog}
+              pilots={pilots}
+              instructors={instructors}
+              aircraft={aircraft}
+              airfields={airfields}
+              currentUser={currentUser}
+              onSubmit={viewModalMode === 'edit' ? handleUpdateFlightLog : undefined}
+              onCancel={viewModalMode === 'edit' ? handleCancelEdit : () => {
+                setShowViewDialog(false);
+                setViewModalMode('view');
+              }}
+            />
+          )}
+        </Modal>
 
         {/* Import Dialog */}
         <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
