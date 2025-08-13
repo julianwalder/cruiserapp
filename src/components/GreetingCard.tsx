@@ -177,17 +177,17 @@ export function GreetingCard({ user }: GreetingCardProps) {
   const roleDisplay = getRoleDisplayName(role || 'User');
 
   return (
-    <div className="p-6 border rounded-lg bg-card transition-all duration-500 h-40">
+    <div className="p-6 border rounded-lg bg-blue-50 border-blue-200 transition-all duration-500 min-h-[160px]">
       {/* Top row with greeting and controls */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
-          <h2 className="text-2xl font-semibold text-foreground">
+          <h2 className="text-2xl font-semibold text-blue-900">
             {greeting?.greeting || `Captain ${user.lastName}`}
           </h2>
         </div>
         
         <div className="flex items-center space-x-2">
-          <Badge variant="secondary" className="text-xs">
+          <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-800">
             {roleDisplay}
           </Badge>
           <Button
@@ -195,7 +195,7 @@ export function GreetingCard({ user }: GreetingCardProps) {
             size="sm"
             onClick={fetchAIGreeting}
             disabled={loading}
-            className="h-8 w-8 p-0"
+            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
@@ -208,7 +208,7 @@ export function GreetingCard({ user }: GreetingCardProps) {
           ? 'opacity-100 transform translate-y-0' 
           : 'opacity-0 transform translate-y-4'
       }`}>
-        <p className="text-foreground/80 text-base leading-relaxed">
+        <p className="text-blue-800 text-base leading-relaxed">
           {showContext ? (greeting?.message || 'Loading...') : ''}
         </p>
       </div>
