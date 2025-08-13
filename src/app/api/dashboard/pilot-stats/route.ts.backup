@@ -52,42 +52,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied - pilot/student only' }, { status: 403 });
     }
 
-    // Get hour package data from usage API
-    const usageResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/usage`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
-    let hourSummary = {
-      totalBought: 0,
+    // Hour package data is not currently used in the UI, so we'll use user's totalFlightHours
+    const hourSummary = {
+      totalBought: user.totalFlightHours || 0,
       totalUsed: 0,
-      totalRemaining: 0,
+      totalRemaining: user.totalFlightHours || 0,
       packages: []
     };
 
-    if (usageResponse.ok) {
-      const usageData = await usageResponse.json();
-      // Find the current user's data by email
-      const userData = usageData.clients?.find((client: any) => client.client.email === decoded.email);
-      
-      if (userData) {
-        hourSummary = {
-          totalBought: userData.totalBoughtHours || 0,
-          totalUsed: userData.totalUsedHours || 0,
-          totalRemaining: userData.totalRemainingHours || 0,
-          packages: userData.packages || []
-        };
-        
-        console.log(`✅ Found user data for ${decoded.email}: ${userData.totalBoughtHours} bought, ${userData.totalUsedHours} used`);
-      } else {
-        console.log(`❌ User data not found for ${decoded.email} in usage API response`);
-      }
-    } else {
-      console.log('❌ Failed to fetch usage data:', usageResponse.status);
-    }
-
-    // Fetch flight logs to get EASA currency data
+    // Fetch flight logs to get actual used hours and EASA currency data
     const { data: flightLogs, error: flightLogsError } = await supabase
       .from('flight_logs')
       .select(`
@@ -107,6 +80,8 @@ export async function GET(request: NextRequest) {
       .eq('pilotId', user.id)
       .order('date', { ascending: false })
       .order('departureTime', { ascending: false });
+
+
 
     if (flightLogsError) {
       console.error('Error fetching flight logs:', flightLogsError);
@@ -147,6 +122,8 @@ export async function GET(request: NextRequest) {
     airfields?.forEach(airfield => {
       airfieldMap.set(airfield.id, airfield);
     });
+
+
 
     // Calculate EASA currency
     const now = new Date();
@@ -219,10 +196,12 @@ export async function GET(request: NextRequest) {
       ? Math.round(((thisMonthHours - lastMonthHours) / lastMonthHours) * 100)
       : thisMonthHours > 0 ? 100 : 0;
 
+
+
     const stats = {
       user: {
         id: user.id,
-        totalFlightHours: hourSummary.totalBought, // Use correct hour package total
+        totalFlightHours: hourSummary.totalBought, // Use hour package total
         licenseNumber: user.licenseNumber,
         medicalClass: user.medicalClass,
         instructorRating: user.instructorRating,
@@ -295,4 +274,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+} 
