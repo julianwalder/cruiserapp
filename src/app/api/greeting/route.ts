@@ -19,14 +19,7 @@ function getFriendlyFallbackMessage(firstName: string, lastName: string, role: s
   
   // Weather-related messages when available
   if (weatherContext && weatherContext.summary) {
-    const weatherMessages = [
-      `perfect day VFR conditions today!`,
-      `excellent weather for daytime flying!`,
-      `beautiful day VFR conditions await!`,
-      `clear skies and light winds for day flying!`,
-      `ideal day VFR conditions for aviation!`
-    ];
-    return weatherMessages[Math.floor(Math.random() * weatherMessages.length)];
+    return weatherContext.summary;
   }
   
   const roleMessages = {
@@ -199,14 +192,12 @@ export async function POST(request: NextRequest) {
     const openaiApiKey = process.env.OPENAI_API_KEY;
     if (!openaiApiKey) {
       // Return a default greeting if OpenAI is not configured
-          return NextResponse.json({
-      greeting: {
-        greeting: `Good ${timeOfDay}, ${firstName}!`,
-        message: getFriendlyFallbackMessage(firstName, lastName, role, timeOfDay, isWeekend, season),
-        icon: timeOfDay === 'morning' ? 'sun' : timeOfDay === 'evening' ? 'moon' : 'plane',
-        mood: timeOfDay === 'morning' ? 'energetic' : timeOfDay === 'evening' ? 'reflective' : 'friendly'
-      }
-    });
+      return NextResponse.json({
+        greeting: {
+          greeting: `Good ${timeOfDay}, ${firstName}!`,
+          message: getFriendlyFallbackMessage(firstName, lastName, role, timeOfDay, isWeekend, season, weatherContext)
+        }
+      });
     }
 
     // Create role-specific prompts for OpenAI
@@ -217,7 +208,7 @@ export async function POST(request: NextRequest) {
       PROSPECT: `You are an aviation professional greeting someone interested in becoming a pilot. Create a very short welcoming greeting. Keep it brief.`
     };
 
-    const systemPrompt = `You are a professional aviation colleague greeting ${role === 'STUDENT' ? 'soon to be Captain' : 'Captain'} ${lastName}. Create a short, natural greeting. Keep it brief and professional.`;
+    const systemPrompt = `You are a professional aviation colleague greeting ${role === 'STUDENT' ? 'soon to be Captain' : 'Captain'} ${lastName}. Create a short, natural greeting. Keep it brief and professional. Return ONLY greeting and message fields - NO icons, NO mood.`;
 
     const userPrompt = `Create a greeting for ${firstName} ${lastName}, a ${role.toLowerCase()}, at ${timeOfDay} time.
 
@@ -235,13 +226,15 @@ Requirements:
 - End with exclamation mark (!)
 - Avoid generic phrases like "Ready to soar through the skies!"
 - IMPORTANT: Only mention day VFR flying - no night flying
+- NO icons, NO mood - just greeting and message
 
-MESSAGE REQUIREMENTS (subtitle):
+MESSAGE REQUIREMENTS:
 - Transform weather and flight data into natural conversation
 - Example: "Beautiful 24°C in Strejnic with light winds. You've logged 26.8 hours with 9 flights this quarter."
 - Make it sound like natural speech
+- MUST include weather data if available
 
-Return JSON:
+Return JSON (ONLY greeting and message fields):
 {
   "greeting": "Captain ${lastName}, [short natural greeting]",
   "message": "Natural conversation about weather and flight data"
@@ -289,9 +282,7 @@ Return JSON:
       // If parsing fails, create a fallback greeting
       greeting = {
         greeting: `Good ${timeOfDay}, ${role === 'STUDENT' ? 'soon to be Captain' : 'Captain'} ${lastName}!`,
-        message: getFriendlyFallbackMessage(firstName, lastName, role, timeOfDay, isWeekend, season),
-        icon: timeOfDay === 'morning' ? 'sun' : timeOfDay === 'evening' ? 'moon' : 'plane',
-        mood: timeOfDay === 'morning' ? 'energetic' : timeOfDay === 'evening' ? 'reflective' : 'friendly'
+        message: getFriendlyFallbackMessage(firstName, lastName, role, timeOfDay, isWeekend, season, weatherContext)
       };
     }
 
