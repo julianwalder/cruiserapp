@@ -1099,9 +1099,7 @@ export function FlightLogForm({
                           <SelectItem value="PROMO">Promo</SelectItem>
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground">
-                        💡 You can override the automatic flight type when editing
-                      </p>
+
                     </div>
                   ) : (
                     <Select
