@@ -655,6 +655,21 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
     }
   }, [currentUser]);
 
+  // Refetch pilots when view mode changes (for BASE_MANAGER + PILOT/STUDENT users)
+  useEffect(() => {
+    if (currentUser) {
+      const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
+      const isPilot = userRoles.includes('PILOT');
+      const isStudent = userRoles.includes('STUDENT');
+      const isBaseManager = userRoles.includes('BASE_MANAGER');
+      
+      // Refetch pilots when BASE_MANAGER + PILOT/STUDENT switches view modes
+      if (isBaseManager && (isPilot || isStudent)) {
+        fetchPilots();
+      }
+    }
+  }, [viewMode, currentUser]);
+
   // Refetch instructors when current user changes (for instructor users)
   useEffect(() => {
     if (currentUser) {
@@ -727,6 +742,22 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
   useEffect(() => {
     setPagination(prev => ({ ...prev, page: 1 }));
   }, [activeTab, viewMode, filters]);
+
+  // Handle pilot filter for BASE_MANAGER + PILOT/STUDENT users when switching view modes
+  useEffect(() => {
+    if (!currentUser) return;
+    
+    const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
+    const isPilot = userRoles.includes('PILOT');
+    const isStudent = userRoles.includes('STUDENT');
+    const isBaseManager = userRoles.includes('BASE_MANAGER');
+    
+    // If user is BASE_MANAGER + PILOT/STUDENT and switches to personal view, set pilot filter to self
+    if (isBaseManager && (isPilot || isStudent) && viewMode === 'personal') {
+      console.log('🔍 BASE_MANAGER + PILOT/STUDENT switched to personal view - setting pilot filter to self');
+      setFilters(prev => ({ ...prev, pilotId: currentUser.id }));
+    }
+  }, [viewMode, currentUser]);
 
   const fetchFlightLogs = async () => {
     try {
@@ -881,6 +912,47 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       if (!token) {
         console.error('No authentication token found');
         setPilots([]);
+        return;
+      }
+
+      // Check if user should be restricted to only themselves
+      const shouldRestrictToSelf = () => {
+        if (!currentUser) return false;
+        
+        const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
+        const isPilot = userRoles.includes('PILOT');
+        const isStudent = userRoles.includes('STUDENT');
+        const isInstructor = userRoles.includes('INSTRUCTOR');
+        const isAdmin = userRoles.includes('ADMIN') || userRoles.includes('SUPER_ADMIN');
+        const isBaseManager = userRoles.includes('BASE_MANAGER');
+        
+        // If user is PILOT or STUDENT and doesn't have additional roles, restrict to self
+        if ((isPilot || isStudent) && !isInstructor && !isAdmin && !isBaseManager) {
+          return true;
+        }
+        
+        // If user is BASE_MANAGER + PILOT/STUDENT and in personal view, restrict to self
+        if (isBaseManager && (isPilot || isStudent) && viewMode === 'personal') {
+          return true;
+        }
+        
+        return false;
+      };
+
+      // If user should be restricted to only themselves, just set them as the only option
+      if (shouldRestrictToSelf() && currentUser) {
+        const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
+        const isBaseManager = userRoles.includes('BASE_MANAGER');
+        
+        if (isBaseManager && viewMode === 'personal') {
+          console.log('🔍 User is BASE_MANAGER + PILOT/STUDENT in personal view - restricting to self in pilot filter');
+        } else {
+          console.log('🔍 User is PILOT/STUDENT only - restricting to self in pilot filter');
+        }
+        
+        setPilots([currentUser]);
+        // Automatically set the pilot filter to the current user
+        setFilters(prev => ({ ...prev, pilotId: currentUser.id }));
         return;
       }
 
@@ -1653,15 +1725,57 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                         searchText: `${pilot.firstName} ${pilot.lastName}`,
                         status: pilot.status
                       }))}
-                      value={filters.pilotId}
+                      value={(() => {
+                        if (!currentUser) return filters.pilotId;
+                        const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
+                        const isPilot = userRoles.includes('PILOT');
+                        const isStudent = userRoles.includes('STUDENT');
+                        const isInstructor = userRoles.includes('INSTRUCTOR');
+                        const isAdmin = userRoles.includes('ADMIN') || userRoles.includes('SUPER_ADMIN');
+                        const isBaseManager = userRoles.includes('BASE_MANAGER');
+                        
+                        // If user is PILOT or STUDENT and doesn't have additional roles, force their ID
+                        if ((isPilot || isStudent) && !isInstructor && !isAdmin && !isBaseManager) {
+                          return currentUser.id;
+                        }
+                        
+                        // If user is BASE_MANAGER + PILOT/STUDENT and in personal view, force their ID
+                        if (isBaseManager && (isPilot || isStudent) && viewMode === 'personal') {
+                          return currentUser.id;
+                        }
+                        
+                        return filters.pilotId;
+                      })()}
                       onValueChange={(value) => setFilters(prev => ({ ...prev, pilotId: value }))}
                       placeholder="All Pilots/Students"
                       searchPlaceholder="Search by name..."
                       emptyText="No pilots/students found."
+                      disabled={(() => {
+                        if (!currentUser) return false;
+                        const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
+                        const isPilot = userRoles.includes('PILOT');
+                        const isStudent = userRoles.includes('STUDENT');
+                        const isInstructor = userRoles.includes('INSTRUCTOR');
+                        const isAdmin = userRoles.includes('ADMIN') || userRoles.includes('SUPER_ADMIN');
+                        const isBaseManager = userRoles.includes('BASE_MANAGER');
+                        
+                        // Disable if user is PILOT or STUDENT and doesn't have additional roles
+                        if ((isPilot || isStudent) && !isInstructor && !isAdmin && !isBaseManager) {
+                          return true;
+                        }
+                        
+                        // Disable if user is BASE_MANAGER + PILOT/STUDENT and in personal view
+                        if (isBaseManager && (isPilot || isStudent) && viewMode === 'personal') {
+                          return true;
+                        }
+                        
+                        return false;
+                      })()}
                       searchFunction={(option, searchValue) => {
                         return option.searchText?.toLowerCase().includes(searchValue.toLowerCase()) || false;
                       }}
                     />
+
                   </div>
 
                   {/* Instructor Filter */}
