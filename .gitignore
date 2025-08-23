@@ -40,3 +40,54 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env*.local
+
+# Local development and test scripts
+# Exclude all JavaScript files in scripts directory (local development tools)
+/scripts/*.js
+
+# Local test and utility files in root
+test-*.js
+debug-*.js
+direct-*.js
+simple-*.js
+final-*.js
+create-*.js
+add-*.js
+fix-*.js
+apply-*.js
+normalize-*.js
+populate-*.js
+restore-*.js
+process-*.js
+find-*.js
+webhook-*.js
+activity-*.js
+avatar-*.js
+ppl-*.js
+invoice-*.js
+aircraft-*.js
+flight-*.js
+user-*.js
+company-*.js
+order-*.js
+notification-*.js
+role-*.js
+base-*.js
+fleet-*.js
+airfield-*.js
+veriff-*.js
+smartbill-*.js
+weather-*.js
+upload-*.js
+version-*.js
+greeting-*.js
+og-*.js
+ws-*.js
+
+# Temporary and backup files
+*.backup
+*.tmp
+*.temp
+*.bak
+*.old
+*.orig
