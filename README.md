@@ -98,6 +98,32 @@ npm run setup
 npm run dev
 ```
 
+## 📚 Documentation
+
+### Essential Documentation (Included in Repository)
+- `DEPLOYMENT.md` - Deployment instructions
+- `SECURITY_*.md` - Security documentation and audits
+- `SUPABASE_SETUP.md` - Database configuration
+- `VERCEL_BLOB_SETUP.md` - File storage setup
+- `GMAIL_SMTP_SETUP.md` - Email configuration
+- `USER_WORKFLOW.md` - User interaction guide
+- `ROLE_MANAGEMENT_GUIDE.md` - User role management
+
+### Development Documentation (Local Archive)
+Development-specific documentation has been moved to a local archive for cleaner repository management. If you need access to:
+
+- UUID migration guides
+- Veriff integration documentation
+- PPL course setup guides
+- Invoice system documentation
+- Phase 2 implementation guides
+- Local development scripts documentation
+
+These files are backed up locally at: `~/cruiserapp-docs-archive/`
+
+### Documentation Strategy
+See `docs/DOCUMENTATION_STRATEGY.md` for our documentation management approach.
+
 The application will be available at `http://localhost:3000`
 
 ## 📁 Project Structure

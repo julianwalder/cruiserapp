@@ -92,3 +92,18 @@ websocket-*.js
 *.bak
 *.old
 *.orig
+
+# Development documentation (excluded from Git)
+docs/UUID_MIGRATION_*.md
+docs/MIGRATION_PROGRESS.md
+docs/PHASE2_COMPLETION_SUMMARY.md
+docs/LOCAL_DEVELOPMENT_SCRIPTS.md
+docs/ROBUST_VERIFF_INTEGRATION.md
+docs/VERIFF_INTEGRATION_FIX.md
+docs/BASE_MANAGEMENT_OPTIMIZATION.md
+docs/supabase-counter-setup.md
+scripts/*.md
+VERIFF_*.md
+PPL_COURSE_*.md
+INVOICE_*.md
+PHASE2_*.md
