@@ -546,8 +546,8 @@ export class EnhancedVeriffWebhook {
         nationality: user.veriffPersonNationality,
         gender: user.veriffPersonGender,
         country: user.veriffPersonCountry,
-        address: user.address,
-        city: user.city,
+        address: user.veriffWebhookData?.person?.address || user.address,
+        city: user.veriffWebhookData?.person?.city || user.city,
       },
       
       document: {

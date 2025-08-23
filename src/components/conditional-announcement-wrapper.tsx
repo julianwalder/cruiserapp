@@ -38,9 +38,10 @@ export function ConditionalAnnouncementWrapper() {
     }
 
     try {
-      // Get token from localStorage (if user is authenticated)
-      const token = localStorage.getItem('token')
-      console.log('🔍 ConditionalAnnouncementWrapper - Token found:', !!token)
+      // Check for impersonation token first, then fall back to regular token
+      const impersonationToken = localStorage.getItem('impersonationToken');
+      const token = impersonationToken || localStorage.getItem('token');
+      console.log('🔍 ConditionalAnnouncementWrapper - Token found:', !!token, 'Using impersonation token:', !!impersonationToken)
       
       if (!token) {
         console.log('🔍 ConditionalAnnouncementWrapper - No token, setting user to null')

@@ -44,10 +44,11 @@ import { cn } from '@/lib/utils';
 import { OnboardingFlow } from '@/components/OnboardingFlow';
 import { AvatarUpload } from '@/components/ui/avatar-upload';
 import { VeriffVerification } from '@/components/ui/veriff-verification';
-import { VeriffIDVResults } from '@/components/ui/veriff-idv-results';
+import { EnhancedVerificationDisplay } from '@/components/ui/enhanced-verification-display';
 import { useDateFormatUtils } from '@/hooks/use-date-format';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
+import { PilotLicenseUpload } from '@/components/PilotLicenseUpload';
 
 // Extended User interface for My Account with userRoles and verification data
 interface MyAccountUser extends UserType {
@@ -186,6 +187,11 @@ export default function MyAccountPage() {
   const [showOnboardingSelection, setShowOnboardingSelection] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  // Pilot documents state
+  const [pilotLicenses, setPilotLicenses] = useState<any[]>([]);
+  const [pilotDocuments, setPilotDocuments] = useState<any[]>([]);
+  const [loadingPilotData, setLoadingPilotData] = useState(false);
+  
   // Use the proper date formatting system
   const { formatDate } = useDateFormatUtils();
 
@@ -209,10 +215,40 @@ export default function MyAccountPage() {
     }
   }, [user]);
 
+  const fetchPilotData = async () => {
+    try {
+      setLoadingPilotData(true);
+      // Check for impersonation token first, then fall back to regular token
+      const impersonationToken = localStorage.getItem('impersonationToken');
+      const token = impersonationToken || localStorage.getItem('token');
+      if (!token) {
+        console.error('No authentication token found');
+        return;
+      }
+
+      const response = await fetch('/api/my-account/pilot-documents', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setPilotDocuments(data.documents || []);
+        setPilotLicenses(data.licenses || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch pilot data:', error);
+    } finally {
+      setLoadingPilotData(false);
+    }
+  };
+
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        const token = localStorage.getItem('token');
+        // Check for impersonation token first, then fall back to regular token
+        const impersonationToken = localStorage.getItem('impersonationToken');
+        const token = impersonationToken || localStorage.getItem('token');
         if (!token) return;
 
         // Fetch user data
@@ -226,7 +262,7 @@ export default function MyAccountPage() {
           const userData = await userResponse.json();
           setUser(userData);
 
-          // Fetch comprehensive verification data
+          // Fetch verification data
           const verificationResponse = await fetch(`/api/veriff/verification-data/${userData.id}`, {
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -235,11 +271,69 @@ export default function MyAccountPage() {
 
           if (verificationResponse.ok) {
             const verificationResult = await verificationResponse.json();
-            console.log('Verification data received:', verificationResult.data);
-            setVerificationData(verificationResult.data);
+            if (verificationResult.success && verificationResult.data) {
+              setVerificationData(verificationResult.data);
+            }
           } else {
-            console.error('Failed to fetch verification data:', verificationResponse.status);
+            // Fallback: create verification data from user data
+            if (userData.identityVerified || userData.veriffStatus) {
+              const fallbackVerificationData = {
+                sessionId: userData.veriffSessionId,
+                verificationId: userData.veriffVerificationId,
+                status: userData.veriffStatus || 'approved',
+                code: userData.veriffCode,
+                action: userData.veriffWebhookData?.action,
+                feature: userData.veriffFeature,
+                attemptId: userData.veriffAttemptId,
+                reason: userData.veriffReason,
+                
+                person: {
+                  givenName: userData.veriffPersonGivenName,
+                  lastName: userData.veriffPersonLastName,
+                  idNumber: userData.veriffPersonIdNumber,
+                  dateOfBirth: userData.veriffPersonDateOfBirth,
+                  nationality: userData.veriffPersonNationality,
+                  gender: userData.veriffPersonGender,
+                  country: userData.veriffPersonCountry,
+                  address: userData.veriffWebhookData?.person?.address || userData.address,
+                  city: userData.veriffWebhookData?.person?.city || userData.city,
+                },
+                
+                document: {
+                  type: userData.veriffDocumentType,
+                  number: userData.veriffDocumentNumber,
+                  country: userData.veriffDocumentCountry,
+                  validFrom: userData.veriffDocumentValidFrom,
+                  validUntil: userData.veriffDocumentValidUntil,
+                  issuedBy: userData.veriffDocumentIssuedBy,
+                },
+                
+                faceMatchSimilarity: userData.veriffFaceMatchSimilarity,
+                faceMatchStatus: userData.veriffFaceMatchStatus,
+                decisionScore: userData.veriffDecisionScore,
+                qualityScore: userData.veriffQualityScore,
+                flags: userData.veriffFlags,
+                context: userData.veriffContext,
+                
+                createdAt: userData.veriffCreatedAt,
+                updatedAt: userData.veriffUpdatedAt,
+                submittedAt: userData.veriffSubmittedAt,
+                approvedAt: userData.veriffApprovedAt,
+                declinedAt: userData.veriffDeclinedAt,
+                webhookReceivedAt: userData.veriffWebhookReceivedAt,
+                
+                webhookData: userData.veriffWebhookData,
+                
+                isVerified: userData.identityVerified,
+                identityVerifiedAt: userData.veriffApprovedAt,
+              };
+              
+              setVerificationData(fallbackVerificationData);
+            }
           }
+
+          // Fetch pilot documents data
+          await fetchPilotData();
         }
       } catch (error) {
         console.error('Failed to fetch user data:', error);
@@ -500,7 +594,7 @@ export default function MyAccountPage() {
                 {user.status === 'ACTIVE' ? 'Active' : user.status}
               </Badge>
               <p className="text-sm text-muted-foreground">
-                Member since {new Date(user.createdAt).toLocaleDateString()}
+                Member since {formatDate(user.createdAt)}
               </p>
             </div>
           </div>
@@ -558,6 +652,10 @@ export default function MyAccountPage() {
                 <div>
                   <label className="text-sm font-medium">Phone</label>
                   <p className="text-sm text-muted-foreground">{user.phone || 'Not provided'}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Member Since</label>
+                  <p className="text-sm text-muted-foreground">{formatDate(user.createdAt)}</p>
                 </div>
               </div>
             </CardContent>
@@ -698,388 +796,119 @@ export default function MyAccountPage() {
 
         {/* Verification Tab */}
         <TabsContent value="verification" className="space-y-6">
-
-          {/* Personal Information */}
-          {(verificationData?.person?.givenName || user.veriffPersonGivenName) && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="h-5 w-5" />
-                  Verified Personal Information
-                </CardTitle>
-                <CardDescription>
-                  Information extracted and verified from your identity document
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Full Name</label>
-                    <p className="text-lg font-semibold">
-                      {verificationData?.person?.givenName || user.veriffPersonGivenName} {verificationData?.person?.lastName || user.veriffPersonLastName}
-                    </p>
-                  </div>
-                  {(verificationData?.person?.dateOfBirth || user.veriffPersonDateOfBirth) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Date of Birth</label>
-                      <p className="text-lg">{formatDate(verificationData?.person?.dateOfBirth || user.veriffPersonDateOfBirth)}</p>
-                    </div>
-                  )}
-                  {(verificationData?.person?.idNumber || user.veriffPersonIdNumber) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">ID Number</label>
-                      <p className="text-lg font-mono">{verificationData?.person?.idNumber || user.veriffPersonIdNumber}</p>
-                    </div>
-                  )}
-                  {(verificationData?.person?.nationality || user.veriffPersonNationality) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Nationality</label>
-                      <p className="text-lg">{verificationData?.person?.nationality || user.veriffPersonNationality}</p>
-                    </div>
-                  )}
-                  {(verificationData?.person?.gender || user.veriffPersonGender) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Gender</label>
-                      <p className="text-lg">{verificationData?.person?.gender || user.veriffPersonGender}</p>
-                    </div>
-                  )}
-                  {(verificationData?.person?.country || user.veriffPersonCountry) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Country</label>
-                      <p className="text-lg">{verificationData?.person?.country || user.veriffPersonCountry}</p>
-                    </div>
-                  )}
-                  {(verificationData?.person?.address || user.address) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Address</label>
-                      <p className="text-lg">{verificationData?.person?.address || user.address}</p>
-                    </div>
-                  )}
-                  {(verificationData?.person?.city || user.city) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">City</label>
-                      <p className="text-lg">{verificationData?.person?.city || user.city}</p>
-                    </div>
-                  )}
-
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          
-          {/* Document Information */}
-          {(verificationData?.document?.type || user.veriffDocumentType) && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Identity Document Details
-                </CardTitle>
-                <CardDescription>
-                  Details about the identity document used for verification
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Document Type</label>
-                    <p className="text-lg font-semibold">
-                      {verificationData?.document?.type || user.veriffDocumentType}
-                    </p>
-                  </div>
-                  {(verificationData?.document?.number || user.veriffDocumentNumber) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Document Number</label>
-                      <p className="text-lg font-mono">{verificationData?.document?.number || user.veriffDocumentNumber}</p>
-                    </div>
-                  )}
-                  {(verificationData?.document?.country || user.veriffDocumentCountry) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Issuing Country</label>
-                      <p className="text-lg">{verificationData?.document?.country || user.veriffDocumentCountry}</p>
-                    </div>
-                  )}
-                  {(verificationData?.document?.issuedBy || user.veriffDocumentIssuedBy) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Issued By</label>
-                      <p className="text-lg">{verificationData?.document?.issuedBy || user.veriffDocumentIssuedBy}</p>
-                    </div>
-                  )}
-                  {(verificationData?.document?.validFrom || user.veriffDocumentValidFrom) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Valid From</label>
-                      <p className="text-lg">{formatDate(verificationData?.document?.validFrom || user.veriffDocumentValidFrom)}</p>
-                    </div>
-                  )}
-                  {(verificationData?.document?.validUntil || user.veriffDocumentValidUntil) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Valid Until</label>
-                      <p className="text-lg">{formatDate(verificationData?.document?.validUntil || user.veriffDocumentValidUntil)}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Verification Results */}
-          {(verificationData?.faceMatchStatus || user.veriffFaceMatchStatus || verificationData?.decisionScore || user.veriffDecisionScore) && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Award className="h-5 w-5" />
-                  Verification Results
-                </CardTitle>
-                <CardDescription>
-                  AI-powered verification confidence scores and biometric results
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {(verificationData?.faceMatchStatus || user.veriffFaceMatchStatus) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Face Match Status</label>
-                      <div className="flex items-center gap-2">
-                        {getStatusIcon(verificationData?.faceMatchStatus || user.veriffFaceMatchStatus)}
-                        <p className="text-lg font-semibold">
-                          {verificationData?.faceMatchStatus || user.veriffFaceMatchStatus}
+          {verificationData && verificationData.isVerified ? (
+            <EnhancedVerificationDisplay verificationData={verificationData} />
+          ) : (
+            <div className="space-y-6">
+              {/* Verification Status Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-gray-400" />
+                    Identity Verification Status
+                  </CardTitle>
+                  <CardDescription>
+                    Verify your identity to access all platform features
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Shield className="h-8 w-8 text-gray-400" />
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900">Not Verified</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Your identity has not been verified yet
                         </p>
                       </div>
                     </div>
-                  )}
-                  {(verificationData?.faceMatchSimilarity || user.veriffFaceMatchSimilarity) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Face Match Similarity</label>
-                      <p className="text-lg font-semibold">
-                        {formatScore(verificationData?.faceMatchSimilarity || user.veriffFaceMatchSimilarity)}
-                      </p>
-                    </div>
-                  )}
-                  {(verificationData?.decisionScore || user.veriffDecisionScore) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Decision Score</label>
-                      <p className="text-lg font-semibold">
-                        {formatScore(verificationData?.decisionScore || user.veriffDecisionScore)}
-                      </p>
-                    </div>
-                  )}
-                  {(verificationData?.qualityScore || user.veriffQualityScore) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Quality Score</label>
-                      <p className="text-lg font-semibold">
-                        {verificationData?.qualityScore || user.veriffQualityScore}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                    <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                      Verification Required
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
 
-          {/* Verification Timeline */}
-          {(verificationData?.createdAt || verificationData?.submittedAt || verificationData?.approvedAt || user.veriffCreatedAt || user.veriffSubmittedAt || user.veriffApprovedAt) && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="h-5 w-5" />
-                  Verification Timeline
-                </CardTitle>
-                <CardDescription>
-                  Timeline of your verification process
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {(verificationData?.createdAt || user.veriffCreatedAt) && (
-                    <div className="flex items-center gap-3">
-                      <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+              {/* Start Verification Card */}
+              <Card className="border-2 border-dashed border-blue-200 bg-blue-50/30">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-blue-800">
+                    <ShieldCheck className="h-5 w-5" />
+                    Start Identity Verification
+                  </CardTitle>
+                  <CardDescription className="text-blue-700">
+                    Complete your identity verification to unlock all platform features
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="bg-white p-4 rounded-lg border border-blue-200">
+                    <h4 className="font-medium text-gray-900 mb-2">What you'll need:</h4>
+                    <ul className="text-sm text-gray-600 space-y-1">
+                      <li>• Government-issued ID (passport or national ID card)</li>
+                      <li>• Device with camera for photo capture</li>
+                      <li>• Good lighting for clear document photos</li>
+                      <li>• Stable internet connection</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="flex items-center gap-4">
+                    <VeriffVerification
+                      userId={user.id}
+                      userData={{
+                        firstName: user.firstName,
+                        lastName: user.lastName,
+                        email: user.email,
+                      }}
+                      onStatusChange={(status) => {
+                        console.log('Verification status changed to:', status);
+                      }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Benefits Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-600" />
+                    Benefits of Verification
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="h-4 w-4 text-green-600 mt-0.5" />
                       <div>
-                        <p className="font-medium">Verification Created</p>
-                        <p className="text-sm text-muted-foreground">{formatDate(verificationData?.createdAt || user.veriffCreatedAt)}</p>
+                        <h4 className="font-medium text-gray-900">Full Platform Access</h4>
+                        <p className="text-sm text-muted-foreground">Access all features and services</p>
                       </div>
                     </div>
-                  )}
-                  {(verificationData?.submittedAt || user.veriffSubmittedAt) && (
-                    <div className="flex items-center gap-3">
-                      <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="h-4 w-4 text-green-600 mt-0.5" />
                       <div>
-                        <p className="font-medium">Document Submitted</p>
-                        <p className="text-sm text-muted-foreground">{formatDate(verificationData?.submittedAt || user.veriffSubmittedAt)}</p>
+                        <h4 className="font-medium text-gray-900">Enhanced Security</h4>
+                        <p className="text-sm text-muted-foreground">Protect your account with verified identity</p>
                       </div>
                     </div>
-                  )}
-                  {(verificationData?.approvedAt || user.veriffApprovedAt) && (
-                    <div className="flex items-center gap-3">
-                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="h-4 w-4 text-green-600 mt-0.5" />
                       <div>
-                        <p className="font-medium">Verification Approved</p>
-                        <p className="text-sm text-muted-foreground">{formatDate(verificationData?.approvedAt || user.veriffApprovedAt)}</p>
+                        <h4 className="font-medium text-gray-900">Faster Processing</h4>
+                        <p className="text-sm text-muted-foreground">Expedited service for verified users</p>
                       </div>
                     </div>
-                  )}
-                  {(verificationData?.webhookReceivedAt || user.veriffWebhookReceivedAt) && (
-                    <div className="flex items-center gap-3">
-                      <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                    <div className="flex items-start gap-3">
+                      <CheckCircle className="h-4 w-4 text-green-600 mt-0.5" />
                       <div>
-                        <p className="font-medium">Data Processed</p>
-                        <p className="text-sm text-muted-foreground">{formatDate(verificationData?.webhookReceivedAt || user.veriffWebhookReceivedAt)}</p>
+                        <h4 className="font-medium text-gray-900">Compliance Ready</h4>
+                        <p className="text-sm text-muted-foreground">Meet regulatory requirements</p>
                       </div>
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Technical Details (Collapsible) */}
-          {(verificationData?.sessionId || user.veriffSessionId || verificationData?.feature || user.veriffFeature) && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Database className="h-5 w-5" />
-                  Technical Details
-                </CardTitle>
-                <CardDescription>
-                  Technical information about your verification session
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {(verificationData?.feature || user.veriffFeature) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Verification Method</label>
-                      <p className="text-lg">{verificationData?.feature || user.veriffFeature}</p>
-                    </div>
-                  )}
-                  {(verificationData?.sessionId || user.veriffSessionId) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Session ID</label>
-                      <p className="text-sm font-mono bg-gray-100 p-2 rounded">
-                        {verificationData?.sessionId || user.veriffSessionId}
-                      </p>
-                    </div>
-                  )}
-                  {(verificationData?.verificationId || user.veriffVerificationId) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Verification ID</label>
-                      <p className="text-sm font-mono bg-gray-100 p-2 rounded">
-                        {verificationData?.verificationId || user.veriffVerificationId}
-                      </p>
-                    </div>
-                  )}
-                  {(verificationData?.code || user.veriffCode) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Response Code</label>
-                      <p className="text-lg">{verificationData?.code || user.veriffCode}</p>
-                    </div>
-                  )}
-                  {(verificationData?.attemptId || user.veriffAttemptId) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Attempt ID</label>
-                      <p className="text-sm font-mono bg-gray-100 p-2 rounded">
-                        {verificationData?.attemptId || user.veriffAttemptId}
-                      </p>
-                    </div>
-                  )}
-                  {(verificationData?.reason || user.veriffReason) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Reason</label>
-                      <p className="text-lg">{verificationData?.reason || user.veriffReason}</p>
-                    </div>
-                  )}
-                  {(verificationData?.action || user.veriffWebhookData?.action) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Action</label>
-                      <p className="text-lg">{verificationData?.action || user.veriffWebhookData?.action}</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Verification Quality & Flags */}
-          {(verificationData?.qualityScore || user.veriffQualityScore || verificationData?.flags || user.veriffFlags || verificationData?.context || user.veriffContext) && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5" />
-                  Verification Quality & Analysis
-                </CardTitle>
-                <CardDescription>
-                  AI analysis results and quality assessment of your verification
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {(verificationData?.qualityScore || user.veriffQualityScore) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Quality Score</label>
-                      <p className="text-lg font-semibold">{verificationData?.qualityScore || user.veriffQualityScore}</p>
-                    </div>
-                  )}
-                  {(verificationData?.context || user.veriffContext) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Context</label>
-                      <p className="text-lg">{verificationData?.context || user.veriffContext}</p>
-                    </div>
-                  )}
-                  {(verificationData?.flags || user.veriffFlags) && (
-                    <div className="md:col-span-2">
-                      <label className="text-sm font-medium text-muted-foreground">Flags</label>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {(verificationData?.flags || user.veriffFlags)?.map((flag: string, index: number) => (
-                          <Badge key={index} variant="outline" className="text-xs">
-                            {flag}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Raw Webhook Data (Development Only) */}
-          {process.env.NODE_ENV === 'development' && verificationData?.webhookData && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="h-5 w-5" />
-                  Raw Webhook Data (Development)
-                </CardTitle>
-                <CardDescription>
-                  Complete webhook payload received from Veriff
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="bg-gray-100 p-4 rounded-lg">
-                  <pre className="text-xs overflow-auto max-h-96">
-                    {JSON.stringify(verificationData.webhookData, null, 2)}
-                  </pre>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Start Verification (Only if not verified) */}
-          {!user.identityVerified && !verificationData?.isVerified && (
-            <VeriffVerification
-              userId={user.id}
-              userData={{
-                firstName: user.firstName,
-                lastName: user.lastName,
-                email: user.email,
-              }}
-              onStatusChange={(status) => {
-                if (status === 'approved') {
-                  setTimeout(() => {
-                    window.location.reload();
-                  }, 2000);
-                }
-              }}
-            />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           )}
         </TabsContent>
 
@@ -1104,23 +933,30 @@ export default function MyAccountPage() {
                     <div>
                       <h4 className="font-medium">Pilot License</h4>
                       <p className="text-sm text-muted-foreground">
-                        {user.licenseNumber ? `License #${user.licenseNumber}` : 'Not uploaded'}
+                        {pilotLicenses.length > 0 
+                          ? `${pilotLicenses[0].licenseType} - ${pilotLicenses[0].licenseNumber}`
+                          : 'Not uploaded'
+                        }
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    {user.licenseNumber ? (
+                    {pilotLicenses.length > 0 ? (
                       <>
                         <Badge variant="default">Uploaded</Badge>
-                        <Button variant="ghost" size="sm">
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        <PilotLicenseUpload 
+                          existingLicense={pilotLicenses[0]}
+                          onLicenseUploaded={(license) => {
+                            setPilotLicenses([license, ...pilotLicenses.filter(l => l.id !== license.id)]);
+                          }}
+                        />
                       </>
                     ) : (
-                      <Button variant="outline" size="sm">
-                        <Upload className="h-4 w-4 mr-2" />
-                        Upload
-                      </Button>
+                      <PilotLicenseUpload 
+                        onLicenseUploaded={(license) => {
+                          setPilotLicenses([license, ...pilotLicenses]);
+                        }}
+                      />
                     )}
                   </div>
                 </div>

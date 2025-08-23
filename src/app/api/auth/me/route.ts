@@ -17,6 +17,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
+    // Check if this is an impersonation token
+    const isImpersonation = AuthService.isImpersonationToken(token);
+    const originalUserId = AuthService.getOriginalUserId(token);
+    
+    console.log('🔍 /api/auth/me - Token info:', {
+      userId: decoded.userId,
+      isImpersonation,
+      originalUserId,
+      tokenPreview: token.substring(0, 20) + '...'
+    });
+
     const supabase = getSupabaseClient();
     if (!supabase) {
       return NextResponse.json({ error: 'Database connection error' }, { status: 500 });
@@ -43,6 +54,42 @@ export async function GET(request: NextRequest) {
         "personalNumber",
         "veriffPersonIdNumber",
         "identityVerified",
+        "identityVerifiedAt",
+        "veriffSessionId",
+        "veriffVerificationId",
+        "veriffStatus",
+        "veriffPersonGivenName",
+        "veriffPersonLastName",
+        "veriffPersonIdNumber",
+        "veriffPersonDateOfBirth",
+        "veriffPersonNationality",
+        "veriffPersonGender",
+        "veriffPersonCountry",
+        "veriffDocumentType",
+        "veriffDocumentNumber",
+        "veriffDocumentCountry",
+        "veriffDocumentValidFrom",
+        "veriffDocumentValidUntil",
+        "veriffDocumentIssuedBy",
+        "veriffFaceMatchSimilarity",
+        "veriffFaceMatchStatus",
+        "veriffDecisionScore",
+        "veriffQualityScore",
+        "veriffFlags",
+        "veriffContext",
+        "veriffAttemptId",
+        "veriffFeature",
+        "veriffCode",
+        "veriffReason",
+        "veriffCreatedAt",
+        "veriffUpdatedAt",
+        "veriffSubmittedAt",
+        "veriffApprovedAt",
+        "veriffDeclinedAt",
+        "veriffWebhookReceivedAt",
+        "veriffWebhookData",
+        address,
+        city,
         user_roles (
           roles (
             name
@@ -91,6 +138,46 @@ export async function GET(request: NextRequest) {
       personalNumber: user.personalNumber,
       veriffPersonIdNumber: user.veriffPersonIdNumber,
       identityVerified: user.identityVerified || false,
+      identityVerifiedAt: user.identityVerifiedAt,
+      // All verification fields
+      veriffSessionId: user.veriffSessionId,
+      veriffVerificationId: user.veriffVerificationId,
+      veriffStatus: user.veriffStatus,
+      veriffPersonGivenName: user.veriffPersonGivenName,
+      veriffPersonLastName: user.veriffPersonLastName,
+      veriffPersonIdNumber: user.veriffPersonIdNumber,
+      veriffPersonDateOfBirth: user.veriffPersonDateOfBirth,
+      veriffPersonNationality: user.veriffPersonNationality,
+      veriffPersonGender: user.veriffPersonGender,
+      veriffPersonCountry: user.veriffPersonCountry,
+      veriffDocumentType: user.veriffDocumentType,
+      veriffDocumentNumber: user.veriffDocumentNumber,
+      veriffDocumentCountry: user.veriffDocumentCountry,
+      veriffDocumentValidFrom: user.veriffDocumentValidFrom,
+      veriffDocumentValidUntil: user.veriffDocumentValidUntil,
+      veriffDocumentIssuedBy: user.veriffDocumentIssuedBy,
+      veriffFaceMatchSimilarity: user.veriffFaceMatchSimilarity,
+      veriffFaceMatchStatus: user.veriffFaceMatchStatus,
+      veriffDecisionScore: user.veriffDecisionScore,
+      veriffQualityScore: user.veriffQualityScore,
+      veriffFlags: user.veriffFlags,
+      veriffContext: user.veriffContext,
+      veriffAttemptId: user.veriffAttemptId,
+      veriffFeature: user.veriffFeature,
+      veriffCode: user.veriffCode,
+      veriffReason: user.veriffReason,
+      veriffCreatedAt: user.veriffCreatedAt,
+      veriffUpdatedAt: user.veriffUpdatedAt,
+      veriffSubmittedAt: user.veriffSubmittedAt,
+      veriffApprovedAt: user.veriffApprovedAt,
+      veriffDeclinedAt: user.veriffDeclinedAt,
+      veriffWebhookReceivedAt: user.veriffWebhookReceivedAt,
+      veriffWebhookData: user.veriffWebhookData,
+      address: user.address,
+      city: user.city,
+      // Impersonation data
+      isImpersonation,
+      originalUserId,
       // Normalized address data
       normalizedAddress: normalizedAddress ? {
         streetAddress: normalizedAddress.street_address,

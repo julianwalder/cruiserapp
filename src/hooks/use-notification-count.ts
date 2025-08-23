@@ -7,7 +7,10 @@ export function useNotificationCount() {
   useEffect(() => {
     const fetchNotificationCount = async () => {
       try {
-        const token = localStorage.getItem('token');
+        // Check for impersonation token first, then fall back to regular token
+        const impersonationToken = localStorage.getItem('impersonationToken');
+        const token = impersonationToken || localStorage.getItem('token');
+        
         if (!token) {
           setCount(0);
           setLoading(false);

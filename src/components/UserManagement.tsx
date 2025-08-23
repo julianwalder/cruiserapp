@@ -391,6 +391,56 @@ export default function UserManagement() {
     }
   };
 
+  const handleImpersonateUser = async (userId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/users/${userId}/impersonate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to impersonate user');
+      }
+
+      const result = await response.json();
+      
+      // Store the impersonation token
+      localStorage.setItem('impersonationToken', result.impersonationToken);
+      localStorage.setItem('originalToken', token || '');
+      
+      console.log('🔍 Impersonation - Stored tokens:', {
+        impersonationToken: result.impersonationToken ? 'present' : 'missing',
+        originalToken: token ? 'present' : 'missing'
+      });
+      
+      // Show success toast
+      toast.success('Impersonation started!', {
+        description: `You are now impersonating ${result.targetUser.firstName} ${result.targetUser.lastName}.`,
+        duration: 3000,
+      });
+
+      // Dispatch auth-change event to notify other components
+      window.dispatchEvent(new Event('auth-change'));
+
+      // Reload the page to apply the impersonation
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
+      setError(errorMessage);
+      toast.error('Failed to impersonate user', {
+        description: errorMessage,
+        duration: 4000,
+      });
+    }
+  };
+
   const handleDeleteUser = async (userId: string) => {
     setUserToDelete(users.find(u => u.id === userId) || null);
     setDeleteConfirmOpen(true);
@@ -610,7 +660,9 @@ export default function UserManagement() {
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
-        const token = localStorage.getItem('token');
+        // Check for impersonation token first, then fall back to regular token
+        const impersonationToken = localStorage.getItem('impersonationToken');
+        const token = impersonationToken || localStorage.getItem('token');
         const response = await fetch('/api/auth/me', {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -1121,6 +1173,11 @@ export default function UserManagement() {
                               }}>
                                 <Edit className="h-4 w-4 mr-2" /> Edit User
                               </DropdownMenuItem>
+                              {isSuperAdmin && (
+                                <DropdownMenuItem onClick={() => handleImpersonateUser(user.id)}>
+                                  <UserIcon className="h-4 w-4 mr-2" /> Impersonate
+                                </DropdownMenuItem>
+                              )}
                               {user.roles.includes('PROSPECT') && (
                                 <DropdownMenuItem onClick={() => openUpgradeDialog(user)}>
                                   <UserCheck className="h-4 w-4 mr-2" /> Upgrade Role

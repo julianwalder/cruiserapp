@@ -42,12 +42,25 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const token = localStorage.getItem('token');
+        // Check for impersonation token first, then fall back to regular token
+        const impersonationToken = localStorage.getItem('impersonationToken');
+        const token = impersonationToken || localStorage.getItem('token');
+        
+        console.log('🔍 AppLayout - Token check:', {
+          hasImpersonationToken: !!impersonationToken,
+          hasRegularToken: !!localStorage.getItem('token'),
+          usingImpersonationToken: !!impersonationToken,
+          impersonationTokenPreview: impersonationToken ? impersonationToken.substring(0, 20) + '...' : 'none',
+          regularTokenPreview: localStorage.getItem('token') ? localStorage.getItem('token')?.substring(0, 20) + '...' : 'none'
+        });
+        
         if (!token) {
           router.push('/login');
           return;
         }
 
+        console.log('🔍 AppLayout - Making /api/auth/me request with token:', token.substring(0, 20) + '...');
+        
         const response = await fetch('/api/auth/me', {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -76,6 +89,8 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('impersonationToken');
+    localStorage.removeItem('originalToken');
     
     // Clear cookie for middleware
     document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict';

@@ -19,8 +19,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { VeriffIDVResults } from './veriff-idv-results';
-import { VeriffWebhookStatus } from './veriff-webhook-status';
+import { useVeriffData } from '@/hooks/use-veriff-data';
 
 interface VeriffVerificationProps {
   userId: string;
@@ -33,15 +32,7 @@ interface VeriffVerificationProps {
   className?: string;
 }
 
-interface VeriffStatus {
-  isVerified: boolean;
-  sessionId?: string;
-  sessionUrl?: string;
-  veriffStatus?: string;
-  veriffData?: any;
-  needsVerification: boolean;
-  needsNewSession?: boolean;
-}
+
 
 export function VeriffVerification({ 
   userId, 
@@ -49,16 +40,30 @@ export function VeriffVerification({
   onStatusChange,
   className 
 }: VeriffVerificationProps) {
-  const [status, setStatus] = useState<VeriffStatus | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [creatingSession, setCreatingSession] = useState(false);
-  const [sessionUrl, setSessionUrl] = useState<string | null>(null);
 
-  // Fetch current status on mount and check for URL parameters
+  // Use the new robust Veriff data hook
+  const {
+    veriffData,
+    veriffStatus,
+    loading,
+    error,
+    fetchVerificationData,
+    fetchVeriffStatus,
+    createVerificationSession: hookCreateSession,
+    refresh,
+    isVerified,
+    needsVerification,
+    hasSession,
+    sessionUrl,
+    status: veriffStatusString,
+    getStatusText: hookGetStatusText,
+    getStatusColor: hookGetStatusColor
+  } = useVeriffData(userId);
+
+  const [creatingSession, setCreatingSession] = useState(false);
+
+  // Check for URL parameters indicating verification completion
   useEffect(() => {
-    fetchStatus();
-    
-    // Check for URL parameters indicating verification completion
     const urlParams = new URLSearchParams(window.location.search);
     const veriffStatus = urlParams.get('veriff_status');
     const sessionId = urlParams.get('session_id');
@@ -71,7 +76,7 @@ export function VeriffVerification({
       
       // Refresh status multiple times to ensure we get the updated status
       const refreshStatus = () => {
-        fetchStatus();
+        refresh();
       };
       
       // Refresh immediately, then after 2s, 5s, and 10s to catch webhook updates
@@ -86,91 +91,21 @@ export function VeriffVerification({
       newUrl.searchParams.delete('session_id');
       window.history.replaceState({}, '', newUrl.toString());
     }
-  }, [userId]);
+  }, [refresh]);
 
-  const fetchStatus = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        toast.error('Authentication required');
-        return;
-      }
-
-      console.log('Fetching Veriff status...');
-      const response = await fetch('/api/veriff/status', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Veriff status response:', data);
-        setStatus(data.status);
-        
-        // If there's a session URL, set it
-        if (data.status.sessionUrl) {
-          setSessionUrl(data.status.sessionUrl);
-        } else if (data.status.sessionId && data.status.veriffStatus === 'created') {
-          // Fallback: construct the URL from session ID if sessionUrl is not available
-          const sessionUrl = `https://magic.veriff.me/v/${data.status.sessionId}`;
-          setSessionUrl(sessionUrl);
-        }
-        
-        onStatusChange?.(data.status.veriffStatus || 'none');
-        toast.success('Status updated');
-      } else {
-        const error = await response.json();
-        console.error('Veriff status error:', error);
-        toast.error(error.error || 'Failed to fetch verification status');
-      }
-    } catch (error) {
-      console.error('Error fetching Veriff status:', error);
-      toast.error('Failed to fetch verification status');
-    } finally {
-      setLoading(false);
+  // Notify parent component of status changes
+  useEffect(() => {
+    if (veriffStatusString) {
+      onStatusChange?.(veriffStatusString);
     }
-  };
+  }, [veriffStatusString, onStatusChange]);
 
-  const createVerificationSession = async () => {
+  const handleCreateVerificationSession = async () => {
     setCreatingSession(true);
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        toast.error('Authentication required');
-        return;
-      }
-
-      const response = await fetch('/api/veriff/create-session', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(userData),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setSessionUrl(data.session.url);
-        setStatus(prev => prev ? {
-          ...prev,
-          sessionId: data.session.id,
-          veriffStatus: 'created',
-        } : null);
+      const session = await hookCreateSession(userData);
+      if (session) {
         toast.success('Verification session created successfully');
-      } else {
-        if (data.status === 'verified') {
-          toast.info('You are already verified');
-          fetchStatus(); // Refresh status
-        } else if (data.status === 'pending') {
-          toast.info('Verification session already exists');
-          // You might want to redirect to the existing session
-        } else {
-          toast.error(data.error || 'Failed to create verification session');
-        }
       }
     } catch (error) {
       console.error('Error creating Veriff session:', error);
@@ -187,38 +122,38 @@ export function VeriffVerification({
   };
 
   const getStatusIcon = () => {
-    if (!status) return <Shield className="h-5 w-5" />;
+    if (!veriffStatus) return <Shield className="h-5 w-5 text-gray-400" />;
     
-    if (status.isVerified) return <ShieldCheck className="h-5 w-5 text-green-600" />;
-    if (status.veriffStatus === 'approved') return <CheckCircle className="h-5 w-5 text-green-600" />;
-    if (status.veriffStatus === 'declined') return <XCircle className="h-5 w-5 text-red-600" />;
-    if (status.veriffStatus === 'submitted') return <Clock className="h-5 w-5 text-amber-600" />;
-    if (status.veriffStatus === 'created') return <ShieldAlert className="h-5 w-5 text-blue-600" />;
+    if (isVerified) return <ShieldCheck className="h-5 w-5 text-green-600" />;
+    if (veriffStatusString === 'approved') return <CheckCircle className="h-5 w-5 text-green-600" />;
+    if (veriffStatusString === 'declined') return <XCircle className="h-5 w-5 text-red-600" />;
+    if (veriffStatusString === 'submitted') return <Clock className="h-5 w-5 text-amber-600" />;
+    if (veriffStatusString === 'created') return <ShieldAlert className="h-5 w-5 text-blue-600" />;
     
-    return <Shield className="h-5 w-5" />;
+    return <Shield className="h-5 w-5 text-gray-400" />;
   };
 
   const getStatusText = () => {
-    if (!status) return 'Unknown';
+    if (!veriffStatus) return 'Not Started';
     
-    if (status.isVerified) return 'Verified';
-    if (status.veriffStatus === 'approved') return 'Approved';
-    if (status.veriffStatus === 'declined') return 'Declined';
-    if (status.veriffStatus === 'submitted') return 'Under Review';
-    if (status.veriffStatus === 'created') return 'Session Created';
-    if (status.veriffStatus === 'abandoned') return 'Abandoned';
-    if (status.veriffStatus === 'expired') return 'Expired';
+    if (isVerified) return 'Verified';
+    if (veriffStatusString === 'approved') return 'Approved';
+    if (veriffStatusString === 'declined') return 'Declined';
+    if (veriffStatusString === 'submitted') return 'Under Review';
+    if (veriffStatusString === 'created') return 'Session Created';
+    if (veriffStatusString === 'abandoned') return 'Abandoned';
+    if (veriffStatusString === 'expired') return 'Expired';
     
     return 'Not Started';
   };
 
   const getStatusColor = () => {
-    if (!status) return 'outline';
+    if (!veriffStatus) return 'outline';
     
-    if (status.isVerified || status.veriffStatus === 'approved') return 'default';
-    if (status.veriffStatus === 'declined') return 'destructive';
-    if (status.veriffStatus === 'submitted') return 'secondary';
-    if (status.veriffStatus === 'created') return 'default';
+    if (isVerified || veriffStatusString === 'approved') return 'default';
+    if (veriffStatusString === 'declined') return 'destructive';
+    if (veriffStatusString === 'submitted') return 'secondary';
+    if (veriffStatusString === 'created') return 'default';
     
     return 'outline';
   };
@@ -255,13 +190,13 @@ export function VeriffVerification({
             </div>
             
             {/* Action Button in Header */}
-            {!status?.isVerified && (
+            {!isVerified && (
               <div>
                 {(() => {
-                  if (status?.needsNewSession) {
+                  if (veriffStatus?.needsNewSession) {
                     return (
                       <Button 
-                        onClick={createVerificationSession} 
+                        onClick={handleCreateVerificationSession} 
                         disabled={creatingSession}
                       >
                         {creatingSession ? (
@@ -279,10 +214,10 @@ export function VeriffVerification({
                     );
                   }
                   
-                  if (!status?.sessionId) {
+                  if (!hasSession) {
                     return (
                       <Button 
-                        onClick={createVerificationSession} 
+                        onClick={handleCreateVerificationSession} 
                         disabled={creatingSession}
                       >
                         {creatingSession ? (
@@ -298,19 +233,49 @@ export function VeriffVerification({
                         )}
                       </Button>
                     );
-                  } else if (status?.veriffStatus === 'created' && sessionUrl) {
-                    return (
-                      <Button 
-                        onClick={openVerificationSession}
-                      >
-                        <ExternalLink className="h-4 w-4 mr-2" />
-                        Continue Verification
-                      </Button>
-                    );
+                  } else if (veriffStatusString === 'created') {
+                    if (sessionUrl) {
+                      return (
+                        <Button 
+                          onClick={openVerificationSession}
+                        >
+                          <ExternalLink className="h-4 w-4 mr-2" />
+                          Continue Verification
+                        </Button>
+                      );
+                    } else {
+                      return (
+                        <div className="flex gap-2">
+                          <Button 
+                            onClick={handleCreateVerificationSession}
+                            disabled={creatingSession}
+                          >
+                            {creatingSession ? (
+                              <>
+                                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                Creating New Session...
+                              </>
+                            ) : (
+                              <>
+                                <Shield className="h-4 w-4 mr-2" />
+                                Start New Verification
+                              </>
+                            )}
+                          </Button>
+                          <Button 
+                            onClick={refresh}
+                            variant="outline"
+                          >
+                            <RefreshCw className="h-4 w-4 mr-2" />
+                            Check Status
+                          </Button>
+                        </div>
+                      );
+                    }
                   } else {
                     return (
                       <Button 
-                        onClick={fetchStatus}
+                        onClick={refresh}
                         variant="outline"
                       >
                         <RefreshCw className="h-4 w-4 mr-2" />
@@ -327,29 +292,40 @@ export function VeriffVerification({
       <CardContent className="space-y-4">
 
         {/* Verification Details */}
-        {status?.veriffData && (
+        {veriffData && (
           <div className="space-y-2">
             <h4 className="text-sm font-medium">Verification Details:</h4>
             <div className="text-xs text-muted-foreground space-y-1">
-              <div>Document: {status.veriffData.document?.type} - {status.veriffData.document?.number}</div>
-              <div>Country: {status.veriffData.document?.country}</div>
-              {status.veriffData.additionalVerification?.faceMatch && (
-                <div>Face Match: {status.veriffData.additionalVerification.faceMatch.status}</div>
+              <div>Document: {veriffData.document?.type} - {veriffData.document?.number}</div>
+              <div>Country: {veriffData.document?.country}</div>
+              {veriffData.faceMatchStatus && (
+                <div>Face Match: {veriffData.faceMatchStatus}</div>
               )}
             </div>
           </div>
         )}
 
-        {/* Information Alert */}
-        <Alert className="bg-blue-50 border-blue-200">
-          <Info className="h-4 w-4 text-blue-600" />
-          <AlertDescription className="text-blue-700">
-            You'll need a government-issued ID (passport or national ID) and a device with a camera to complete the verification.
-          </AlertDescription>
-        </Alert>
+        {/* Information Alert - Only show when not verified */}
+        {!isVerified && veriffStatusString !== 'approved' && (
+          <Alert className="bg-blue-50 border-blue-200">
+            <Info className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-700">
+              You'll need a government-issued ID (passport or national ID) and a device with a camera to complete the verification.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Status-specific messages */}
-        {status?.veriffStatus === 'declined' && (
+        {veriffStatusString === 'created' && (
+          <Alert className="bg-amber-50 border-amber-200">
+            <Clock className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-amber-700">
+              A verification session was created but may have expired. You can start a new verification session or check if your previous session is still active.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {veriffStatusString === 'declined' && (
           <Alert variant="destructive">
             <XCircle className="h-4 w-4" />
             <AlertDescription>
@@ -358,7 +334,7 @@ export function VeriffVerification({
           </Alert>
         )}
 
-        {status?.veriffStatus === 'submitted' && (
+        {veriffStatusString === 'submitted' && (
           <Alert>
             <Clock className="h-4 w-4" />
             <AlertDescription>
@@ -367,7 +343,7 @@ export function VeriffVerification({
           </Alert>
         )}
 
-        {status?.isVerified && (
+        {isVerified && (
           <Alert>
             <CheckCircle className="h-4 w-4" />
             <AlertDescription>
@@ -378,33 +354,8 @@ export function VeriffVerification({
       </CardContent>
     </Card>
 
-    {/* Webhook Status */}
-    {status?.veriffData && (
-      <div className="mt-6">
-        <VeriffWebhookStatus veriffData={status.veriffData} />
-      </div>
-    )}
-    
-    {/* Debug Info */}
-    {process.env.NODE_ENV === 'development' && (
-      <div className="mt-4 p-4 bg-gray-100 rounded-lg text-xs">
-        <h4 className="font-bold mb-2">Debug Info:</h4>
-        <pre>{JSON.stringify({
-          hasVeriffData: !!status?.veriffData,
-          veriffDataKeys: status?.veriffData ? Object.keys(status.veriffData) : [],
-          sessionId: status?.veriffData?.sessionId,
-          status: status?.veriffStatus,
-          isVerified: status?.isVerified
-        }, null, 2)}</pre>
-      </div>
-    )}
 
-    {/* Full Auto IDV Results */}
-    {status?.isVerified && status?.veriffData && (
-      <div className="mt-6">
-        <VeriffIDVResults veriffData={status.veriffData} />
-      </div>
-    )}
+    
   </div>
   );
 } 

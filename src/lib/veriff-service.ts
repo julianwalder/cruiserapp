@@ -606,21 +606,22 @@ export class VeriffService {
       };
     }
 
-    // If user has no verification data, they need a new session
-    if (!user.veriffSessionId && !user.veriffVerificationId) {
-      return {
-        isVerified: false,
-        needsNewSession: true
-      };
-    }
-
-    // If user is already verified, return their status
+    // If user is already verified, return their status regardless of session ID
     if (user.identityVerified) {
+      console.log('User is already verified, returning verified status');
       return {
         sessionId: user.veriffSessionId,
         veriffStatus: user.veriffStatus || 'approved',
         isVerified: true,
         veriffData: user.veriffWebhookData || user.veriffData
+      };
+    }
+
+    // If user has no verification data, they need a new session
+    if (!user.veriffSessionId && !user.veriffVerificationId) {
+      return {
+        isVerified: false,
+        needsNewSession: true
       };
     }
 
@@ -674,10 +675,35 @@ export class VeriffService {
         } else {
           console.warn(`Session API returned ${sessionResponse.status} for session: ${user.veriffSessionId}`);
           
-          // If session not found, clear expired session
+          // If session not found, clear expired session but preserve verification status
           if (sessionResponse.status === 404) {
             console.log('Session has expired, clearing from database');
             await this.clearExpiredSession(userId);
+            
+            // After clearing, check if user was previously verified
+            const { data: updatedUser, error: updatedUserError } = await supabase
+              .from('users')
+              .select('identityVerified, veriffWebhookData, veriffData')
+              .eq('id', userId)
+              .single();
+            
+            if (updatedUserError) {
+              console.error('Error fetching updated user data:', updatedUserError);
+              return {
+                isVerified: false,
+                needsNewSession: true
+              };
+            }
+            
+            if (updatedUser.identityVerified) {
+              console.log('User was previously verified, maintaining verification status');
+              return {
+                isVerified: true,
+                veriffStatus: 'approved',
+                veriffData: updatedUser.veriffWebhookData || updatedUser.veriffData
+              };
+            }
+            
             return {
               isVerified: false,
               needsNewSession: true
@@ -722,11 +748,36 @@ export class VeriffService {
       } catch (error) {
         console.error('Error getting verification details:', error);
         
-        // If verification not found, clear expired session
+        // If verification not found, clear expired session but preserve verification status
         const errorMessage = error instanceof Error ? error.message : String(error);
         if (errorMessage.includes('404') || errorMessage.includes('Session not found')) {
           console.log('Session has expired, clearing from database');
-        await this.clearExpiredSession(userId);
+          await this.clearExpiredSession(userId);
+          
+          // After clearing, check if user was previously verified
+          const { data: updatedUser, error: updatedUserError } = await supabase
+            .from('users')
+            .select('identityVerified, veriffWebhookData, veriffData')
+            .eq('id', userId)
+            .single();
+          
+          if (updatedUserError) {
+            console.error('Error fetching updated user data:', updatedUserError);
+            return {
+              isVerified: false,
+              needsNewSession: true
+            };
+          }
+          
+          if (updatedUser.identityVerified) {
+            console.log('User was previously verified, maintaining verification status');
+            return {
+              isVerified: true,
+              veriffStatus: 'approved',
+              veriffData: updatedUser.veriffWebhookData || updatedUser.veriffData
+            };
+          }
+          
           return {
             isVerified: false,
             needsNewSession: true

@@ -20,6 +20,9 @@ const ROUTE_ACCESS = {
     '/api/og/stats',
     '/api/version',
     '/api/ws',
+    '/api/veriff/callback',
+    '/api/veriff/webhook',
+    '/api/veriff/webhook-enhanced',
 
     '/invite',
   ],

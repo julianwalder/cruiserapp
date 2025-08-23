@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { 
@@ -11,7 +11,8 @@ import {
   Moon, 
   LogOut,
   Settings,
-  ChevronDown
+  ChevronDown,
+  Shield
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +42,8 @@ interface UserMenuProps {
       };
     }>;
     status: string;
+    isImpersonation?: boolean;
+    originalUserId?: string;
   } | null;
   onLogout: () => void;
   notificationCount?: number;
@@ -50,7 +53,15 @@ export function UserMenu({ user, onLogout, notificationCount = 0 }: UserMenuProp
   const router = useRouter();
   const { setTheme, theme } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
+  const [isImpersonating, setIsImpersonating] = useState(false);
   const { formatDate } = useDateFormatUtils();
+
+  // Check if user is being impersonated
+  useEffect(() => {
+    const impersonationToken = localStorage.getItem('impersonationToken');
+    const originalToken = localStorage.getItem('originalToken');
+    setIsImpersonating(!!(impersonationToken && originalToken));
+  }, []);
 
   if (!user) {
     return null;
@@ -64,6 +75,21 @@ export function UserMenu({ user, onLogout, notificationCount = 0 }: UserMenuProp
   const handleLogout = () => {
     onLogout();
     setIsOpen(false);
+  };
+
+  const handleStopImpersonation = () => {
+    // Restore original token
+    const originalToken = localStorage.getItem('originalToken');
+    if (originalToken) {
+      localStorage.setItem('token', originalToken);
+    }
+    
+    // Clear impersonation data
+    localStorage.removeItem('impersonationToken');
+    localStorage.removeItem('originalToken');
+    
+    // Reload the page to apply the change
+    window.location.reload();
   };
 
   const getInitials = (firstName: string, lastName: string) => {
@@ -148,6 +174,11 @@ export function UserMenu({ user, onLogout, notificationCount = 0 }: UserMenuProp
           <div className="flex flex-col">
             <span className="text-sm font-medium">
               {user.firstName} {user.lastName}
+              {user.isImpersonation && (
+                <Badge className="ml-2 text-xs bg-orange-100 text-orange-800 border-orange-200">
+                  IMPERSONATING
+                </Badge>
+              )}
             </span>
             <span className="text-xs text-muted-foreground">
               {user.email}
@@ -165,6 +196,16 @@ export function UserMenu({ user, onLogout, notificationCount = 0 }: UserMenuProp
           </div>
         </DropdownMenuLabel>
         <div className="h-px bg-gray-300 dark:bg-gray-600 my-2 mx-2" />
+        
+        {isImpersonating && (
+          <>
+            <DropdownMenuItem onClick={handleStopImpersonation} className="text-orange-600 dark:text-orange-400">
+              <Shield className="mr-2 h-4 w-4" />
+              <span>Stop Impersonation</span>
+            </DropdownMenuItem>
+            <div className="h-px bg-gray-300 dark:bg-gray-600 my-2 mx-2" />
+          </>
+        )}
         
         <DropdownMenuItem onClick={() => handleNavigate('/my-account')}>
           <User className="mr-2 h-4 w-4" />

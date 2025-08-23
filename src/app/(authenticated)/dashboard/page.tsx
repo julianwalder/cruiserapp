@@ -57,7 +57,9 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const token = localStorage.getItem('token');
+        // Check for impersonation token first, then fall back to regular token
+        const impersonationToken = localStorage.getItem('impersonationToken');
+        const token = impersonationToken || localStorage.getItem('token');
         if (!token) return;
 
         const response = await fetch('/api/auth/me', {

@@ -433,4 +433,58 @@ export class AuthService {
   static hasRole(userRoles: string[], roleName: string): boolean {
     return userRoles.includes(roleName);
   }
+
+  static createImpersonationToken(
+    targetUserId: string,
+    targetEmail: string,
+    targetFirstName: string,
+    targetLastName: string,
+    targetRoles: string[],
+    originalUserId: string
+  ): string {
+    const secret = process.env.JWT_SECRET!;
+    const expiresIn = '24h'; // Extended expiration for impersonation tokens
+    const now = Math.floor(Date.now() / 1000);
+    
+    // Generate unique JWT ID for token tracking
+    const jti = crypto.randomUUID();
+    
+    // Create impersonation payload
+    const impersonationPayload = {
+      userId: targetUserId,
+      email: targetEmail,
+      roles: targetRoles,
+      jti,
+      iss: 'cruiser-aviation',
+      aud: 'cruiser-app',
+      sub: targetUserId,
+      nbf: now,
+      iat: now,
+      // Add impersonation metadata
+      impersonatedBy: originalUserId,
+      isImpersonation: true
+    };
+    
+    return jwt.sign(impersonationPayload, secret, { 
+      expiresIn: expiresIn as any
+    });
+  }
+
+  static isImpersonationToken(token: string): boolean {
+    try {
+      const payload = this.verifyToken(token);
+      return payload ? !!(payload as any).isImpersonation : false;
+    } catch {
+      return false;
+    }
+  }
+
+  static getOriginalUserId(token: string): string | null {
+    try {
+      const payload = this.verifyToken(token);
+      return payload ? (payload as any).impersonatedBy || null : null;
+    } catch {
+      return null;
+    }
+  }
 } 
