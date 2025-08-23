@@ -1,9 +1,9 @@
 {
-  "version": "0.3.0",
-  "commitHash": "64d129712162e7ec121ea9b923b257f01b02c1c3",
+  "version": "0.3.1",
+  "commitHash": "823adc46106a3d7bc550157a6bb7ea7504c516ac",
   "commitDate": "2025-08-23",
   "branch": "master",
   "buildDate": "2025-08-23",
-  "buildTime": "15:01:09",
+  "buildTime": "17:46:22",
   "environment": "development"
 }
