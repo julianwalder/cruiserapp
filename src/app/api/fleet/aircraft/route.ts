@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10');
     const search = searchParams.get('search') || '';
     const icaoOnly = searchParams.get('icaoOnly') === 'true';
+    const fleetManagement = searchParams.get('fleetManagement') === 'true';
     const skip = (page - 1) * limit;
 
     // Check if user is super admin
@@ -79,9 +80,15 @@ export async function GET(request: NextRequest) {
         )
       `);
 
-    // Filter out hidden aircraft for non-superadmin users
+    // Filter aircraft based on context and user role
     if (!isSuperAdmin) {
-      query = query.eq('hidden', false);
+      if (fleetManagement) {
+        // For fleet management: show all non-hidden aircraft regardless of status
+        query = query.eq('hidden', false);
+      } else {
+        // For flight logs and other uses: filter out hidden and retired aircraft
+        query = query.eq('hidden', false).neq('status', 'RETIRED');
+      }
     }
 
     if (search) {
@@ -93,13 +100,19 @@ export async function GET(request: NextRequest) {
       query = query.not('icaoReferenceTypeId', 'is', null);
     }
 
-    // Get total count (also filter hidden aircraft for non-superadmin users)
+    // Get total count (apply same filtering logic as main query)
     let countQuery = supabase
       .from('aircraft')
       .select('*', { count: 'exact', head: true });
     
     if (!isSuperAdmin) {
-      countQuery = countQuery.eq('hidden', false);
+      if (fleetManagement) {
+        // For fleet management: show all non-hidden aircraft regardless of status
+        countQuery = countQuery.eq('hidden', false);
+      } else {
+        // For flight logs and other uses: filter out hidden and retired aircraft
+        countQuery = countQuery.eq('hidden', false).neq('status', 'RETIRED');
+      }
     }
     
     const { count: total } = await countQuery;

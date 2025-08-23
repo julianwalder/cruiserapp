@@ -69,7 +69,7 @@ const createFlightLogSchema = z.object({
   // Basic flight information
   date: z.string().min(1, "Date is required"),
   aircraftId: z.string().min(1, "Aircraft is required"),
-  pilotId: z.string().min(1, "Pilot is required"),
+  userId: z.string().min(1, "Pilot is required"),
   instructorId: z.string().optional().or(z.undefined()),
   
   // Departure information
@@ -177,7 +177,7 @@ interface Airfield {
 interface FlightLog {
   id: string;
   aircraftId: string;
-  pilotId: string;
+  userId: string;
   instructorId?: string;
   date: string;
   departureTime: string;
@@ -434,6 +434,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
   const [selectedFlightLog, setSelectedFlightLog] = useState<FlightLog | null>(null);
   const [viewModalMode, setViewModalMode] = useState<'view' | 'edit'>('view');
   const [showPPLView, setShowPPLView] = useState(true);
+  const [exportLoading, setExportLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"personal" | "company">("personal");
   const [activeTab, setActiveTab] = useState("all");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -449,7 +450,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
   // Filter state
   const [filters, setFilters] = useState({
     aircraftId: '',
-    pilotId: '',
+    userId: '',
     instructorId: '',
     departureAirfieldId: '',
     arrivalAirfieldId: '',
@@ -530,7 +531,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
           simulatedInstrument: flightLogToEdit.simulatedInstrument,
           date: flightLogToEdit.date,
           aircraftId: flightLogToEdit.aircraftId,
-          pilotId: flightLogToEdit.pilotId,
+          userId: flightLogToEdit.userId,
           instructorId: flightLogToEdit.instructorId || undefined,
           departureAirfieldId: flightLogToEdit.departureAirfieldId,
           departureTime: flightLogToEdit.departureTime,
@@ -565,7 +566,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
           // Clear all other fields
           date: undefined,
           aircraftId: undefined,
-          pilotId: undefined,
+          userId: undefined,
           instructorId: undefined,
           departureAirfieldId: undefined,
           departureTime: undefined,
@@ -579,8 +580,8 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         
         // If user should not show pilot selection, set the pilotId after reset
         if (currentUser && !shouldShowPilotSelection()) {
-          console.log('🔄 Setting pilotId for user without pilot selection after form reset:', currentUser.id);
-          form.setValue('pilotId', currentUser.id);
+                  console.log('🔄 Setting userId for user without pilot selection after form reset:', currentUser.id);
+        form.setValue('userId', currentUser.id);
         }
       }
     }
@@ -636,7 +637,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         
         // If user should not show pilot selection, automatically set them as the pilot
         if (!shouldShowPilotSelection()) {
-          form.setValue('pilotId', data.id);
+          form.setValue('userId', data.id);
         }
       } else {
         console.error('Error fetching current user:', response.status);
@@ -760,7 +761,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
     // If user is BASE_MANAGER + PILOT/STUDENT and switches to personal view, set pilot filter to self
     if (isBaseManager && (isPilot || isStudent) && viewMode === 'personal') {
       console.log('🔍 BASE_MANAGER + PILOT/STUDENT switched to personal view - setting pilot filter to self');
-      setFilters(prev => ({ ...prev, pilotId: currentUser.id }));
+              setFilters(prev => ({ ...prev, userId: currentUser.id }));
     }
   }, [viewMode, currentUser]);
 
@@ -806,8 +807,8 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       if (filters.aircraftId) {
         params.append('aircraftId', filters.aircraftId);
       }
-      if (filters.pilotId) {
-        params.append('pilotId', filters.pilotId);
+      if (filters.userId) {
+        params.append('userId', filters.userId);
       }
       if (filters.instructorId) {
         params.append('instructorId', filters.instructorId);
@@ -957,7 +958,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         
         setPilots([currentUser]);
         // Automatically set the pilot filter to the current user
-        setFilters(prev => ({ ...prev, pilotId: currentUser.id }));
+        setFilters(prev => ({ ...prev, userId: currentUser.id }));
         return;
       }
 
@@ -1469,7 +1470,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
   const getPICDisplayName = (log: FlightLog) => {
     if (!currentUser) return log.pilot?.firstName && log.pilot?.lastName ? 
       `${log.pilot.firstName} ${log.pilot.lastName}` : 
-      log.pilotId || 'Unknown';
+      log.userId || 'Unknown';
     
     const isPilot = currentUser.userRoles?.some((ur: UserRole) => (ur.role?.name || ur.roles?.name) === 'PILOT');
     const isStudent = currentUser.userRoles?.some((ur: UserRole) => (ur.role?.name || ur.roles?.name) === 'STUDENT');
@@ -1486,11 +1487,11 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       // If no instructor, show the pilot name
       return log.pilot?.firstName && log.pilot?.lastName ? 
         `${log.pilot.firstName} ${log.pilot.lastName}` : 
-        log.pilotId || 'Unknown';
+        log.userId || 'Unknown';
     }
     
     // In personal view, show "SELF" for own logs
-    if ((isPilot || isStudent || isBaseManager || isAdmin) && log.pilotId === currentUser.id) {
+    if ((isPilot || isStudent || isBaseManager || isAdmin) && log.userId === currentUser.id) {
       // If there's an instructor, the instructor is the PIC
       if (log.instructor?.firstName && log.instructor?.lastName) {
         return `${log.instructor.firstName} ${log.instructor.lastName}`;
@@ -1502,7 +1503,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
     // For all other cases, show the actual PIC name
     return log.pilot?.firstName && log.pilot?.lastName ? 
       `${log.pilot.firstName} ${log.pilot.lastName}` : 
-      log.pilotId || 'Unknown';
+      log.userId || 'Unknown';
   };
 
   // Track blurred state for each of the four fields
@@ -1588,6 +1589,53 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
     } catch (error) {
       console.error('Error downloading template:', error);
       toast.error('Failed to download template');
+    }
+  };
+
+  const handleExportFlightLogs = async () => {
+    try {
+      setExportLoading(true);
+      const token = localStorage.getItem('token');
+      
+      // Build query parameters from current filters
+      const params = new URLSearchParams();
+      if (filters.userId) params.append('userId', filters.userId);
+      if (filters.aircraftId) params.append('aircraftId', filters.aircraftId);
+      if (filters.instructorId) params.append('instructorId', filters.instructorId);
+      if (filters.departureAirfieldId) params.append('departureAirfieldId', filters.departureAirfieldId);
+      if (filters.arrivalAirfieldId) params.append('arrivalAirfieldId', filters.arrivalAirfieldId);
+      if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+      if (filters.dateTo) params.append('dateTo', filters.dateTo);
+      params.append('viewMode', viewMode);
+      params.append('format', 'csv');
+
+      const response = await fetch(`/api/flight-logs/export?${params.toString()}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Export failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `flight_logs_export_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      toast.success('Flight logs exported successfully!');
+    } catch (error) {
+      console.error('Error exporting flight logs:', error);
+      toast.error('Failed to export flight logs');
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -1722,9 +1770,14 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
               </Button>
             </div>
             <div className="flex items-center space-x-2 order-1 sm:order-2">
-              <Button variant="outline" size="sm">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleExportFlightLogs}
+                disabled={exportLoading}
+              >
                 <Download className="h-4 w-4 mr-2" />
-                Export
+                {exportLoading ? 'Exporting...' : 'Export'}
               </Button>
               {canToggleViewMode() && (
                 <Button variant="outline" size="sm" onClick={() => setShowImportDialog(true)}>
@@ -1791,7 +1844,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                         status: pilot.status
                       }))}
                       value={(() => {
-                        if (!currentUser) return filters.pilotId;
+                        if (!currentUser) return filters.userId;
                         const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
                         const isPilot = userRoles.includes('PILOT');
                         const isStudent = userRoles.includes('STUDENT');
@@ -1809,9 +1862,9 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                           return currentUser.id;
                         }
                         
-                        return filters.pilotId;
+                        return filters.userId;
                       })()}
-                      onValueChange={(value) => setFilters(prev => ({ ...prev, pilotId: value }))}
+                      onValueChange={(value) => setFilters(prev => ({ ...prev, userId: value }))}
                       placeholder="All Pilots/Students"
                       searchPlaceholder="Search by name..."
                       emptyText="No pilots/students found."
@@ -1940,7 +1993,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                       onClick={() => {
                         setFilters({
                           aircraftId: '',
-                          pilotId: '',
+                          userId: '',
                           instructorId: '',
                           departureAirfieldId: '',
                           arrivalAirfieldId: '',
@@ -2339,7 +2392,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                                       )}>
                                         {log.pilot?.firstName && log.pilot?.lastName ? 
                                           `${log.pilot.firstName} ${log.pilot.lastName}` : 
-                                          log.pilotId || 'Unknown'}
+                                          log.userId || 'Unknown'}
                                       </span></div>
                                     )}
                                   </div>
@@ -2517,8 +2570,8 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                               label: `${pilot.firstName} ${pilot.lastName}`,
                               searchText: `${pilot.firstName} ${pilot.lastName}`
                             }))}
-                          value={form.watch("pilotId")}
-                          onValueChange={(value) => form.setValue("pilotId", value)}
+                          value={form.watch("userId")}
+                          onValueChange={(value) => form.setValue("userId", value)}
                           placeholder="Pilot/Student *"
                           searchPlaceholder="Search by name..."
                           emptyText="No active pilots or students found."
@@ -2527,7 +2580,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                           }}
                           className={cn(
                             "border-gray-200 dark:border-gray-700",
-                            form.formState.errors.pilotId ? "border-red-500 focus-visible:ring-red-500" : ""
+                            form.formState.errors.userId ? "border-red-500 focus-visible:ring-red-500" : ""
                           )}
                         />
                       )}
@@ -2535,23 +2588,23 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                       {!shouldShowPilotSelection() && (
                         <>
                           <Input
-                            id="pilotId"
+                            id="userId"
                             value={currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'Loading...'}
                             disabled
                             className="bg-muted"
                             placeholder="Pilot"
                           />
-                          {/* Hidden input to register the pilotId with the form */}
+                          {/* Hidden input to register the userId with the form */}
                           <input
                             type="hidden"
-                            {...form.register("pilotId")}
+                            {...form.register("userId")}
                             value={currentUser?.id || ""}
                           />
                         </>
                       )}
-                      {form.formState.errors.pilotId &&
-                        form.formState.errors.pilotId.message !== "Invalid input: expected string, received undefined" && (
-                          <p className="text-sm text-destructive">{form.formState.errors.pilotId.message}</p>
+                                            {form.formState.errors.userId &&
+                        form.formState.errors.userId.message !== "Invalid input: expected string, received undefined" && (
+                        <p className="text-sm text-destructive">{form.formState.errors.userId.message}</p>
                       )}
                     </div>
 

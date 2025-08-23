@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
     const viewMode = searchParams.get('viewMode') || 'company';
     const search = searchParams.get('search') || '';
     const flightType = searchParams.get('flightType') || '';
-    const pilotId = searchParams.get('pilotId') || '';
+    const userId = searchParams.get('userId') || '';
     const aircraftId = searchParams.get('aircraftId') || '';
     const instructorId = searchParams.get('instructorId') || '';
     const departureAirfieldId = searchParams.get('departureAirfieldId') || '';
@@ -93,17 +93,17 @@ export async function GET(request: NextRequest) {
     if (viewMode === 'personal') {
       if (isPilot && !isInstructor && !isAdmin && !isBaseManager) {
         // Regular pilots can only see their own flight logs
-        query = query.eq('pilotId', user.id);
+        query = query.eq('userId', user.id);
       } else if (isInstructor && !isAdmin && !isBaseManager) {
         // Instructors can see logs where they are the instructor OR their own logs
-        query = query.or(`instructorId.eq.${user.id},pilotId.eq.${user.id}`);
+        query = query.or(`instructorId.eq.${user.id},userId.eq.${user.id}`);
       } else if (isBaseManager && !isAdmin) {
         // Base managers see their own logs in personal view
-        query = query.eq('pilotId', user.id);
+        query = query.eq('userId', user.id);
       }
       // Admins see their own logs in personal view
       else if (isAdmin) {
-        query = query.eq('pilotId', user.id);
+        query = query.eq('userId', user.id);
       }
     }
     // In company view, all users can see all logs (for fleet management purposes)
@@ -141,9 +141,9 @@ export async function GET(request: NextRequest) {
       query = query.eq('flightType', flightType);
     }
 
-    if (pilotId) {
-      query = query.eq('pilotId', pilotId);
-    }
+          if (userId) {
+        query = query.eq('userId', userId);
+      }
 
     if (aircraftId) {
       query = query.eq('aircraftId', aircraftId);
@@ -183,13 +183,13 @@ export async function GET(request: NextRequest) {
     } else {
       if (viewMode === 'personal') {
         if (isPilot && !isInstructor && !isAdmin && !isBaseManager) {
-          countQuery.eq('pilotId', user.id);
+          countQuery.eq('userId', user.id);
         } else if (isInstructor && !isAdmin && !isBaseManager) {
-          countQuery.or(`instructorId.eq.${user.id},pilotId.eq.${user.id}`);
-        } else if (isBaseManager && !isAdmin) {
-          countQuery.eq('pilotId', user.id);
-        } else if (isAdmin) {
-          countQuery.eq('pilotId', user.id);
+          countQuery.or(`instructorId.eq.${user.id},userId.eq.${user.id}`);
+                  } else if (isBaseManager && !isAdmin) {
+            countQuery.eq('userId', user.id);
+                  } else if (isAdmin) {
+            countQuery.eq('userId', user.id);
         }
       }
     }
@@ -202,9 +202,9 @@ export async function GET(request: NextRequest) {
       countQuery.eq('flightType', flightType);
     }
 
-    if (pilotId) {
-      countQuery.eq('pilotId', pilotId);
-    }
+          if (userId) {
+        countQuery.eq('userId', userId);
+      }
 
     if (aircraftId) {
       countQuery.eq('aircraftId', aircraftId);
@@ -256,7 +256,7 @@ export async function GET(request: NextRequest) {
       
       // Get all the IDs we need for relationships
       const aircraftIds = [...new Set(flightLogsData?.map(log => log.aircraftId) || [])];
-      const pilotIds = [...new Set(flightLogsData?.map(log => log.pilotId) || [])];
+      const userIds = [...new Set(flightLogsData?.map(log => log.userId) || [])];
       const instructorIds = [...new Set(flightLogsData?.map(log => log.instructorId).filter(Boolean) || [])];
       const airfieldIds = [...new Set([
         ...(flightLogsData?.map(log => log.departureAirfieldId) || []),
@@ -267,7 +267,7 @@ export async function GET(request: NextRequest) {
 
       console.log('🔍 Manual joins - IDs found:', {
         aircraftIds: aircraftIds.length,
-        pilotIds: pilotIds.length,
+        userIds: userIds.length,
         instructorIds: instructorIds.length,
         airfieldIds: airfieldIds.length,
         createdByIds: createdByIds.length,
@@ -282,7 +282,7 @@ export async function GET(request: NextRequest) {
             *
           )
         `).in('id', aircraftIds) : { data: [], error: null },
-        pilotIds.length > 0 ? supabase.from('users').select('*').in('id', pilotIds) : { data: [], error: null },
+        userIds.length > 0 ? supabase.from('users').select('*').in('id', userIds) : { data: [], error: null },
         instructorIds.length > 0 ? supabase.from('users').select('*').in('id', instructorIds) : { data: [], error: null },
         airfieldIds.length > 0 ? supabase.from('airfields').select('*').in('id', airfieldIds) : { data: [], error: null },
         createdByIds.length > 0 ? supabase.from('users').select('*').in('id', createdByIds) : { data: [], error: null },
@@ -321,7 +321,7 @@ export async function GET(request: NextRequest) {
               manufacturer: aircraft.icao_reference_type.manufacturer
             } : null
           } : null,
-          pilot: pilotsMap.get(log.pilotId) || null,
+          pilot: pilotsMap.get(log.userId) || null,
           instructor: log.instructorId ? instructorsMap.get(log.instructorId) || null : null,
           departureAirfield: airfieldsMap.get(log.departureAirfieldId) || null,
           arrivalAirfield: airfieldsMap.get(log.arrivalAirfieldId) || null,
@@ -425,7 +425,7 @@ export async function POST(request: NextRequest) {
     
     if ((isPilot || isStudent) && !isInstructor && !isAdmin && !isBaseManager) {
       // Regular pilots and students can only create flight logs for themselves
-      if (body.pilotId !== user.id) {
+      if (body.userId !== user.id) {
         return NextResponse.json(
           { error: 'Pilots and students can only create flight logs for themselves' },
           { status: 403 }
@@ -435,7 +435,7 @@ export async function POST(request: NextRequest) {
 
     const {
       aircraftId,
-      pilotId,
+      userId,
       instructorId,
       date,
       departureTime,
@@ -470,7 +470,7 @@ export async function POST(request: NextRequest) {
     } = body;
 
     // Validate required fields
-    if (!aircraftId || !pilotId || !date || !departureTime || !arrivalTime || !departureAirfieldId || !arrivalAirfieldId) {
+    if (!aircraftId || !userId || !date || !departureTime || !arrivalTime || !departureAirfieldId || !arrivalAirfieldId) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -503,7 +503,7 @@ export async function POST(request: NextRequest) {
           )
         )
       `)
-      .eq('id', pilotId)
+      .eq('id', userId)
       .single();
 
     if (pilotError || !pilot) {
@@ -553,7 +553,7 @@ export async function POST(request: NextRequest) {
     
     // Log the automatic flight type determination
     const pilotRoles = pilot.user_roles?.map((ur: any) => ur.roles?.name || '').filter(Boolean) || [];
-    console.log(`🔍 Automatic flight type for pilot ${pilotId} (CREATE mode):`, {
+    console.log(`🔍 Automatic flight type for pilot ${userId} (CREATE mode):`, {
       pilotRoles,
       providedFlightType: flightType,
       automaticFlightType,
@@ -626,7 +626,7 @@ export async function POST(request: NextRequest) {
       .insert({
         id: crypto.randomUUID(),
         aircraftId,
-        pilotId,
+        userId,
         instructorId,
         date: date, // Keep the date as a string to avoid timezone conversion
         departureTime,
@@ -689,7 +689,7 @@ export async function POST(request: NextRequest) {
       .update({
         totalFlightHours: pilot.totalFlightHours + totalHours,
       })
-      .eq('id', pilotId);
+      .eq('id', userId);
 
     return NextResponse.json({ flightLog }, { status: 201 });
   } catch (error) {

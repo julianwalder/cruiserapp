@@ -130,7 +130,7 @@ interface LocalHourPackage {
 
 interface FlightLog {
   id: string;
-  pilotId: string;
+  userId: string;
   totalHours: number;
   date: string;
   flightType: string;

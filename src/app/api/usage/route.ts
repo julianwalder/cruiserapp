@@ -61,15 +61,15 @@ export async function GET(request: NextRequest) {
       // We'll get this from flight logs where instructorId matches
       const { data: instructorFlights } = await supabase
         .from('flight_logs')
-        .select('pilotId')
+        .select('userId')
         .eq('instructorId', user.id);
       
       // Get pilot emails for instructor flights
-      const instructorPilotIds = instructorFlights?.map(flight => flight.pilotId).filter(Boolean) || [];
+      const instructorUserIds = instructorFlights?.map(flight => flight.userId).filter(Boolean) || [];
       const { data: instructorPilots } = await supabase
         .from('users')
         .select('email')
-        .in('id', instructorPilotIds);
+                  .in('id', instructorUserIds);
       
       allowedClientEmails = instructorPilots?.map(pilot => pilot.email).filter(Boolean) || [];
     } else if (isProspect) {
@@ -133,13 +133,12 @@ export async function GET(request: NextRequest) {
         .from('flight_logs')
         .select(`
           id,
-          pilotId,
+          userId,
           instructorId,
           totalHours,
           date,
           flightType
         `)
-        .order('date', { ascending: false })
         .range(offset, offset + chunkSize - 1);
 
       if (flightLogsError) {
@@ -329,9 +328,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Get pilot and instructor information for flight logs
-    const pilotIds = Array.from(new Set(flightLogs?.map((log: any) => log.pilotId).filter(Boolean) || []));
+    const flightLogUserIds = Array.from(new Set(flightLogs?.map((log: any) => log.userId).filter(Boolean) || []));
     const instructorIds = Array.from(new Set(flightLogs?.map((log: any) => log.instructorId).filter(Boolean) || []));
-    const allUserIds = Array.from(new Set([...pilotIds, ...instructorIds]));
+    const allUserIds = Array.from(new Set([...flightLogUserIds, ...instructorIds]));
     
     // Fetch additional users for flight logs if not already fetched
     const additionalUserIds = allUserIds.filter(id => !userMap.has(id));
@@ -383,7 +382,7 @@ export async function GET(request: NextRequest) {
     const demoHoursTotal = new Map<string, number>();
 
     flightLogs?.forEach((log: any) => {
-      const pilot = userMap.get(log.pilotId) as any;
+      const pilot = userMap.get(log.userId) as any;
       const instructor = log.instructorId ? userMap.get(log.instructorId) as any : null;
       
       // Skip FERRY, DEMO, and CHARTER flights when calculating used hours
@@ -392,7 +391,7 @@ export async function GET(request: NextRequest) {
       const isCharterFlight = log.flightType && log.flightType.toUpperCase().includes('CHARTER');
       
       // If there's a pilot, count their hours (excluding FERRY, DEMO, and CHARTER flights)
-      if (pilot?.email) {
+      if (pilot?.id) {
         const flightYear = new Date(log.date).getFullYear();
         const flightDate = new Date(log.date);
         const twelveMonthsAgo = new Date();
@@ -402,81 +401,81 @@ export async function GET(request: NextRequest) {
         
         // Count flights for the last 12 months (all flight types)
         if (flightDate >= twelveMonthsAgo) {
-          const currentCount = flightCountLast12Months.get(pilot.email) || 0;
-          flightCountLast12Months.set(pilot.email, currentCount + 1);
+          const currentCount = flightCountLast12Months.get(pilot.id) || 0;
+          flightCountLast12Months.set(pilot.id, currentCount + 1);
         }
         
         // Count flights for the last 90 days (all flight types)
         if (flightDate >= ninetyDaysAgo) {
-          const currentCount = flightCountLast90Days.get(pilot.email) || 0;
-          flightCountLast90Days.set(pilot.email, currentCount + 1);
+          const currentCount = flightCountLast90Days.get(pilot.id) || 0;
+          flightCountLast90Days.set(pilot.id, currentCount + 1);
         }
 
         
         if (!isFerryFlight && !isDemoFlight && !isCharterFlight) {
-          const currentHours = clientFlightHours.get(pilot.email) || 0;
-          clientFlightHours.set(pilot.email, currentHours + log.totalHours);
+          const currentHours = clientFlightHours.get(pilot.id) || 0;
+          clientFlightHours.set(pilot.id, currentHours + log.totalHours);
           
           // Calculate year-specific hours for regular flights
           if (flightYear === currentYear) {
-            const currentYearHours = clientFlightHoursCurrentYear.get(pilot.email) || 0;
-            clientFlightHoursCurrentYear.set(pilot.email, currentYearHours + log.totalHours);
+            const currentYearHours = clientFlightHoursCurrentYear.get(pilot.id) || 0;
+            clientFlightHoursCurrentYear.set(pilot.id, currentYearHours + log.totalHours);
           } else if (flightYear === previousYear) {
-            const previousYearHours = clientFlightHoursPreviousYear.get(pilot.email) || 0;
-            clientFlightHoursPreviousYear.set(pilot.email, previousYearHours + log.totalHours);
+            const previousYearHours = clientFlightHoursPreviousYear.get(pilot.id) || 0;
+            clientFlightHoursPreviousYear.set(pilot.id, previousYearHours + log.totalHours);
           }
         }
         
         // Calculate year-specific hours for special flight types
         if (isFerryFlight) {
           // Calculate total FERRY hours from ALL years
-          const totalFerryHours = ferryHoursTotal.get(pilot.email) || 0;
-          ferryHoursTotal.set(pilot.email, totalFerryHours + log.totalHours);
+          const totalFerryHours = ferryHoursTotal.get(pilot.id) || 0;
+          ferryHoursTotal.set(pilot.id, totalFerryHours + log.totalHours);
           
           if (flightYear === currentYear) {
-            const currentYearHours = ferryHoursCurrentYear.get(pilot.email) || 0;
-            ferryHoursCurrentYear.set(pilot.email, currentYearHours + log.totalHours);
+            const currentYearHours = ferryHoursCurrentYear.get(pilot.id) || 0;
+            ferryHoursCurrentYear.set(pilot.id, currentYearHours + log.totalHours);
           } else if (flightYear === previousYear) {
-            const previousYearHours = ferryHoursPreviousYear.get(pilot.email) || 0;
-            ferryHoursPreviousYear.set(pilot.email, previousYearHours + log.totalHours);
+            const previousYearHours = ferryHoursPreviousYear.get(pilot.id) || 0;
+            ferryHoursPreviousYear.set(pilot.id, previousYearHours + log.totalHours);
           }
         }
         
         if (isCharterFlight) {
           // Calculate total Charter hours from ALL years
-          const totalCharterHours = charterHoursTotal.get(pilot.email) || 0;
-          charterHoursTotal.set(pilot.email, totalCharterHours + log.totalHours);
+          const totalCharterHours = charterHoursTotal.get(pilot.id) || 0;
+          charterHoursTotal.set(pilot.id, totalCharterHours + log.totalHours);
           
           if (flightYear === currentYear) {
-            const currentYearHours = charterHoursCurrentYear.get(pilot.email) || 0;
-            charterHoursCurrentYear.set(pilot.email, currentYearHours + log.totalHours);
+            const currentYearHours = charterHoursCurrentYear.get(pilot.id) || 0;
+            charterHoursCurrentYear.set(pilot.id, currentYearHours + log.totalHours);
           } else if (flightYear === previousYear) {
-            const previousYearHours = charterHoursPreviousYear.get(pilot.email) || 0;
-            charterHoursPreviousYear.set(pilot.email, previousYearHours + log.totalHours);
+            const previousYearHours = charterHoursPreviousYear.get(pilot.id) || 0;
+            charterHoursPreviousYear.set(pilot.id, previousYearHours + log.totalHours);
           }
         }
         
         if (isDemoFlight) {
           // Calculate total Demo hours from ALL years
-          const totalDemoHours = demoHoursTotal.get(pilot.email) || 0;
-          demoHoursTotal.set(pilot.email, totalDemoHours + log.totalHours);
+          const totalDemoHours = demoHoursTotal.get(pilot.id) || 0;
+          demoHoursTotal.set(pilot.id, totalDemoHours + log.totalHours);
           
           if (flightYear === currentYear) {
-            const currentYearHours = demoHoursCurrentYear.get(pilot.email) || 0;
-            demoHoursCurrentYear.set(pilot.email, currentYearHours + log.totalHours);
+            const currentYearHours = demoHoursCurrentYear.get(pilot.id) || 0;
+            demoHoursCurrentYear.set(pilot.id, currentYearHours + log.totalHours);
           } else if (flightYear === previousYear) {
-            const previousYearHours = demoHoursPreviousYear.get(pilot.email) || 0;
-            demoHoursPreviousYear.set(pilot.email, previousYearHours + log.totalHours);
+            const previousYearHours = demoHoursPreviousYear.get(pilot.id) || 0;
+            demoHoursPreviousYear.set(pilot.id, previousYearHours + log.totalHours);
           }
         }
         
         // Store flight log for this client (including FERRY, DEMO, and CHARTER flights for display purposes)
-        if (!clientFlightLogs.has(pilot.email)) {
-          clientFlightLogs.set(pilot.email, []);
+        if (!clientFlightLogs.has(pilot.id)) {
+          clientFlightLogs.set(pilot.id, []);
         }
-        clientFlightLogs.get(pilot.email)!.push({
+        clientFlightLogs.get(pilot.id)!.push({
           id: log.id,
-          pilotId: log.pilotId,
+          userId: log.userId,
           totalHours: log.totalHours,
           date: log.date,
           flightType: log.flightType,
@@ -488,12 +487,12 @@ export async function GET(request: NextRequest) {
       }
       
       // If there's an instructor and it's dual training, count hours for the student/pilot
-      if (instructor?.email && log.instructorId) {
+      if (instructor?.id && log.instructorId) {
         // This is dual training - the pilot is receiving instruction
         // The pilot's hours are already counted above, but we can track this as dual training
-        if (pilot?.email) {
+        if (pilot?.id) {
           // Update the flight log to indicate dual training
-          const existingLogs = clientFlightLogs.get(pilot.email) || [];
+          const existingLogs = clientFlightLogs.get(pilot.id) || [];
           const existingLog = existingLogs.find(fl => fl.id === log.id);
           if (existingLog) {
             existingLog.role = 'Dual Training';
@@ -519,7 +518,7 @@ export async function GET(request: NextRequest) {
     const clientsData = await Promise.all(
       filteredClients.map(async client => {
           const packages = clientPackages.get(client.id) || [];
-          const totalUsedHours = clientFlightHours.get(client.id) || 0;
+          const totalUsedHours = clientFlightHours.get(client.user_id) || 0;
           
           // Calculate remaining hours for each package using FIFO method
           let totalBoughtHours = 0;
@@ -625,25 +624,25 @@ export async function GET(request: NextRequest) {
 
 
           // Get recent flights for this client (all records where they were involved)
-          const recentFlights = clientFlightLogs.get(client.id) || [];
+          const recentFlights = clientFlightLogs.get(client.user_id) || [];
 
           // Get year-specific data for this client
-          const currentYearHours = clientFlightHoursCurrentYear.get(client.id) || 0;
-          const previousYearHours = clientFlightHoursPreviousYear.get(client.id) || 0;
-          const clientFlightCountLast12Months = flightCountLast12Months.get(client.id) || 0;
-          const clientFlightCountLast90Days = flightCountLast90Days.get(client.id) || 0;
+          const currentYearHours = clientFlightHoursCurrentYear.get(client.user_id) || 0;
+          const previousYearHours = clientFlightHoursPreviousYear.get(client.user_id) || 0;
+          const clientFlightCountLast12Months = flightCountLast12Months.get(client.user_id) || 0;
+          const clientFlightCountLast90Days = flightCountLast90Days.get(client.user_id) || 0;
 
           
           // Get year-specific data for special flight types
-          const clientFerryHoursCurrentYear = ferryHoursCurrentYear.get(client.id) || 0;
-          const clientFerryHoursPreviousYear = ferryHoursPreviousYear.get(client.id) || 0;
-          const clientFerryHoursTotal = ferryHoursTotal.get(client.id) || 0;
-          const clientCharterHoursCurrentYear = charterHoursCurrentYear.get(client.id) || 0;
-          const clientCharterHoursPreviousYear = charterHoursPreviousYear.get(client.id) || 0;
-          const clientCharterHoursTotal = charterHoursTotal.get(client.id) || 0;
-          const clientDemoHoursCurrentYear = demoHoursCurrentYear.get(client.id) || 0;
-          const clientDemoHoursPreviousYear = demoHoursPreviousYear.get(client.id) || 0;
-          const clientDemoHoursTotal = demoHoursTotal.get(client.id) || 0;
+          const clientFerryHoursCurrentYear = ferryHoursCurrentYear.get(client.user_id) || 0;
+          const clientFerryHoursPreviousYear = ferryHoursPreviousYear.get(client.user_id) || 0;
+          const clientFerryHoursTotal = ferryHoursTotal.get(client.user_id) || 0;
+          const clientCharterHoursCurrentYear = charterHoursCurrentYear.get(client.user_id) || 0;
+          const clientCharterHoursPreviousYear = charterHoursPreviousYear.get(client.user_id) || 0;
+          const clientCharterHoursTotal = charterHoursTotal.get(client.user_id) || 0;
+          const clientDemoHoursCurrentYear = demoHoursCurrentYear.get(client.user_id) || 0;
+          const clientDemoHoursPreviousYear = demoHoursPreviousYear.get(client.user_id) || 0;
+          const clientDemoHoursTotal = demoHoursTotal.get(client.user_id) || 0;
 
           return {
             client,

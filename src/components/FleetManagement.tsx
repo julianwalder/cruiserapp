@@ -352,6 +352,7 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
       const params = new URLSearchParams({
         page: pagination.page.toString(),
         limit: pagination.limit.toString(),
+        fleetManagement: 'true',
       });
 
       const response = await fetch(`/api/fleet/aircraft?${params}`, {
@@ -425,7 +426,7 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
   const fetchIcaoAircraftTypes = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/fleet/aircraft?limit=5000&icaoOnly=true', {
+      const response = await fetch('/api/fleet/aircraft?limit=5000&icaoOnly=true&fleetManagement=true', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

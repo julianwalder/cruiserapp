@@ -21,7 +21,7 @@ const createFlightLogSchema = z.object({
   // Basic flight information
   date: z.string().min(1, "Date is required"),
   aircraftId: z.string().min(1, "Aircraft is required"),
-  pilotId: z.string().min(1, "Pilot is required"),
+  userId: z.string().min(1, "Pilot is required"),
   instructorId: z.string().optional().or(z.undefined()),
   
   // Departure information
@@ -130,7 +130,7 @@ interface Airfield {
 interface FlightLog {
   id: string;
   aircraftId: string;
-  pilotId: string;
+  userId: string;
   instructorId?: string;
   date: string;
   departureTime: string;
@@ -418,7 +418,7 @@ export function FlightLogForm({
         instrument: data.instrument,
         actualInstrument: data.actualInstrument,
         simulatedInstrument: data.simulatedInstrument,
-        pilotId: data.pilotId,
+        userId: data.userId,
         aircraftId: data.aircraftId,
         instructorId: data.instructorId ?? undefined,
         date: data.date,
@@ -531,8 +531,8 @@ export function FlightLogForm({
                       label: `${pilot.firstName} ${pilot.lastName}`,
                       searchText: `${pilot.firstName} ${pilot.lastName}`
                     }))}
-                  value={form.watch("pilotId")}
-                  onValueChange={(value) => form.setValue("pilotId", value)}
+                  value={form.watch("userId")}
+                  onValueChange={(value) => form.setValue("userId", value)}
                   placeholder="Pilot/Student *"
                   searchPlaceholder="Search by name..."
                   emptyText="No active pilots or students found."
@@ -541,7 +541,7 @@ export function FlightLogForm({
                   }}
                   className={cn(
                     "border-gray-200 dark:border-gray-700",
-                    form.formState.errors.pilotId ? "border-red-500 focus-visible:ring-red-500" : ""
+                    form.formState.errors.userId ? "border-red-500 focus-visible:ring-red-500" : ""
                   )}
                 />
               ) : (
@@ -561,7 +561,7 @@ export function FlightLogForm({
               {!shouldShowPilotSelection() && !isViewMode && (
                 <>
                   <Input
-                    id="pilotId"
+                    id="userId"
                     value={currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : 'Loading...'}
                     disabled
                     className="bg-muted"
@@ -569,16 +569,16 @@ export function FlightLogForm({
                   />
                   <input
                     type="hidden"
-                    {...form.register("pilotId")}
+                    {...form.register("userId")}
                     value={currentUser?.id || ""}
                   />
                 </>
               )}
 
-              {!isViewMode && form.formState.errors.pilotId &&
-                form.formState.errors.pilotId.message !== "Invalid input: expected string, received undefined" && (
-                  <p className="text-sm text-destructive">{form.formState.errors.pilotId.message}</p>
-              )}
+                            {!isViewMode && form.formState.errors.userId &&
+                form.formState.errors.userId.message !== "Invalid input: expected string, received undefined" && (
+                  <p className="text-sm text-destructive">{form.formState.errors.userId.message}</p>
+                )}
             </div>
 
             <div className="space-y-2">
