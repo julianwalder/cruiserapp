@@ -83,6 +83,7 @@ version-*.js
 greeting-*.js
 og-*.js
 ws-*.js
+websocket-*.js
 
 # Temporary and backup files
 *.backup

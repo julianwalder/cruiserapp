@@ -1,5 +1,34 @@
 # 🚀 Robust Veriff Integration Solution
 
+## ⚠️ **CRITICAL SECURITY ALERT - RESOLVED**
+
+### **Issue Fixed: Exposed Supabase Service Role Key**
+- **Problem**: Multiple script files contained hardcoded Supabase service role keys
+- **Impact**: Anyone with read access could view and use the exposed secrets
+- **Status**: ✅ **RESOLVED** - All hardcoded secrets have been removed
+
+### **Required Actions (URGENT)**
+1. **🔐 Revoke the exposed service role key** in your Supabase dashboard immediately
+2. **🔄 Generate a new service role key** in Supabase dashboard
+3. **📝 Update your `.env.local` file** with the new key
+4. **🚀 Update deployment environment variables** (Vercel, etc.)
+
+### **Files Fixed**
+All scripts in the `scripts/` directory have been updated to use environment variables:
+- ✅ `scripts/update-with-real-data.js`
+- ✅ `scripts/trigger-new-verification.js`
+- ✅ `scripts/fetch-luca-veriff-complete.js`
+- ✅ `scripts/update-luca-complete-data.js`
+- ✅ And 16 other script files
+
+### **Security Improvements**
+- **Environment Variables**: All secrets now use `process.env.SUPABASE_SERVICE_ROLE_KEY`
+- **Validation**: Scripts now validate environment variables before execution
+- **Error Handling**: Clear error messages if environment variables are missing
+- **No Hardcoded Secrets**: All hardcoded URLs and keys have been removed
+
+---
+
 ## 📋 **Overview**
 
 This document outlines a comprehensive, robust solution for managing Veriff identity verification data that eliminates the current issues with manual data injection, inconsistent data sources, and synchronization problems.
