@@ -2219,7 +2219,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                                 
                                 {/* Column 4: Aircraft */}
                                 <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
-                                  {log.aircraft?.callSign || log.aircraftId || 'N/A'}
+                                  {typeDesignator || 'N/A'}
                                 </TableCell>
                                 <TableCell className="text-center text-sm font-mono border-r border-gray-200 dark:border-gray-700">
                                   {log.aircraft?.callSign || log.aircraftId || 'N/A'}

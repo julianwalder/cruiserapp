@@ -86,10 +86,62 @@ export async function GET(request: NextRequest) {
     
     console.log('✅ Using table name: flight_logs');
     
-    // For now, let's use a simple query without relationships to get the basic data working
+    // Build query with related data including aircraft and ICAO reference type
     query = supabase
       .from(tableName)
-      .select('*');
+      .select(`
+        *,
+        aircraft (
+          id,
+          callSign,
+          icao_reference_type (
+            id,
+            "typeDesignator",
+            model,
+            manufacturer
+          )
+        ),
+        pilot (
+          id,
+          firstName,
+          lastName,
+          email,
+          status
+        ),
+        instructor (
+          id,
+          firstName,
+          lastName,
+          email,
+          status
+        ),
+        departureAirfield (
+          id,
+          name,
+          code,
+          city,
+          country
+        ),
+        arrivalAirfield (
+          id,
+          name,
+          code,
+          city,
+          country
+        ),
+        createdBy (
+          id,
+          firstName,
+          lastName,
+          email
+        ),
+        updatedByUser (
+          id,
+          firstName,
+          lastName,
+          email
+        )
+      `);
 
     // Apply permission-based filtering based on viewMode
     if (viewMode === 'personal') {
@@ -118,10 +170,62 @@ export async function GET(request: NextRequest) {
     // TEMPORARY: For debugging, let's bypass all filtering for SUPER_ADMIN
     if (userRoles.includes('SUPER_ADMIN')) {
       console.log('🔧 TEMPORARY: Bypassing all filtering for SUPER_ADMIN');
-      // Reset the query to show all records
+      // Reset the query to show all records with related data
       query = supabase
         .from('flight_logs')
-        .select('*');
+        .select(`
+          *,
+          aircraft (
+            id,
+            callSign,
+            icao_reference_type (
+              id,
+              "typeDesignator",
+              model,
+              manufacturer
+            )
+          ),
+          pilot (
+            id,
+            firstName,
+            lastName,
+            email,
+            status
+          ),
+          instructor (
+            id,
+            firstName,
+            lastName,
+            email,
+            status
+          ),
+          departureAirfield (
+            id,
+            name,
+            code,
+            city,
+            country
+          ),
+          arrivalAirfield (
+            id,
+            name,
+            code,
+            city,
+            country
+          ),
+          createdBy (
+            id,
+            firstName,
+            lastName,
+            email
+          ),
+          updatedByUser (
+            id,
+            firstName,
+            lastName,
+            email
+          )
+        `);
     }
     
     // Debug logging
@@ -348,16 +452,28 @@ export async function GET(request: NextRequest) {
         });
 
         // Combine the data
-        const enrichedFlightLogs = flightLogsData?.map(log => ({
-          ...log,
-          aircraft: aircraftMap.get(log.aircraftId) || null,
-          pilot: pilotsMap.get(log.pilotId) || null,
-          instructor: log.instructorId ? instructorsMap.get(log.instructorId) || null : null,
-          departureAirfield: airfieldsMap.get(log.departureAirfieldId) || null,
-          arrivalAirfield: airfieldsMap.get(log.arrivalAirfieldId) || null,
-          createdBy: createdByMap.get(log.createdById) || null,
-          updatedByUser: log.updatedBy ? updatedByMap.get(log.updatedBy) || null : null
-        })) || [];
+        const enrichedFlightLogs = flightLogsData?.map(log => {
+          const aircraft = aircraftMap.get(log.aircraftId);
+          return {
+            ...log,
+            aircraft: aircraft ? {
+              ...aircraft,
+              // Transform icao_reference_type to icaoReferenceType for frontend compatibility
+              icaoReferenceType: aircraft.icao_reference_type ? {
+                id: aircraft.icao_reference_type.id,
+                typeDesignator: aircraft.icao_reference_type.typeDesignator,
+                model: aircraft.icao_reference_type.model,
+                manufacturer: aircraft.icao_reference_type.manufacturer
+              } : null
+            } : null,
+            pilot: pilotsMap.get(log.pilotId) || null,
+            instructor: log.instructorId ? instructorsMap.get(log.instructorId) || null : null,
+            departureAirfield: airfieldsMap.get(log.departureAirfieldId) || null,
+            arrivalAirfield: airfieldsMap.get(log.arrivalAirfieldId) || null,
+            createdBy: createdByMap.get(log.createdById) || null,
+            updatedByUser: log.updatedBy ? updatedByMap.get(log.updatedBy) || null : null
+          };
+        }) || [];
 
         console.log('✅ Manual joins succeeded for admin user, returning enriched data');
         
@@ -438,15 +554,27 @@ export async function GET(request: NextRequest) {
           const createdByMap = new Map(createdByData.data?.map(cb => [cb.id, cb]) || []);
 
           // Combine the data
-          const enrichedFlightLogs = simpleFlightLogs?.map(log => ({
-            ...log,
-            aircraft: aircraftMap.get(log.aircraftId) || null,
-            pilot: pilotsMap.get(log.pilotId) || null,
-            instructor: log.instructorId ? instructorsMap.get(log.instructorId) || null : null,
-            departureAirfield: airfieldsMap.get(log.departureAirfieldId) || null,
-            arrivalAirfield: airfieldsMap.get(log.arrivalAirfieldId) || null,
-            createdBy: createdByMap.get(log.createdById) || null
-          })) || [];
+          const enrichedFlightLogs = simpleFlightLogs?.map(log => {
+            const aircraft = aircraftMap.get(log.aircraftId);
+            return {
+              ...log,
+              aircraft: aircraft ? {
+                ...aircraft,
+                // Transform icao_reference_type to icaoReferenceType for frontend compatibility
+                icaoReferenceType: aircraft.icao_reference_type ? {
+                  id: aircraft.icao_reference_type.id,
+                  typeDesignator: aircraft.icao_reference_type.typeDesignator,
+                  model: aircraft.icao_reference_type.model,
+                  manufacturer: aircraft.icao_reference_type.manufacturer
+                } : null
+              } : null,
+              pilot: pilotsMap.get(log.pilotId) || null,
+              instructor: log.instructorId ? instructorsMap.get(log.instructorId) || null : null,
+              departureAirfield: airfieldsMap.get(log.departureAirfieldId) || null,
+              arrivalAirfield: airfieldsMap.get(log.arrivalAirfieldId) || null,
+              createdBy: createdByMap.get(log.createdById) || null
+            };
+          }) || [];
 
           console.log('✅ Manual joins succeeded, returning enriched data');
           
