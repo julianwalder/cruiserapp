@@ -33,7 +33,7 @@
     "version:patch": "node scripts/bump-version.js patch",
     "version:minor": "node scripts/bump-version.js minor",
     "version:major": "node scripts/bump-version.js major",
-    "build:info": "node scripts/set-build-info.js all",
+    "build:info": "node build-scripts/set-build-info.js all",
     "prebuild": "npm run build:info",
     "setup-hour-packages": "node scripts/setup-hour-packages.js",
     "setup-orders-table": "node scripts/setup-orders-table.js",

@@ -43,6 +43,7 @@ next-env.d.ts
 
 # Local development and test scripts
 # Exclude all JavaScript files in scripts directory (local development tools)
+# But keep build scripts in build-scripts directory
 /scripts/*.js
 
 # Local test and utility files in root
