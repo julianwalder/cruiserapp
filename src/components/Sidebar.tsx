@@ -195,7 +195,7 @@ export default function Sidebar({ user, onLogout, onSidebarStateChange }: Sideba
   return (
     <>
       {/* Mobile menu button */}
-      <div className="lg:hidden fixed top-[calc(4px+var(--announcement-height,0px))] left-4 z-[60]">
+      <div className="lg:hidden fixed top-[calc(4px+var(--announcement-height,0px))] left-4 z-[45]">
         <Button
           variant="outline"
           size="sm"

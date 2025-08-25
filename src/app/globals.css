@@ -42,11 +42,13 @@
     }
   }
   
-  /* Hydration delay fixes for sticky positioning */
+  /* Fixed header positioning for consistent behavior */
   .sticky-header {
-    position: sticky;
+    position: fixed;
     top: calc(env(safe-area-inset-top) + var(--announcement-height, 0px));
-    z-index: 40;
+    left: 0;
+    right: 0;
+    z-index: 30;
     /* Prevent layout shift during hydration */
     min-height: 64px; /* h-16 */
     background-color: hsl(var(--card));
@@ -55,6 +57,9 @@
     transform: translateZ(0);
     -webkit-transform: translateZ(0);
     will-change: transform;
+    /* Ensure header is always visible */
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
   }
   
   /* Ensure header is always visible during hydration */
@@ -65,9 +70,9 @@
     right: 0;
   }
   
-  /* Prevent content jump during hydration */
+  /* Prevent content jump with fixed header */
   .content-with-sticky-header {
-    padding-top: 64px; /* h-16 */
+    padding-top: calc(64px + env(safe-area-inset-top) + var(--announcement-height, 0px)); /* h-16 + safe area + announcement */
   }
   
   /* Smooth transition after hydration */

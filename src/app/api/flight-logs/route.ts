@@ -141,9 +141,46 @@ export async function GET(request: NextRequest) {
       query = query.eq('flightType', flightType);
     }
 
-          if (userId) {
+    // Handle userId filter - only apply if it doesn't conflict with permission-based filtering
+    if (userId) {
+      // In personal view, if the user is restricted to their own logs, 
+      // only apply userId filter if it matches the current user
+      if (viewMode === 'personal') {
+        if (isPilot && !isInstructor && !isAdmin && !isBaseManager) {
+          // Regular pilots can only see their own logs, so userId filter must match current user
+          if (userId === user.id) {
+            query = query.eq('userId', userId);
+          } else {
+            console.log('⚠️ userId filter ignored - pilot can only see their own logs');
+          }
+        } else if (isInstructor && !isAdmin && !isBaseManager) {
+          // Instructors can see logs where they are the instructor OR their own logs
+          if (userId === user.id) {
+            query = query.eq('userId', userId);
+          } else {
+            // For other users, check if they are the instructor
+            query = query.eq('instructorId', userId);
+          }
+        } else if (isBaseManager && !isAdmin) {
+          // Base managers see their own logs in personal view
+          if (userId === user.id) {
+            query = query.eq('userId', userId);
+          } else {
+            console.log('⚠️ userId filter ignored - base manager can only see their own logs in personal view');
+          }
+        } else if (isAdmin) {
+          // Admins see their own logs in personal view
+          if (userId === user.id) {
+            query = query.eq('userId', userId);
+          } else {
+            console.log('⚠️ userId filter ignored - admin can only see their own logs in personal view');
+          }
+        }
+      } else {
+        // In company view, apply userId filter normally
         query = query.eq('userId', userId);
       }
+    }
 
     if (aircraftId) {
       query = query.eq('aircraftId', aircraftId);
@@ -202,9 +239,32 @@ export async function GET(request: NextRequest) {
       countQuery.eq('flightType', flightType);
     }
 
-          if (userId) {
+    // Handle userId filter for count query - same logic as main query
+    if (userId) {
+      if (viewMode === 'personal') {
+        if (isPilot && !isInstructor && !isAdmin && !isBaseManager) {
+          if (userId === user.id) {
+            countQuery.eq('userId', userId);
+          }
+        } else if (isInstructor && !isAdmin && !isBaseManager) {
+          if (userId === user.id) {
+            countQuery.eq('userId', userId);
+          } else {
+            countQuery.eq('instructorId', userId);
+          }
+        } else if (isBaseManager && !isAdmin) {
+          if (userId === user.id) {
+            countQuery.eq('userId', userId);
+          }
+        } else if (isAdmin) {
+          if (userId === user.id) {
+            countQuery.eq('userId', userId);
+          }
+        }
+      } else {
         countQuery.eq('userId', userId);
       }
+    }
 
     if (aircraftId) {
       countQuery.eq('aircraftId', aircraftId);

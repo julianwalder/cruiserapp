@@ -299,7 +299,7 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
   return (
     <>
       {/* Mobile Menu Button */}
-      <div className="lg:hidden fixed top-[calc(env(safe-area-inset-top)+var(--announcement-height,0px))] left-4 z-[60] sticky-container h-16 flex items-center">
+      <div className="lg:hidden fixed top-[calc(env(safe-area-inset-top)+var(--announcement-height,0px))] left-4 z-[45] sticky-container h-16 flex items-center">
         <Button
           variant="outline"
           size="sm"
@@ -313,7 +313,7 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
       {/* Mobile Overlay */}
       {isMobileOpen && (
         <div 
-          className="lg:hidden fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
+          className="lg:hidden fixed inset-0 bg-background/80 backdrop-blur-sm z-35"
           onClick={() => setIsMobileOpen(false)}
         />
       )}
@@ -321,7 +321,7 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
       {/* Sidebar */}
       <div 
         className={`
-          fixed top-[calc(env(safe-area-inset-top)+var(--announcement-height,0px))] left-0 h-[calc(100vh-env(safe-area-inset-top)-var(--announcement-height,0px))] bg-sidebar border-r border-sidebar-border shadow-xl z-50 transition-all duration-300 ease-in-out flex flex-col sticky-container
+          fixed top-[calc(env(safe-area-inset-top)+var(--announcement-height,0px))] left-0 h-[calc(100vh-env(safe-area-inset-top)-var(--announcement-height,0px))] bg-sidebar border-r border-sidebar-border shadow-xl z-40 transition-all duration-300 ease-in-out flex flex-col sticky-container
           ${isCollapsed ? 'w-16' : 'w-64'}
           ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}

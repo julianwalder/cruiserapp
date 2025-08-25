@@ -155,7 +155,7 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
     <div className="flex h-screen bg-white dark:bg-gray-900">
       {isHydrated && <NewSidebar user={user} onLogout={handleLogout} />}
       
-      <div className="flex-1 flex flex-col overflow-hidden lg:ml-0 sticky-container">
+      <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
         <header 
           className="sticky-header px-4 sm:px-6 flex items-center"
           data-hydrating={!isHydrated}
@@ -180,7 +180,7 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto pt-8 pb-4 px-4 sm:pt-10 sm:pb-6 sm:px-6 bg-white dark:bg-gray-900 content-with-sticky-header announcement-offset">
+        <main className="flex-1 overflow-y-auto pb-4 px-4 sm:pb-6 sm:px-6 bg-white dark:bg-gray-900 content-with-sticky-header">
           {children}
         </main>
       </div>
