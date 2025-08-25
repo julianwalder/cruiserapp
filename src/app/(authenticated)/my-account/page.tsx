@@ -234,7 +234,17 @@ export default function MyAccountPage() {
       if (response.ok) {
         const data = await response.json();
         setPilotDocuments(data.documents || []);
-        setPilotLicenses(data.licenses || []);
+        
+        // Combine licenses with their associated documents
+        const licensesWithDocuments = (data.licenses || []).map((license: any) => {
+          const associatedDocument = (data.documents || []).find((doc: any) => doc.id === license.document_id);
+          return {
+            ...license,
+            pilot_documents: associatedDocument ? [associatedDocument] : []
+          };
+        });
+        
+        setPilotLicenses(licensesWithDocuments);
       }
     } catch (error) {
       console.error('Failed to fetch pilot data:', error);
@@ -397,6 +407,69 @@ export default function MyAccountPage() {
 
   const formatScore = (score?: number) => {
     return score ? `${Math.round(score * 100)}%` : 'N/A';
+  };
+
+  // Helper function to get the earliest expiration date from pilot license ratings and language proficiency
+  const getEarliestExpirationDate = (license: any) => {
+    const allDates: Date[] = [];
+
+    // Check class type ratings
+    if (license?.class_type_ratings && Array.isArray(license.class_type_ratings)) {
+      const ratingDates = license.class_type_ratings
+        .filter((rating: any) => rating.validUntil)
+        .map((rating: any) => new Date(rating.validUntil))
+        .filter((date: Date) => !isNaN(date.getTime()));
+      allDates.push(...ratingDates);
+    }
+
+    // Check language proficiency
+    if (license?.language_proficiency && Array.isArray(license.language_proficiency)) {
+      const languageDates = license.language_proficiency
+        .filter((lang: any) => lang.validityExpiry)
+        .map((lang: any) => new Date(lang.validityExpiry))
+        .filter((date: Date) => !isNaN(date.getTime()));
+      allDates.push(...languageDates);
+    }
+
+    if (allDates.length === 0) {
+      return null;
+    }
+
+    return new Date(Math.min(...allDates.map((date: Date) => date.getTime())));
+  };
+
+  // Helper function to get validation status and color
+  const getValidationStatus = (license: any) => {
+    const expirationDate = getEarliestExpirationDate(license);
+    if (!expirationDate) {
+      return { status: 'No expiration', color: 'text-gray-500', bgColor: 'bg-gray-100' };
+    }
+
+    const now = new Date();
+    const daysUntilExpiration = Math.ceil((expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (daysUntilExpiration < 0) {
+      return { 
+        status: 'Expired', 
+        color: 'text-red-600', 
+        bgColor: 'bg-red-100',
+        days: Math.abs(daysUntilExpiration)
+      };
+    } else if (daysUntilExpiration <= 30) {
+      return { 
+        status: 'Expires soon', 
+        color: 'text-orange-600', 
+        bgColor: 'bg-orange-100',
+        days: daysUntilExpiration
+      };
+    } else {
+      return { 
+        status: 'Valid', 
+        color: 'text-green-600', 
+        bgColor: 'bg-green-100',
+        days: daysUntilExpiration
+      };
+    }
   };
 
   const getStatusIcon = (status?: string) => {
@@ -927,38 +1000,132 @@ export default function MyAccountPage() {
             <CardContent>
               <div className="space-y-4">
                 {/* Pilot License */}
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <Award className="h-5 w-5 text-blue-600" />
-                    <div>
-                      <h4 className="font-medium">Pilot License</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {pilotLicenses.length > 0 
-                          ? `${pilotLicenses[0].licenseType} - ${pilotLicenses[0].licenseNumber}`
-                          : 'Not uploaded'
-                        }
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    {pilotLicenses.length > 0 ? (
-                      <>
-                        <Badge variant="default">Uploaded</Badge>
+                <div className="space-y-3">
+                  {/* Active License */}
+                  {pilotLicenses.filter(l => l.status === 'active').length > 0 && (
+                    <div className="flex items-center justify-between p-4 border rounded-lg bg-green-50 border-green-200">
+                      <div className="flex items-center space-x-3">
+                        <Award className="h-5 w-5 text-green-600" />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium">Active Pilot License</h4>
+                            <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">
+                              v{pilotLicenses.filter(l => l.status === 'active')[0].version}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {pilotLicenses.filter(l => l.status === 'active')[0].license_type} - {pilotLicenses.filter(l => l.status === 'active')[0].license_number}
+                          </p>
+                          {(() => {
+                            const activeLicense = pilotLicenses.filter(l => l.status === 'active')[0];
+                            const validation = getValidationStatus(activeLicense);
+                            const expirationDate = getEarliestExpirationDate(activeLicense);
+                            return (
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge 
+                                  variant="outline" 
+                                  className={`${validation.bgColor} ${validation.color} border-current`}
+                                >
+                                  {validation.status}
+                                  {validation.days !== undefined && (
+                                    <span className="ml-1">
+                                      {validation.status === 'Expired' ? `(${validation.days}d ago)` : 
+                                       validation.status === 'Expires soon' ? `(${validation.days}d)` : 
+                                       `(${validation.days}d)`}
+                                    </span>
+                                  )}
+                                </Badge>
+                                {expirationDate && (
+                                  <span className="text-xs text-muted-foreground">
+                                    Valid until: {formatDate(expirationDate.toISOString())}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Badge variant="default">Active</Badge>
                         <PilotLicenseUpload 
-                          existingLicense={pilotLicenses[0]}
+                          existingLicense={pilotLicenses.filter(l => l.status === 'active')[0]}
                           onLicenseUploaded={(license) => {
                             setPilotLicenses([license, ...pilotLicenses.filter(l => l.id !== license.id)]);
                           }}
                         />
-                      </>
-                    ) : (
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Expired/Archived Licenses */}
+                  {pilotLicenses.filter(l => l.status !== 'active').length > 0 && (
+                    <div className="space-y-2">
+                      <h5 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        License History
+                      </h5>
+                      {pilotLicenses.filter(l => l.status !== 'active').map((license) => (
+                        <div key={license.id} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50 border-gray-200">
+                          <div className="flex items-center space-x-3">
+                            <FileText className="h-4 w-4 text-gray-500" />
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-medium text-sm">{license.license_type} - {license.license_number}</h4>
+                                <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-300 text-xs">
+                                  v{license.version}
+                                </Badge>
+                                <Badge variant="outline" className={
+                                  license.status === 'expired' 
+                                    ? 'bg-red-100 text-red-700 border-red-300' 
+                                    : 'bg-gray-100 text-gray-700 border-gray-300'
+                                }>
+                                  {license.status === 'expired' ? 'Expired' : 'Archived'}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                {license.status === 'expired' 
+                                  ? 'Automatically expired' 
+                                  : license.status === 'archived'
+                                  ? (license.archive_reason || 'Manually archived')
+                                  : 'Active license'}
+                                {license.archived_at && (
+                                  <span className="ml-2">
+                                    • {formatDate(license.archived_at)}
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <PilotLicenseUpload 
+                              existingLicense={license}
+                              onLicenseUploaded={(updatedLicense) => {
+                                setPilotLicenses([updatedLicense, ...pilotLicenses.filter(l => l.id !== updatedLicense.id)]);
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* No Licenses */}
+                  {pilotLicenses.length === 0 && (
+                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <Award className="h-5 w-5 text-gray-400" />
+                        <div>
+                          <h4 className="font-medium">Pilot License</h4>
+                          <p className="text-sm text-muted-foreground">Not uploaded</p>
+                        </div>
+                      </div>
                       <PilotLicenseUpload 
                         onLicenseUploaded={(license) => {
                           setPilotLicenses([license, ...pilotLicenses]);
                         }}
                       />
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Medical Certificate */}

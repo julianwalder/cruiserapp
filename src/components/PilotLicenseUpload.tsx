@@ -42,6 +42,13 @@ import {
 import { useDateFormatUtils } from '@/hooks/use-date-format';
 import { toast } from 'sonner';
 
+// Helper function to convert Date to ISO date string
+const dateToISOString = (date: Date | string | null | undefined): string => {
+  if (!date) return '';
+  if (typeof date === 'string') return date;
+  return date.toISOString().split('T')[0];
+};
+
 interface PilotLicenseUploadProps {
   onLicenseUploaded?: (license: PilotLicense) => void;
   existingLicense?: PilotLicense;
@@ -63,43 +70,16 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
     // File upload
     licenseFile: null as File | null,
     
-    // Holder Information
-    placeOfBirth: '',
-    nationality: '',
-    
-    // License Details
+    // Essential License Fields
     stateOfIssue: '',
-    issuingAuthority: '',
     licenseNumber: '',
     licenseType: '',
-    dateOfInitialIssue: '',
-    countryCodeOfInitialIssue: '',
     dateOfIssue: '',
-    issuingOfficerName: '',
-    issuingAuthoritySeal: null as File | null,
+    countryCodeOfInitialIssue: '',
     
-    // Ratings & Privileges
+    // Ratings & Language Proficiency
     classTypeRatings: [] as ClassTypeRating[],
-    irValidUntil: '',
-    
-    // Language Proficiency
     languageProficiency: [] as LanguageProficiency[],
-    
-    // Medical Requirements
-    medicalClassRequired: '',
-    medicalCertificateExpiry: '',
-    
-    // Radio Telephony
-    radiotelephonyLanguages: [] as string[],
-    radiotelephonyRemarks: '',
-    
-    // Signatures
-    holderSignaturePresent: false,
-    examinerSignatures: [] as ExaminerSignature[],
-    
-    // Additional Information
-    icaoCompliant: true,
-    abbreviationsReference: '',
   });
 
   // Update form data when existingLicense changes
@@ -114,43 +94,16 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
         // File upload
         licenseFile: null as File | null,
         
-        // Holder Information
-        placeOfBirth: existingLicense.place_of_birth || '',
-        nationality: existingLicense.nationality || '',
-        
-        // License Details
+        // Essential License Fields
         stateOfIssue: existingLicense.state_of_issue || '',
-        issuingAuthority: existingLicense.issuing_authority || '',
         licenseNumber: existingLicense.license_number || '',
         licenseType: existingLicense.license_type || '',
-        dateOfInitialIssue: existingLicense.date_of_initial_issue || '',
+        dateOfIssue: existingLicense.date_of_issue ? new Date(existingLicense.date_of_issue).toISOString().split('T')[0] : '',
         countryCodeOfInitialIssue: existingLicense.country_code_of_initial_issue || '',
-        dateOfIssue: existingLicense.date_of_issue || '',
-        issuingOfficerName: existingLicense.issuing_officer_name || '',
-        issuingAuthoritySeal: null as File | null,
         
-        // Ratings & Privileges
+        // Ratings & Language Proficiency
         classTypeRatings: existingLicense.class_type_ratings || [] as ClassTypeRating[],
-        irValidUntil: existingLicense.ir_valid_until || '',
-        
-        // Language Proficiency
         languageProficiency: existingLicense.language_proficiency || [] as LanguageProficiency[],
-        
-        // Medical Requirements
-        medicalClassRequired: existingLicense.medical_class_required || '',
-        medicalCertificateExpiry: existingLicense.medical_certificate_expiry || '',
-        
-        // Radio Telephony
-        radiotelephonyLanguages: existingLicense.radiotelephony_languages || [] as string[],
-        radiotelephonyRemarks: existingLicense.radiotelephony_remarks || '',
-        
-        // Signatures
-        holderSignaturePresent: existingLicense.holder_signature_present || false,
-        examinerSignatures: existingLicense.examiner_signatures || [] as ExaminerSignature[],
-        
-        // Additional Information
-        icaoCompliant: existingLicense.icao_compliant ?? true,
-        abbreviationsReference: existingLicense.abbreviations_reference || '',
       });
     }
   }, [existingLicense]);
@@ -226,12 +179,12 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
           if (Array.isArray(value)) {
             submitFormData.append(key, JSON.stringify(value));
           } else if (typeof value === 'boolean') {
-            submitFormData.append(key, value.toString());
+            submitFormData.append(key, String(value));
           } else if (value instanceof File) {
             submitFormData.append(key, value);
-          } else {
-            submitFormData.append(key, value.toString());
-          }
+                  } else {
+          submitFormData.append(key, String(value));
+        }
         } else if (value === '') {
           // Send empty strings for validation
           submitFormData.append(key, '');
@@ -280,28 +233,13 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
   const resetForm = () => {
     setFormData({
       licenseFile: null,
-      placeOfBirth: '',
-      nationality: '',
       stateOfIssue: '',
-      issuingAuthority: '',
       licenseNumber: '',
       licenseType: '',
-      dateOfInitialIssue: '',
-      countryCodeOfInitialIssue: '',
       dateOfIssue: '',
-      issuingOfficerName: '',
-      issuingAuthoritySeal: null,
+      countryCodeOfInitialIssue: '',
       classTypeRatings: [],
-      irValidUntil: '',
       languageProficiency: [],
-      medicalClassRequired: '',
-      medicalCertificateExpiry: '',
-      radiotelephonyLanguages: [],
-      radiotelephonyRemarks: '',
-      holderSignaturePresent: false,
-      examinerSignatures: [],
-      icaoCompliant: true,
-      abbreviationsReference: '',
     });
     setCurrentStep(1);
     setUploadedDocumentId(null);
@@ -353,28 +291,7 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
     }));
   };
 
-  const addExaminerSignature = () => {
-    setFormData(prev => ({
-      ...prev,
-      examinerSignatures: [...prev.examinerSignatures, { name: '', title: '', date: new Date() }]
-    }));
-  };
 
-  const removeExaminerSignature = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      examinerSignatures: prev.examinerSignatures.filter((_, i) => i !== index)
-    }));
-  };
-
-  const updateExaminerSignature = (index: number, field: keyof ExaminerSignature, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      examinerSignatures: prev.examinerSignatures.map((sig, i) => 
-        i === index ? { ...sig, [field]: value } : sig
-      )
-    }));
-  };
 
   const handleOpen = () => {
     setIsOpen(true);
@@ -387,6 +304,10 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
     setIsOpen(false);
     setIsViewMode(false);
     setCurrentStep(existingLicense ? 2 : 1);
+    // Clean up any object URLs to prevent memory leaks
+    if (formData.licenseFile) {
+      URL.revokeObjectURL(URL.createObjectURL(formData.licenseFile));
+    }
   };
 
   const toggleViewMode = () => {
@@ -401,55 +322,38 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
         // File upload
         licenseFile: null as File | null,
         
-        // Holder Information
-        placeOfBirth: existingLicense.place_of_birth || '',
-        nationality: existingLicense.nationality || '',
-        
-        // License Details
+        // Essential License Fields
         stateOfIssue: existingLicense.state_of_issue || '',
-        issuingAuthority: existingLicense.issuing_authority || '',
         licenseNumber: existingLicense.license_number || '',
         licenseType: existingLicense.license_type || '',
-        dateOfInitialIssue: existingLicense.date_of_initial_issue || '',
+        dateOfIssue: existingLicense.date_of_issue ? new Date(existingLicense.date_of_issue).toISOString().split('T')[0] : '',
         countryCodeOfInitialIssue: existingLicense.country_code_of_initial_issue || '',
-        dateOfIssue: existingLicense.date_of_issue || '',
-        issuingOfficerName: existingLicense.issuing_officer_name || '',
-        issuingAuthoritySeal: null as File | null,
         
-        // Ratings & Privileges
+        // Ratings & Language Proficiency
         classTypeRatings: existingLicense.class_type_ratings || [] as ClassTypeRating[],
-        irValidUntil: existingLicense.ir_valid_until || '',
-        
-        // Language Proficiency
         languageProficiency: existingLicense.language_proficiency || [] as LanguageProficiency[],
-        
-        // Medical Requirements
-        medicalClassRequired: existingLicense.medical_class_required || '',
-        medicalCertificateExpiry: existingLicense.medical_certificate_expiry || '',
-        
-        // Radio Telephony
-        radiotelephonyLanguages: existingLicense.radiotelephony_languages || [] as string[],
-        radiotelephonyRemarks: existingLicense.radiotelephony_remarks || '',
-        
-        // Signatures
-        holderSignaturePresent: existingLicense.holder_signature_present || false,
-        examinerSignatures: existingLicense.examiner_signatures || [] as ExaminerSignature[],
-        
-        // Additional Information
-        icaoCompliant: existingLicense.icao_compliant ?? true,
-        abbreviationsReference: existingLicense.abbreviations_reference || '',
       });
     }
   };
 
+  // Check if the license is expired
+  const isExpired = existingLicense && (existingLicense.status === 'expired' || existingLicense.status === 'archived');
+  
   return (
     <>
       <Button variant={existingLicense ? "outline" : "default"} size="sm" onClick={handleOpen}>
         {existingLicense ? (
-          <>
-            <Eye className="h-4 w-4 mr-2" />
-            View/Edit
-          </>
+          isExpired ? (
+            <>
+              <FileText className="h-4 w-4 mr-2" />
+              View Archive
+            </>
+          ) : (
+            <>
+              <Eye className="h-4 w-4 mr-2" />
+              View/Edit
+            </>
+          )
         ) : (
           <>
             <Upload className="h-4 w-4 mr-2" />
@@ -461,17 +365,41 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
       <Modal
         open={isOpen}
         onClose={handleClose}
-        title={`${existingLicense ? (isViewMode ? 'View Pilot License' : 'Edit Pilot License') : 'Upload Pilot License'}`}
+        title={`${
+          existingLicense 
+            ? (isExpired 
+                ? 'View Archived License' 
+                : (isViewMode ? 'View Pilot License' : 'Edit Pilot License')
+              ) 
+            : 'Upload Pilot License'
+        }`}
         description={
           existingLicense 
-            ? (isViewMode ? 'View your pilot license information' : 'Update your pilot license information')
+            ? (isExpired 
+                ? 'View your archived pilot license information'
+                : (isViewMode ? 'View your pilot license information' : 'Update your pilot license information')
+              )
             : 'Upload and configure your pilot license details'
         }
         headerActions={
           existingLicense && (
-            <Button variant="outline" size="sm" onClick={toggleViewMode}>
-              {isViewMode ? 'Edit' : 'View'}
-            </Button>
+            <div className="flex gap-2">
+              {isExpired ? (
+                <Button variant="default" size="sm" onClick={() => {
+                  // Reset to upload new license
+                  setCurrentStep(1);
+                  setIsViewMode(false);
+                  resetForm();
+                }}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload New License
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" onClick={toggleViewMode}>
+                  {isViewMode ? 'Edit' : 'View'}
+                </Button>
+              )}
+            </div>
           )
         }
       >
@@ -512,660 +440,767 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
             </div>
           )}
 
-          {/* View Mode - Document Information */}
-          {isViewMode && existingLicense && (
-            <div className="bg-gray-50 rounded-lg p-6">
+          {/* Split View Mode - Document on left, data on right (for both view and edit) */}
+          {(existingLicense || (currentStep === 2 && uploadedDocumentId)) && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[70vh]">
+              {/* Left Side - Document Viewer */}
+              <div className="bg-gray-50 rounded-lg p-4 flex flex-col">
               <div className="flex items-center gap-2 mb-4">
                 <FileText className="h-5 w-5 text-blue-600" />
-                <h3 className="text-lg font-semibold">Uploaded Document</h3>
-              </div>
-              <div className="bg-white rounded-lg p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">Document File:</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">
-                      {existingLicense.pilot_documents?.[0]?.file_name || 'Document uploaded'}
-                    </span>
-                    {existingLicense.pilot_documents?.[0]?.file_url && (
-                      <div className="flex gap-2">
+                  <h3 className="text-lg font-semibold">License Document</h3>
+                  <div className="ml-auto flex gap-2">
+                    {(existingLicense?.pilot_documents?.[0]?.file_url || (currentStep === 2 && formData.licenseFile)) && (
+                      <>
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          onClick={() => handleViewFile(
-                            existingLicense.pilot_documents[0].file_url,
-                            existingLicense.pilot_documents[0].file_name || 'Document',
-                            existingLicense.pilot_documents[0].mime_type || 'application/pdf'
-                          )}
+                          onClick={() => {
+                            if (existingLicense?.pilot_documents?.[0]?.file_url) {
+                              handleViewFile(
+                                existingLicense.pilot_documents[0].file_url,
+                                existingLicense.pilot_documents[0].file_name || 'Document',
+                                existingLicense.pilot_documents[0].mime_type || 'application/pdf'
+                              );
+                            } else if (formData.licenseFile) {
+                              // For newly uploaded files, create a temporary URL
+                              const fileUrl = URL.createObjectURL(formData.licenseFile);
+                              handleViewFile(
+                                fileUrl,
+                                formData.licenseFile.name,
+                                formData.licenseFile.type
+                              );
+                            }
+                          }}
                         >
                           <Eye className="h-4 w-4 mr-1" />
-                          View in Modal
+                          Full Screen
                         </Button>
-                        <Button variant="outline" size="sm" asChild>
-                          <a href={existingLicense.pilot_documents[0].file_url} target="_blank" rel="noopener noreferrer">
-                            <Download className="h-4 w-4 mr-1" />
-                            Download
-                          </a>
-                        </Button>
-                      </div>
+                        {existingLicense?.pilot_documents?.[0]?.file_url && (
+                          <Button variant="outline" size="sm" asChild>
+                            <a href={existingLicense.pilot_documents[0].file_url} target="_blank" rel="noopener noreferrer">
+                              <Download className="h-4 w-4 mr-1" />
+                              Download
+                            </a>
+                          </Button>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">Upload Date:</span>
-                  <span className="text-sm text-gray-600">
-                    {existingLicense.pilot_documents?.[0]?.created_at 
-                      ? new Date(existingLicense.pilot_documents[0].created_at).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })
-                      : existingLicense.pilot_documents?.[0]?.uploaded_at
-                      ? new Date(existingLicense.pilot_documents[0].uploaded_at).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })
-                      : 'N/A'
+                
+                {/* Document Preview */}
+                <div className="flex-1 bg-white rounded-lg border overflow-hidden">
+                  {(() => {
+                    // For existing licenses, use the stored document
+                    if (existingLicense?.pilot_documents?.[0]?.file_url) {
+                      const doc = existingLicense.pilot_documents[0];
+                      if (doc.mime_type?.startsWith('image/')) {
+                        return (
+                          <img 
+                            src={doc.file_url} 
+                            alt={doc.file_name || 'License Document'}
+                            className="w-full h-full object-contain"
+                          />
+                        );
+                      } else if (doc.mime_type === 'application/pdf') {
+                        return (
+                          <iframe
+                            src={doc.file_url}
+                            className="w-full h-full border-0"
+                            title={doc.file_name || 'License Document'}
+                          />
+                        );
+                      } else {
+                        return (
+                          <div className="flex items-center justify-center h-full">
+                            <div className="text-center">
+                              <FileText className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+                              <p className="text-gray-600 mb-4">
+                                This file type cannot be previewed directly.
+                              </p>
+                              <Button asChild>
+                                <a href={doc.file_url} target="_blank" rel="noopener noreferrer">
+                                  <Download className="h-4 w-4 mr-2" />
+                                  Download to View
+                                </a>
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      }
                     }
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">Document Type:</span>
-                  <span className="text-sm text-gray-600">
-                    {existingLicense.pilot_documents?.[0]?.document_type || 'Pilot License'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">File Size:</span>
-                  <span className="text-sm text-gray-600">
-                    {existingLicense.pilot_documents?.[0]?.file_size 
-                      ? `${(existingLicense.pilot_documents[0].file_size / 1024 / 1024).toFixed(2)} MB`
-                      : 'N/A'
+                    // For newly uploaded files, create a preview
+                    else if (currentStep === 2 && formData.licenseFile) {
+                      const fileUrl = URL.createObjectURL(formData.licenseFile);
+                      if (formData.licenseFile.type.startsWith('image/')) {
+                        return (
+                          <img 
+                            src={fileUrl} 
+                            alt={formData.licenseFile.name}
+                            className="w-full h-full object-contain"
+                          />
+                        );
+                      } else if (formData.licenseFile.type === 'application/pdf') {
+                        return (
+                          <iframe
+                            src={fileUrl}
+                            className="w-full h-full border-0"
+                            title={formData.licenseFile.name}
+                          />
+                        );
+                      } else {
+                        return (
+                          <div className="flex items-center justify-center h-full">
+                            <div className="text-center">
+                              <FileText className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+                              <p className="text-gray-600 mb-4">
+                                This file type cannot be previewed directly.
+                              </p>
+                              <Button onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = fileUrl;
+                                link.download = formData.licenseFile?.name || 'document';
+                                link.click();
+                              }}>
+                                <Download className="h-4 w-4 mr-2" />
+                                Download to View
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      }
                     }
-                  </span>
+                    // No document available
+                    else {
+                      return (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="text-center">
+                            <FileText className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+                            <p className="text-gray-600">No document available</p>
+                          </div>
+                        </div>
+                      );
+                    }
+                  })()}
                 </div>
-              </div>
-            </div>
-          )}
 
-          {/* Step 2: License Details */}
-          {currentStep === 2 && (
-            <div className="space-y-6">
-              {/* Holder Information */}
-              <div className="bg-gray-50 rounded-lg p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <User className="h-5 w-5 text-blue-600" />
-                  <h3 className="text-lg font-semibold">Holder Information</h3>
-                </div>
-                <p className="text-gray-600 mb-6">
-                  Personal information of the license holder
-                </p>
-                <div className="bg-white rounded-lg p-4">
-                  {isViewMode ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Document Info */}
+                <div className="mt-4 bg-white rounded-lg p-3 text-sm">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>
-                        <span className="text-sm font-medium text-gray-500">Place of Birth</span>
-                        <p className="text-gray-900">{existingLicense?.place_of_birth || 'Not specified'}</p>
+                      <span className="font-medium text-gray-500">File:</span>
+                      <p className="text-gray-900 truncate">
+                        {existingLicense?.pilot_documents?.[0]?.file_name || 
+                         (formData.licenseFile ? formData.licenseFile.name : 'Document uploaded')}
+                      </p>
                       </div>
                       <div>
-                        <span className="text-sm font-medium text-gray-500">Nationality</span>
-                        <p className="text-gray-900">{existingLicense?.nationality || 'Not specified'}</p>
+                      <span className="font-medium text-gray-500">Size:</span>
+                        <p className="text-gray-900">
+                        {existingLicense?.pilot_documents?.[0]?.file_size 
+                          ? `${(existingLicense.pilot_documents[0].file_size / 1024 / 1024).toFixed(2)} MB`
+                          : (formData.licenseFile ? `${(formData.licenseFile.size / 1024 / 1024).toFixed(2)} MB` : 'N/A')
+                          }
+                        </p>
+                      </div>
+                      <div>
+                      <span className="font-medium text-gray-500">Uploaded:</span>
+                        <p className="text-gray-900">
+                    {existingLicense?.pilot_documents?.[0]?.createdAt 
+                          ? new Date(existingLicense.pilot_documents[0].createdAt).toLocaleDateString()
+                      : existingLicense?.pilot_documents?.[0]?.uploaded_at
+                          ? new Date(existingLicense.pilot_documents[0].uploaded_at).toLocaleDateString()
+                      : (formData.licenseFile ? 'Just uploaded' : 'N/A')
+                          }
+                        </p>
+                      </div>
+                      <div>
+                      <span className="font-medium text-gray-500">Type:</span>
+                      <p className="text-gray-900">
+                    {existingLicense?.pilot_documents?.[0]?.document_type || 
+                     (formData.licenseFile ? formData.licenseFile.type : 'Pilot License')}
+                      </p>
                       </div>
                     </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="placeOfBirth">Place of Birth</Label>
-                        <Input
-                          id="placeOfBirth"
-                          value={formData.placeOfBirth}
-                          onChange={(e) => setFormData(prev => ({ ...prev, placeOfBirth: e.target.value }))}
-                          placeholder="City, Country"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="nationality">Nationality</Label>
-                        <Input
-                          id="nationality"
-                          value={formData.nationality}
-                          onChange={(e) => setFormData(prev => ({ ...prev, nationality: e.target.value }))}
-                          placeholder="e.g., Romanian"
-                        />
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
 
-              {/* License Details */}
-              <div className="bg-gray-50 rounded-lg p-6">
+              {/* Right Side - License Data (Editable) */}
+              <div className="bg-gray-50 rounded-lg p-4 overflow-y-auto">
                 <div className="flex items-center gap-2 mb-4">
                   <Award className="h-5 w-5 text-blue-600" />
-                  <h3 className="text-lg font-semibold">License Details</h3>
+                  <h3 className="text-lg font-semibold">License Information</h3>
+                  <Badge variant="outline" className="ml-auto">Editable</Badge>
                 </div>
-                <p className="text-gray-600 mb-6">
-                  Official license information
-                </p>
-                <div className="bg-white rounded-lg p-4">
-                  {isViewMode ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <div className="space-y-4">
+                  {/* Essential License Fields */}
+                  <div className="grid grid-cols-1 gap-3">
+                      {/* I. State of issue */}
                       <div>
-                        <span className="text-sm font-medium text-gray-500">State of Issue</span>
-                        <p className="text-gray-900">{existingLicense?.state_of_issue || 'Not specified'}</p>
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium text-gray-500">Issuing Authority</span>
-                        <p className="text-gray-900">{existingLicense?.issuing_authority || 'Not specified'}</p>
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium text-gray-500">License Number</span>
-                        <p className="text-gray-900">{existingLicense?.license_number || 'Not specified'}</p>
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium text-gray-500">License Type</span>
-                        <p className="text-gray-900">{existingLicense?.license_type || 'Not specified'}</p>
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium text-gray-500">Date of Initial Issue</span>
-                        <p className="text-gray-900">
-                          {existingLicense?.date_of_initial_issue 
-                            ? new Date(existingLicense.date_of_initial_issue).toLocaleDateString()
-                            : 'Not specified'
-                          }
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium text-gray-500">Country Code of Initial Issue</span>
-                        <p className="text-gray-900">{existingLicense?.country_code_of_initial_issue || 'Not specified'}</p>
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium text-gray-500">Date of Issue</span>
-                        <p className="text-gray-900">
-                          {existingLicense?.date_of_issue 
-                            ? new Date(existingLicense.date_of_issue).toLocaleDateString()
-                            : 'Not specified'
-                          }
-                        </p>
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium text-gray-500">Issuing Officer Name</span>
-                        <p className="text-gray-900">{existingLicense?.issuing_officer_name || 'Not specified'}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="stateOfIssue">State of Issue *</Label>
+                        <Label htmlFor="stateOfIssue" className="text-sm font-medium text-gray-500">I. State of issue</Label>
+                        {isViewMode ? (
+                          <p className="text-gray-900 mt-1">{existingLicense?.state_of_issue || 'Not specified'}</p>
+                        ) : (
                         <Input
                           id="stateOfIssue"
                           value={formData.stateOfIssue}
                           onChange={(e) => setFormData(prev => ({ ...prev, stateOfIssue: e.target.value }))}
                           placeholder="e.g., Romania"
+                            className="mt-1"
                           required
                         />
+                        )}
                       </div>
+
+                      {/* III. License number */}
                       <div>
-                        <Label htmlFor="issuingAuthority">Issuing Authority *</Label>
-                        <Input
-                          id="issuingAuthority"
-                          value={formData.issuingAuthority}
-                          onChange={(e) => setFormData(prev => ({ ...prev, issuingAuthority: e.target.value }))}
-                          placeholder="e.g., Romanian Civil Aviation Authority"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="licenseNumber">License Number *</Label>
+                        <Label htmlFor="licenseNumber" className="text-sm font-medium text-gray-500">III. License number</Label>
+                        {isViewMode ? (
+                          <p className="text-gray-900 mt-1">{existingLicense?.license_number || 'Not specified'}</p>
+                        ) : (
                         <Input
                           id="licenseNumber"
                           value={formData.licenseNumber}
                           onChange={(e) => setFormData(prev => ({ ...prev, licenseNumber: e.target.value }))}
                           placeholder="e.g., RO-123456"
+                            className="mt-1"
                           required
                         />
+                        )}
                       </div>
+
+                      {/* II. Titles of licenses with Date of issue and Country Code */}
+                      <div className="grid grid-cols-3 gap-3">
                       <div>
-                        <Label htmlFor="licenseType">License Type *</Label>
+                          <Label htmlFor="licenseType" className="text-sm font-medium text-gray-500">II. Titles of licenses</Label>
+                          {isViewMode ? (
+                            <p className="text-gray-900 mt-1">{existingLicense?.license_type || 'Not specified'}</p>
+                          ) : (
                         <Select
                           value={formData.licenseType}
                           onValueChange={(value) => setFormData(prev => ({ ...prev, licenseType: value }))}
                         >
-                          <SelectTrigger>
+                              <SelectTrigger className="mt-1">
                             <SelectValue placeholder="Select license type" />
                           </SelectTrigger>
                           <SelectContent>
-                            {LICENSE_TYPES.map((type) => (
-                              <SelectItem key={type} value={type}>
-                                {type}
-                              </SelectItem>
-                            ))}
+                                <SelectItem value="PPL(A)">PPL(A)</SelectItem>
+                                <SelectItem value="CPL(A)">CPL(A)</SelectItem>
+                                <SelectItem value="ATPL(A)">ATPL(A)</SelectItem>
                           </SelectContent>
                         </Select>
+                          )}
                       </div>
+
                       <div>
-                        <Label htmlFor="dateOfInitialIssue">Date of Initial Issue *</Label>
+                          <Label htmlFor="dateOfIssue" className="text-sm font-medium text-gray-500">Date of issue</Label>
+                          {isViewMode ? (
+                            <p className="text-gray-900 mt-1">
+                              {existingLicense?.date_of_issue 
+                                ? new Date(existingLicense.date_of_issue).toLocaleDateString()
+                                : 'Not specified'
+                              }
+                            </p>
+                          ) : (
                         <Input
-                          id="dateOfInitialIssue"
+                              id="dateOfIssue"
                           type="date"
-                          value={formData.dateOfInitialIssue}
-                          onChange={(e) => setFormData(prev => ({ ...prev, dateOfInitialIssue: e.target.value }))}
+                              value={formData.dateOfIssue}
+                              onChange={(e) => setFormData(prev => ({ ...prev, dateOfIssue: e.target.value }))}
+                              className="mt-1"
                           required
                         />
+                          )}
                       </div>
+
                       <div>
-                        <Label htmlFor="countryCodeOfInitialIssue">Country Code of Initial Issue *</Label>
+                          <Label htmlFor="countryCodeOfInitialIssue" className="text-sm font-medium text-gray-500">Country Code</Label>
+                          {isViewMode ? (
+                            <p className="text-gray-900 mt-1">{existingLicense?.country_code_of_initial_issue || 'Not specified'}</p>
+                          ) : (
                         <Input
                           id="countryCodeOfInitialIssue"
                           value={formData.countryCodeOfInitialIssue}
                           onChange={(e) => setFormData(prev => ({ ...prev, countryCodeOfInitialIssue: e.target.value }))}
                           placeholder="e.g., RO"
+                              className="mt-1"
                           required
+                              maxLength={2}
                         />
+                          )}
                       </div>
+                      </div>
+
+                                              {/* XII. Ratings with multiple ratings support */}
                       <div>
-                        <Label htmlFor="dateOfIssue">Date of Issue *</Label>
-                        <Input
-                          id="dateOfIssue"
-                          type="date"
-                          value={formData.dateOfIssue}
-                          onChange={(e) => setFormData(prev => ({ ...prev, dateOfIssue: e.target.value }))}
-                          required
-                        />
+                          <Label className="text-sm font-medium text-gray-500">XII. Ratings</Label>
+                          {isViewMode ? (
+                            <div className="mt-1 space-y-2">
+                              {existingLicense?.class_type_ratings && existingLicense.class_type_ratings.length > 0 ? (
+                                existingLicense.class_type_ratings.map((rating, index) => (
+                                  <div key={index} className="flex items-center gap-2 text-sm">
+                                    <span className="font-medium">{rating.rating}</span>
+                                    <span className="text-gray-500">-</span>
+                                    <span>Valid until: {new Date(rating.validUntil).toLocaleDateString()}</span>
                       </div>
-                      <div>
-                        <Label htmlFor="issuingOfficerName">Issuing Officer Name</Label>
-                        <Input
-                          id="issuingOfficerName"
-                          value={formData.issuingOfficerName}
-                          onChange={(e) => setFormData(prev => ({ ...prev, issuingOfficerName: e.target.value }))}
-                          placeholder="Name of issuing officer"
-                        />
-                      </div>
-                    </div>
+                                ))
+                              ) : (
+                                <p className="text-gray-900">Not specified</p>
                   )}
                 </div>
-              </div>
-
-              {/* Ratings & Privileges */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Shield className="h-5 w-5" />
-                    Ratings & Privileges
-                  </CardTitle>
-                  <CardDescription>
-                    Aircraft ratings and privileges
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium">Class/Type Ratings</h4>
-                    <Button type="button" variant="outline" size="sm" onClick={addClassTypeRating}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Rating
-                    </Button>
-                  </div>
-                  
+                          ) : (
+                            <div className="mt-1 space-y-3">
                   {formData.classTypeRatings.map((rating, index) => (
-                    <div key={index} className="border rounded-lg p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h5 className="font-medium">Rating {index + 1}</h5>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeClassTypeRating(index)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div>
-                          <Label>Rating</Label>
-                          <Input
-                            value={rating.rating}
-                            onChange={(e) => updateClassTypeRating(index, 'rating', e.target.value)}
-                            placeholder="e.g., SEP(land)"
-                          />
-                        </div>
-                        <div>
-                          <Label>Valid Until</Label>
+                                <div key={index} className="grid grid-cols-2 gap-3">
+                                  <Select
+                                    value={rating.rating}
+                                    onValueChange={(value) => {
+                                      const updatedRatings = [...formData.classTypeRatings];
+                                      updatedRatings[index] = { ...rating, rating: value };
+                                      setFormData(prev => ({
+                                        ...prev,
+                                        classTypeRatings: updatedRatings
+                                      }));
+                                    }}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select rating" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="SEP(land)">SEP(land)</SelectItem>
+                                      <SelectItem value="FI(A)-SEP(land)">FI(A)-SEP(land)</SelectItem>
+                                    </SelectContent>
+                                  </Select>
                           <Input
                             type="date"
-                            value={formatDate(rating.validUntil, 'yyyy-MM-dd')}
-                            onChange={(e) => updateClassTypeRating(index, 'validUntil', new Date(e.target.value))}
-                          />
-                        </div>
-                        <div>
-                          <Label>Remarks</Label>
-                          <Input
-                            value={rating.remarks || ''}
-                            onChange={(e) => updateClassTypeRating(index, 'remarks', e.target.value)}
-                            placeholder="Optional remarks"
-                          />
-                        </div>
-                      </div>
+                                    value={rating.validUntil ? new Date(rating.validUntil).toISOString().split('T')[0] : ''}
+                                    onChange={(e) => {
+                                      const updatedRatings = [...formData.classTypeRatings];
+                                      updatedRatings[index] = { ...rating, validUntil: new Date(e.target.value) };
+                                      setFormData(prev => ({
+                                        ...prev,
+                                        classTypeRatings: updatedRatings
+                                      }));
+                                    }}
+                                    placeholder="Valid until"
+                                  />
                     </div>
                   ))}
-
-                  <div>
-                    <Label htmlFor="irValidUntil">IR Valid Until</Label>
-                    <Input
-                      id="irValidUntil"
-                      type="date"
-                      value={formData.irValidUntil}
-                      onChange={(e) => setFormData(prev => ({ ...prev, irValidUntil: e.target.value }))}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Language Proficiency */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Languages className="h-5 w-5" />
-                    Language Proficiency
-                  </CardTitle>
-                  <CardDescription>
-                    Language proficiency endorsements
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium">Languages</h4>
-                    <Button type="button" variant="outline" size="sm" onClick={addLanguageProficiency}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Language
-                    </Button>
-                  </div>
-                  
-                  {formData.languageProficiency.map((lang, index) => (
-                    <div key={index} className="border rounded-lg p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h5 className="font-medium">Language {index + 1}</h5>
                         <Button
                           type="button"
-                          variant="ghost"
+                                variant="outline"
                           size="sm"
-                          onClick={() => removeLanguageProficiency(index)}
-                        >
-                          <X className="h-4 w-4" />
+                                onClick={() => {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    classTypeRatings: [...prev.classTypeRatings, { rating: '', validUntil: new Date(), remarks: '' }]
+                                  }));
+                                }}
+                                className="w-full"
+                              >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Add Rating
                         </Button>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          )}
+                        </div>
+
+                        {/* XIII. Remarks: Language Proficiency */}
                         <div>
-                          <Label>Language</Label>
+                          <Label className="text-sm font-medium text-gray-500">XIII. Remarks: Language Proficiency</Label>
+                          {isViewMode ? (
+                            <div className="mt-1 space-y-2">
+                              {existingLicense?.language_proficiency && existingLicense.language_proficiency.length > 0 ? (
+                                existingLicense.language_proficiency.map((lang, index) => (
+                                  <div key={index} className="flex items-center gap-2 text-sm">
+                                    <span className="font-medium">{lang.language}</span>
+                                    <span className="text-gray-500">-</span>
+                                    <span>Level {lang.level}</span>
+                                    {lang.level !== 'VI' && (
+                                      <>
+                                        <span className="text-gray-500">-</span>
+                                        <span>Valid until: {lang.validityExpiry ? new Date(lang.validityExpiry).toLocaleDateString() : 'N/A'}</span>
+                                      </>
+                                    )}
+                                    {lang.level === 'VI' && (
+                                      <span className="text-green-600 font-medium">(Valid for life)</span>
+                                    )}
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="text-gray-900">Not specified</p>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="mt-1 space-y-3">
+                                                             {formData.languageProficiency.map((lang, index) => (
+                                 <div key={index} className="grid grid-cols-3 gap-3">
                           <Select
                             value={lang.language}
-                            onValueChange={(value) => updateLanguageProficiency(index, 'language', value)}
+                                     onValueChange={(value) => {
+                                       const updatedLanguages = [...formData.languageProficiency];
+                                       updatedLanguages[index] = { ...lang, language: value };
+                                       setFormData(prev => ({
+                                         ...prev,
+                                         languageProficiency: updatedLanguages
+                                       }));
+                                     }}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Select language" />
                             </SelectTrigger>
                             <SelectContent>
-                              {AVIATION_LANGUAGES.map((language) => (
-                                <SelectItem key={language} value={language}>
-                                  {language}
-                                </SelectItem>
-                              ))}
+                                       <SelectItem value="English">English</SelectItem>
+                                       <SelectItem value="Romanian">Romanian</SelectItem>
+                                       <SelectItem value="French">French</SelectItem>
+                                       <SelectItem value="German">German</SelectItem>
+                                       <SelectItem value="Spanish">Spanish</SelectItem>
+                                       <SelectItem value="Italian">Italian</SelectItem>
+                                       <SelectItem value="Portuguese">Portuguese</SelectItem>
+                                       <SelectItem value="Russian">Russian</SelectItem>
+                                       <SelectItem value="Arabic">Arabic</SelectItem>
+                                       <SelectItem value="Chinese">Chinese</SelectItem>
+                                       <SelectItem value="Japanese">Japanese</SelectItem>
+                                       <SelectItem value="Korean">Korean</SelectItem>
                             </SelectContent>
                           </Select>
-                        </div>
-                        <div>
-                          <Label>Level</Label>
                           <Select
                             value={lang.level}
-                            onValueChange={(value) => updateLanguageProficiency(index, 'level', value)}
+                                    onValueChange={(value) => {
+                                      const updatedLanguages = [...formData.languageProficiency];
+                                      updatedLanguages[index] = { 
+                                        ...lang, 
+                                        level: value,
+                                        // Clear validity date if level VI (valid for life)
+                                        validityExpiry: value === 'VI' ? null : lang.validityExpiry
+                                      };
+                                      setFormData(prev => ({
+                                        ...prev,
+                                        languageProficiency: updatedLanguages
+                                      }));
+                                    }}
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Select level" />
+                                      <SelectValue placeholder="Level" />
                             </SelectTrigger>
                             <SelectContent>
-                              {LANGUAGE_LEVELS.map((level) => (
-                                <SelectItem key={level} value={level}>
-                                  {level}
-                                </SelectItem>
-                              ))}
+                                       <SelectItem value="IV">Level IV</SelectItem>
+                                       <SelectItem value="V">Level V</SelectItem>
+                                       <SelectItem value="VI">Level VI (Valid for life)</SelectItem>
                             </SelectContent>
                           </Select>
-                        </div>
-                        <div>
-                          <Label>Valid Until</Label>
+                                  {lang.level !== 'VI' ? (
                           <Input
                             type="date"
-                            value={formatDate(lang.validityExpiry, 'yyyy-MM-dd')}
-                            onChange={(e) => updateLanguageProficiency(index, 'validityExpiry', new Date(e.target.value))}
-                          />
+                                      value={lang.validityExpiry ? new Date(lang.validityExpiry).toISOString().split('T')[0] : ''}
+                                      onChange={(e) => {
+                                        const updatedLanguages = [...formData.languageProficiency];
+                                        updatedLanguages[index] = { ...lang, validityExpiry: new Date(e.target.value) };
+                                        setFormData(prev => ({
+                                          ...prev,
+                                          languageProficiency: updatedLanguages
+                                        }));
+                                      }}
+                                      placeholder="Valid until"
+                                    />
+                                  ) : (
+                                    <div className="flex items-center justify-center text-sm text-green-600 font-medium">
+                                      Valid for life
                         </div>
-                      </div>
+                                  )}
                     </div>
                   ))}
-                </CardContent>
-              </Card>
-
-              {/* Medical Requirements */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Shield className="h-5 w-5" />
-                    Medical Requirements
-                  </CardTitle>
-                  <CardDescription>
-                    Medical certificate information
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="medicalClassRequired">Medical Class Required</Label>
-                    <Select
-                      value={formData.medicalClassRequired}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, medicalClassRequired: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select medical class" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {MEDICAL_CLASSES.map((medicalClass) => (
-                          <SelectItem key={medicalClass} value={medicalClass}>
-                            {medicalClass}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="medicalCertificateExpiry">Medical Certificate Expiry</Label>
-                    <Input
-                      id="medicalCertificateExpiry"
-                      type="date"
-                      value={formData.medicalCertificateExpiry}
-                      onChange={(e) => setFormData(prev => ({ ...prev, medicalCertificateExpiry: e.target.value }))}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Radio Telephony */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Radio className="h-5 w-5" />
-                    Radio Telephony
-                  </CardTitle>
-                  <CardDescription>
-                    Radio telephony privileges
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label>Radiotelephony Languages</Label>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-2">
-                      {AVIATION_LANGUAGES.map((language) => (
-                        <div key={language} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`radio-${language}`}
-                            checked={formData.radiotelephonyLanguages.includes(language)}
-                            onCheckedChange={(checked) => {
-                              setFormData(prev => ({
-                                ...prev,
-                                radiotelephonyLanguages: checked
-                                  ? [...prev.radiotelephonyLanguages, language]
-                                  : prev.radiotelephonyLanguages.filter(l => l !== language)
-                              }));
-                            }}
-                          />
-                          <Label htmlFor={`radio-${language}`} className="text-sm">
-                            {language}
-                          </Label>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    languageProficiency: [...prev.languageProficiency, { language: '', level: '', validityExpiry: new Date() }]
+                                  }));
+                                }}
+                                className="w-full"
+                              >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Add Language
+                              </Button>
+                            </div>
+                          )}
                         </div>
-                      ))}
+                  </div>
+
+                  {/* Save Button - Only show in edit mode */}
+                  {!isViewMode && (
+                    <div className="flex justify-end pt-4">
+                      <Button onClick={handleSubmit} disabled={isUploading}>
+                        {isUploading ? 'Saving...' : 'Save Changes'}
+                      </Button>
                     </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="radiotelephonyRemarks">Remarks</Label>
-                    <Textarea
-                      id="radiotelephonyRemarks"
-                      value={formData.radiotelephonyRemarks}
-                      onChange={(e) => setFormData(prev => ({ ...prev, radiotelephonyRemarks: e.target.value }))}
-                      placeholder="e.g., Can only be exercised with valid language proficiency endorsement"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Signatures */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Signature className="h-5 w-5" />
-                    Signatures
-                  </CardTitle>
-                  <CardDescription>
-                    Signature information
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="holderSignaturePresent"
-                      checked={formData.holderSignaturePresent}
-                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, holderSignaturePresent: checked as boolean }))}
-                    />
-                    <Label htmlFor="holderSignaturePresent">Holder's signature present</Label>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium">Examiner Signatures</h4>
-                    <Button type="button" variant="outline" size="sm" onClick={addExaminerSignature}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Signature
-                    </Button>
-                  </div>
-                  
-                  {formData.examinerSignatures.map((signature, index) => (
-                    <div key={index} className="border rounded-lg p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h5 className="font-medium">Examiner {index + 1}</h5>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeExaminerSignature(index)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        <div>
-                          <Label>Name</Label>
-                          <Input
-                            value={signature.name}
-                            onChange={(e) => updateExaminerSignature(index, 'name', e.target.value)}
-                            placeholder="Examiner name"
-                          />
-                        </div>
-                        <div>
-                          <Label>Title</Label>
-                          <Input
-                            value={signature.title}
-                            onChange={(e) => updateExaminerSignature(index, 'title', e.target.value)}
-                            placeholder="Examiner title"
-                          />
-                        </div>
-                        <div>
-                          <Label>Date</Label>
-                          <Input
-                            type="date"
-                            value={formatDate(signature.date, 'yyyy-MM-dd')}
-                            onChange={(e) => updateExaminerSignature(index, 'date', new Date(e.target.value))}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              {/* Additional Information */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Info className="h-5 w-5" />
-                    Additional Information
-                  </CardTitle>
-                  <CardDescription>
-                    Additional license information
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="icaoCompliant"
-                      checked={formData.icaoCompliant}
-                      onCheckedChange={(checked) => setFormData(prev => ({ ...prev, icaoCompliant: checked as boolean }))}
-                    />
-                    <Label htmlFor="icaoCompliant">ICAO compliant</Label>
-                  </div>
-                  <div>
-                    <Label htmlFor="abbreviationsReference">Abbreviations Reference</Label>
-                    <Input
-                      id="abbreviationsReference"
-                      value={formData.abbreviationsReference}
-                      onChange={(e) => setFormData(prev => ({ ...prev, abbreviationsReference: e.target.value }))}
-                      placeholder="Reference to abbreviations section"
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Navigation */}
+          {/* Step 2: License Details (for new uploads only) */}
+          {currentStep === 2 && !isViewMode && !existingLicense && (
+            <div className="space-y-6">
+              {/* Essential License Fields */}
+              <div className="bg-gray-50 rounded-lg p-6">
+                <div className="grid grid-cols-1 gap-3">
+                    {/* I. State of issue */}
+                  <div>
+                      <Label htmlFor="stateOfIssue" className="text-sm font-medium text-gray-500">I. State of issue</Label>
+                      <Input
+                        id="stateOfIssue"
+                        value={formData.stateOfIssue}
+                        onChange={(e) => setFormData(prev => ({ ...prev, stateOfIssue: e.target.value }))}
+                        placeholder="e.g., Romania"
+                        className="mt-1"
+                        required
+                      />
+                    </div>
+
+                    {/* III. License number */}
+                    <div>
+                      <Label htmlFor="licenseNumber" className="text-sm font-medium text-gray-500">III. License number</Label>
+                      <Input
+                        id="licenseNumber"
+                        value={formData.licenseNumber}
+                        onChange={(e) => setFormData(prev => ({ ...prev, licenseNumber: e.target.value }))}
+                        placeholder="e.g., RO-123456"
+                        className="mt-1"
+                        required
+                      />
+                    </div>
+
+                    {/* II. Titles of licenses with Date of issue and Country Code */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <Label htmlFor="licenseType" className="text-sm font-medium text-gray-500">II. Titles of licenses</Label>
+                    <Select
+                          value={formData.licenseType}
+                          onValueChange={(value) => setFormData(prev => ({ ...prev, licenseType: value }))}
+                    >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Select license type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                            <SelectItem value="PPL(A)">PPL(A)</SelectItem>
+                            <SelectItem value="CPL(A)">CPL(A)</SelectItem>
+                            <SelectItem value="ATPL(A)">ATPL(A)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                        <Label htmlFor="dateOfIssue" className="text-sm font-medium text-gray-500">Date of issue</Label>
+                    <Input
+                          id="dateOfIssue"
+                      type="date"
+                          value={formData.dateOfIssue}
+                          onChange={(e) => setFormData(prev => ({ ...prev, dateOfIssue: e.target.value }))}
+                          className="mt-1"
+                          required
+                    />
+                  </div>
+
+                  <div>
+                        <Label htmlFor="countryCodeOfInitialIssue" className="text-sm font-medium text-gray-500">Country Code</Label>
+                        <Input
+                          id="countryCodeOfInitialIssue"
+                          value={formData.countryCodeOfInitialIssue}
+                          onChange={(e) => setFormData(prev => ({ ...prev, countryCodeOfInitialIssue: e.target.value }))}
+                          placeholder="e.g., RO"
+                          className="mt-1"
+                          required
+                          maxLength={2}
+                        />
+                      </div>
+                    </div>
+
+                    {/* XII. Ratings with multiple ratings support */}
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">XII. Ratings</Label>
+                      <div className="mt-1 space-y-3">
+                        {formData.classTypeRatings.map((rating, index) => (
+                          <div key={index} className="grid grid-cols-2 gap-3">
+                            <Select
+                              value={rating.rating}
+                              onValueChange={(value) => {
+                                const updatedRatings = [...formData.classTypeRatings];
+                                updatedRatings[index] = { ...rating, rating: value };
+                              setFormData(prev => ({
+                                ...prev,
+                                  classTypeRatings: updatedRatings
+                              }));
+                            }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select rating" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="SEP(land)">SEP(land)</SelectItem>
+                                <SelectItem value="FI(A)-SEP(land)">FI(A)-SEP(land)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              type="date"
+                              value={rating.validUntil ? new Date(rating.validUntil).toISOString().split('T')[0] : ''}
+                              onChange={(e) => {
+                                const updatedRatings = [...formData.classTypeRatings];
+                                updatedRatings[index] = { ...rating, validUntil: new Date(e.target.value) };
+                                setFormData(prev => ({
+                                  ...prev,
+                                  classTypeRatings: updatedRatings
+                                }));
+                              }}
+                              placeholder="Valid until"
+                            />
+                        </div>
+                      ))}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              classTypeRatings: [...prev.classTypeRatings, { rating: '', validUntil: new Date(), remarks: '' }]
+                            }));
+                          }}
+                          className="w-full"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Rating
+                        </Button>
+                      </div>
+                        </div>
+
+                    {/* XIII. Remarks: Language Proficiency */}
+                        <div>
+                      <Label className="text-sm font-medium text-gray-500">XIII. Remarks: Language Proficiency</Label>
+                      <div className="mt-1 space-y-3">
+                        {formData.languageProficiency.map((lang, index) => (
+                          <div key={index} className="grid grid-cols-3 gap-3">
+                            <Select
+                              value={lang.language}
+                              onValueChange={(value) => {
+                                const updatedLanguages = [...formData.languageProficiency];
+                                updatedLanguages[index] = { ...lang, language: value };
+                                setFormData(prev => ({
+                                  ...prev,
+                                  languageProficiency: updatedLanguages
+                                }));
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select language" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="English">English</SelectItem>
+                                <SelectItem value="Romanian">Romanian</SelectItem>
+                                <SelectItem value="French">French</SelectItem>
+                                <SelectItem value="German">German</SelectItem>
+                                <SelectItem value="Spanish">Spanish</SelectItem>
+                                <SelectItem value="Italian">Italian</SelectItem>
+                                <SelectItem value="Portuguese">Portuguese</SelectItem>
+                                <SelectItem value="Russian">Russian</SelectItem>
+                                <SelectItem value="Arabic">Arabic</SelectItem>
+                                <SelectItem value="Chinese">Chinese</SelectItem>
+                                <SelectItem value="Japanese">Japanese</SelectItem>
+                                <SelectItem value="Korean">Korean</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Select
+                              value={lang.level}
+                              onValueChange={(value) => {
+                                const updatedLanguages = [...formData.languageProficiency];
+                                updatedLanguages[index] = { 
+                                  ...lang, 
+                                  level: value,
+                                  // Clear validity date if level VI (valid for life)
+                                  validityExpiry: value === 'VI' ? null : lang.validityExpiry
+                                };
+                                setFormData(prev => ({
+                                  ...prev,
+                                  languageProficiency: updatedLanguages
+                                }));
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Level" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="IV">Level IV</SelectItem>
+                                <SelectItem value="V">Level V</SelectItem>
+                                <SelectItem value="VI">Level VI (Valid for life)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {lang.level !== 'VI' ? (
+                          <Input
+                            type="date"
+                                value={lang.validityExpiry ? new Date(lang.validityExpiry).toISOString().split('T')[0] : ''}
+                                onChange={(e) => {
+                                  const updatedLanguages = [...formData.languageProficiency];
+                                  updatedLanguages[index] = { ...lang, validityExpiry: new Date(e.target.value) };
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    languageProficiency: updatedLanguages
+                                  }));
+                                }}
+                                placeholder="Valid until"
+                              />
+                            ) : (
+                              <div className="flex items-center justify-center text-sm text-green-600 font-medium">
+                                Valid for life
+                        </div>
+                            )}
+                    </div>
+                  ))}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              languageProficiency: [...prev.languageProficiency, { language: '', level: '', validityExpiry: new Date() }]
+                            }));
+                          }}
+                          className="w-full"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Language
+                        </Button>
+                  </div>
+                  </div>
+                                       </div>
+                   </div>
+            </div>
+          )}
+
+          {/* Navigation - Only for new uploads (step 1 to step 2) */}
+          {!existingLicense && currentStep === 2 && (
           <div className="flex justify-between">
-            {currentStep === 2 && !isViewMode && (
               <Button
                 variant="outline"
                 onClick={() => setCurrentStep(1)}
               >
                 Back to File Upload
               </Button>
-            )}
             <div className="flex gap-2 ml-auto">
-              {currentStep === 2 && !isViewMode && (
                 <Button
                   onClick={handleSubmit}
                   disabled={isUploading}
                 >
                   {isUploading ? 'Saving...' : 'Save License'}
                 </Button>
-              )}
             </div>
           </div>
+          )}
         </div>
       </Modal>
 

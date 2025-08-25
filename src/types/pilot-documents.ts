@@ -24,7 +24,7 @@ export interface ClassTypeRating {
 export interface LanguageProficiency {
   language: string; // e.g., "Romanian", "English"
   level: string; // e.g., "Level 4", "Level 5", "Level 6"
-  validityExpiry: Date;
+  validityExpiry: Date | null;
 }
 
 export interface ExaminerSignature {
@@ -38,6 +38,12 @@ export interface PilotLicense extends BaseEntity {
   id: UUID;
   user_id: UUID;
   document_id?: UUID;
+  
+  // License archiving fields
+  status: 'active' | 'archived' | 'expired';
+  version: number;
+  archived_at?: Date;
+  archive_reason?: string;
   
   // Holder Information (some fields already in users table)
   place_of_birth?: string;
@@ -95,7 +101,7 @@ export interface PilotLicenseFormData {
   issuingAuthority: string;
   licenseNumber: string;
   licenseType: string;
-  dateOfInitialIssue: string; // ISO date string
+  dateOfInitialIssue: string | Date; // ISO date string or Date object
   countryCodeOfInitialIssue: string;
   dateOfIssue: string; // ISO date string
   issuingOfficerName?: string;
@@ -103,14 +109,14 @@ export interface PilotLicenseFormData {
   
   // Ratings & Privileges
   classTypeRatings: ClassTypeRating[];
-  irValidUntil?: string; // ISO date string
+  irValidUntil?: string | Date; // ISO date string or Date object
   
   // Language Proficiency
   languageProficiency: LanguageProficiency[];
   
   // Medical Requirements
   medicalClassRequired?: string;
-  medicalCertificateExpiry?: string; // ISO date string
+  medicalCertificateExpiry?: string | Date; // ISO date string or Date object
   
   // Radio Telephony
   radiotelephonyLanguages: string[];

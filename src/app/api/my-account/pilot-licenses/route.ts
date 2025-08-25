@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
-import { PilotLicense, PilotLicenseFormData } from '@/types/pilot-documents';
 
 // Helper function to validate and convert date strings
 function validateDate(dateString: string | null | undefined): string | null {
@@ -42,7 +41,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Database connection error' }, { status: 500 });
     }
 
-    // Get pilot licenses
+    // Get pilot licenses (both active and archived)
+    console.log('🔍 Pilot Licenses API - User ID:', decoded.userId);
+    
     const { data: licenses, error: licensesError } = await supabase
       .from('pilot_licenses')
       .select('*')
@@ -52,6 +53,17 @@ export async function GET(request: NextRequest) {
     if (licensesError) {
       console.error('Error fetching pilot licenses:', licensesError);
       return NextResponse.json({ error: 'Failed to fetch licenses' }, { status: 500 });
+    }
+
+    console.log('🔍 Pilot Licenses API - Found licenses:', licenses?.length || 0);
+    if (licenses && licenses.length > 0) {
+      licenses.forEach((license, index) => {
+        console.log(`   License ${index + 1}:`, {
+          id: license.id,
+          license_number: license.license_number,
+          document_id: license.document_id
+        });
+      });
     }
 
     // Get related documents for each license
@@ -77,11 +89,6 @@ export async function GET(request: NextRequest) {
         };
       })
     );
-
-    if (licensesError) {
-      console.error('Error fetching pilot licenses:', licensesError);
-      return NextResponse.json({ error: 'Failed to fetch licenses' }, { status: 500 });
-    }
 
     return NextResponse.json({ licenses: licensesWithDocuments || [] });
 
@@ -117,53 +124,26 @@ export async function POST(request: NextRequest) {
       console.log(`${key}:`, value);
     }
     
-    // Extract form data
+    // Extract form data (simplified to match frontend fields)
     const licenseData = {
-      // Holder Information
-      placeOfBirth: formData.get('placeOfBirth') as string,
-      nationality: formData.get('nationality') as string,
-      
-      // License Details
+      // Essential License Fields
       stateOfIssue: formData.get('stateOfIssue') as string,
-      issuingAuthority: formData.get('issuingAuthority') as string,
       licenseNumber: formData.get('licenseNumber') as string,
       licenseType: formData.get('licenseType') as string,
-      dateOfInitialIssue: formData.get('dateOfInitialIssue') as string,
-      countryCodeOfInitialIssue: formData.get('countryCodeOfInitialIssue') as string,
       dateOfIssue: formData.get('dateOfIssue') as string,
-      issuingOfficerName: formData.get('issuingOfficerName') as string,
+      countryCodeOfInitialIssue: formData.get('countryCodeOfInitialIssue') as string,
       
-      // Ratings & Privileges
+      // Ratings & Language Proficiency (JSON arrays)
       classTypeRatings: JSON.parse(formData.get('classTypeRatings') as string || '[]'),
-      irValidUntil: formData.get('irValidUntil') as string,
-      
-      // Language Proficiency
       languageProficiency: JSON.parse(formData.get('languageProficiency') as string || '[]'),
-      
-      // Medical Requirements
-      medicalClassRequired: formData.get('medicalClassRequired') as string,
-      medicalCertificateExpiry: formData.get('medicalCertificateExpiry') as string,
-      
-      // Radio Telephony
-      radiotelephonyLanguages: JSON.parse(formData.get('radiotelephonyLanguages') as string || '[]'),
-      radiotelephonyRemarks: formData.get('radiotelephonyRemarks') as string,
-      
-      // Signatures
-      holderSignaturePresent: formData.get('holderSignaturePresent') === 'true',
-      examinerSignatures: JSON.parse(formData.get('examinerSignatures') as string || '[]'),
-      
-      // Additional Information
-      icaoCompliant: formData.get('icaoCompliant') === 'true',
-      abbreviationsReference: formData.get('abbreviationsReference') as string,
       
       // Document reference
       documentId: formData.get('documentId') as string,
     };
 
-    // Validate required fields
+    // Validate required fields (simplified)
     const requiredFields = [
-      'stateOfIssue', 'issuingAuthority', 'licenseNumber', 'licenseType',
-      'dateOfInitialIssue', 'countryCodeOfInitialIssue', 'dateOfIssue'
+      'stateOfIssue', 'licenseNumber', 'licenseType', 'dateOfIssue', 'countryCodeOfInitialIssue'
     ];
 
     for (const field of requiredFields) {
@@ -180,62 +160,59 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Handle seal/stamp upload if provided
-    const sealFile = formData.get('issuingAuthoritySeal') as File;
-    let sealUrl: string | undefined;
+                // Check if user has an active license and get the next version number
+            const { data: existingLicenses } = await supabase
+              .from('pilot_licenses')
+              .select('*')
+              .eq('user_id', decoded.userId)
+              .order('version', { ascending: false });
 
-    if (sealFile && sealFile.size > 0) {
-      const sealFileName = `${decoded.userId}/seals/${Date.now()}-${sealFile.name}`;
-      const { data: sealUploadData, error: sealUploadError } = await supabase.storage
-        .from('pilot-documents')
-        .upload(sealFileName, sealFile, {
-          cacheControl: '3600',
-          upsert: false
-        });
+            const nextVersion = existingLicenses && existingLicenses.length > 0 
+              ? Math.max(...existingLicenses.map(l => l.version || 1)) + 1 
+              : 1;
 
-      if (sealUploadError) {
-        console.error('Error uploading seal file:', sealUploadError);
-        return NextResponse.json({ error: 'Failed to upload seal file' }, { status: 500 });
-      }
+            // Archive any existing active licenses before creating a new one
+            if (existingLicenses && existingLicenses.length > 0) {
+              const activeLicenses = existingLicenses.filter(l => l.status === 'active');
+              if (activeLicenses.length > 0) {
+                console.log(`🔄 Archiving ${activeLicenses.length} existing active license(s)...`);
+                
+                const { error: archiveError } = await supabase
+                  .from('pilot_licenses')
+                  .update({
+                    status: 'archived',
+                    archived_at: new Date().toISOString(),
+                    archive_reason: 'Replaced by new license upload'
+                  })
+                  .in('id', activeLicenses.map(l => l.id));
+                
+                if (archiveError) {
+                  console.error('Error archiving existing licenses:', archiveError);
+                  return NextResponse.json({ error: 'Failed to archive existing licenses' }, { status: 500 });
+                }
+                
+                console.log('✅ Existing licenses archived successfully');
+              }
+            }
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('pilot-documents')
-        .getPublicUrl(sealFileName);
-      
-      sealUrl = publicUrl;
-    }
-
-    // Create pilot license record
-    const { data: license, error: licenseError } = await supabase
-      .from('pilot_licenses')
-      .insert({
-        user_id: decoded.userId,
-        document_id: licenseData.documentId || null,
-        place_of_birth: licenseData.placeOfBirth || null,
-        nationality: licenseData.nationality || null,
-        state_of_issue: licenseData.stateOfIssue,
-        issuing_authority: licenseData.issuingAuthority,
-        license_number: licenseData.licenseNumber,
-        license_type: licenseData.licenseType,
-        date_of_initial_issue: validateDate(licenseData.dateOfInitialIssue),
-        country_code_of_initial_issue: licenseData.countryCodeOfInitialIssue,
-        date_of_issue: validateDate(licenseData.dateOfIssue),
-        issuing_officer_name: licenseData.issuingOfficerName || null,
-        issuing_authority_seal: sealUrl || null,
-        class_type_ratings: licenseData.classTypeRatings || null,
-        ir_valid_until: validateDate(licenseData.irValidUntil),
-        language_proficiency: licenseData.languageProficiency || null,
-        medical_class_required: licenseData.medicalClassRequired || null,
-        medical_certificate_expiry: validateDate(licenseData.medicalCertificateExpiry),
-        radiotelephony_languages: licenseData.radiotelephonyLanguages || null,
-        radiotelephony_remarks: licenseData.radiotelephonyRemarks || null,
-        holder_signature_present: licenseData.holderSignaturePresent,
-        examiner_signatures: licenseData.examinerSignatures || null,
-        icao_compliant: licenseData.icaoCompliant,
-        abbreviations_reference: licenseData.abbreviationsReference || null
-      })
-      .select('*')
-      .single();
+            // Create pilot license record (simplified schema)
+            const { data: license, error: licenseError } = await supabase
+              .from('pilot_licenses')
+              .insert({
+                user_id: decoded.userId,
+                document_id: licenseData.documentId || null,
+                state_of_issue: licenseData.stateOfIssue,
+                license_number: licenseData.licenseNumber,
+                license_type: licenseData.licenseType,
+                date_of_issue: validateDate(licenseData.dateOfIssue),
+                country_code_of_initial_issue: licenseData.countryCodeOfInitialIssue,
+                class_type_ratings: licenseData.classTypeRatings || [],
+                language_proficiency: licenseData.languageProficiency || [],
+                status: 'active', // Will be checked for expiration by database trigger
+                version: nextVersion
+              })
+              .select('*')
+              .single();
 
     if (licenseError) {
       console.error('Error creating pilot license:', licenseError);
@@ -308,53 +285,26 @@ export async function PUT(request: NextRequest) {
       console.log(`${key}:`, value);
     }
     
-    // Extract form data (same as POST)
+    // Extract form data (simplified to match frontend fields)
     const licenseData = {
-      // Holder Information
-      placeOfBirth: formData.get('placeOfBirth') as string,
-      nationality: formData.get('nationality') as string,
-      
-      // License Details
+      // Essential License Fields
       stateOfIssue: formData.get('stateOfIssue') as string,
-      issuingAuthority: formData.get('issuingAuthority') as string,
       licenseNumber: formData.get('licenseNumber') as string,
       licenseType: formData.get('licenseType') as string,
-      dateOfInitialIssue: formData.get('dateOfInitialIssue') as string,
-      countryCodeOfInitialIssue: formData.get('countryCodeOfInitialIssue') as string,
       dateOfIssue: formData.get('dateOfIssue') as string,
-      issuingOfficerName: formData.get('issuingOfficerName') as string,
+      countryCodeOfInitialIssue: formData.get('countryCodeOfInitialIssue') as string,
       
-      // Ratings & Privileges
+      // Ratings & Language Proficiency (JSON arrays)
       classTypeRatings: JSON.parse(formData.get('classTypeRatings') as string || '[]'),
-      irValidUntil: formData.get('irValidUntil') as string,
-      
-      // Language Proficiency
       languageProficiency: JSON.parse(formData.get('languageProficiency') as string || '[]'),
-      
-      // Medical Requirements
-      medicalClassRequired: formData.get('medicalClassRequired') as string,
-      medicalCertificateExpiry: formData.get('medicalCertificateExpiry') as string,
-      
-      // Radio Telephony
-      radiotelephonyLanguages: JSON.parse(formData.get('radiotelephonyLanguages') as string || '[]'),
-      radiotelephonyRemarks: formData.get('radiotelephonyRemarks') as string,
-      
-      // Signatures
-      holderSignaturePresent: formData.get('holderSignaturePresent') === 'true',
-      examinerSignatures: JSON.parse(formData.get('examinerSignatures') as string || '[]'),
-      
-      // Additional Information
-      icaoCompliant: formData.get('icaoCompliant') === 'true',
-      abbreviationsReference: formData.get('abbreviationsReference') as string,
       
       // Document reference
       documentId: formData.get('documentId') as string,
     };
 
-    // Validate required fields
+    // Validate required fields (simplified)
     const requiredFields = [
-      'stateOfIssue', 'issuingAuthority', 'licenseNumber', 'licenseType',
-      'dateOfInitialIssue', 'countryCodeOfInitialIssue', 'dateOfIssue'
+      'stateOfIssue', 'licenseNumber', 'licenseType', 'dateOfIssue', 'countryCodeOfInitialIssue'
     ];
 
     for (const field of requiredFields) {
@@ -371,57 +321,17 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Handle seal/stamp upload if provided
-    const sealFile = formData.get('issuingAuthoritySeal') as File;
-    let sealUrl: string | undefined;
-
-    if (sealFile && sealFile.size > 0) {
-      const sealFileName = `${decoded.userId}/seals/${Date.now()}-${sealFile.name}`;
-      const { data: sealUploadData, error: sealUploadError } = await supabase.storage
-        .from('pilot-documents')
-        .upload(sealFileName, sealFile, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (sealUploadError) {
-        console.error('Error uploading seal file:', sealUploadError);
-        return NextResponse.json({ error: 'Failed to upload seal file' }, { status: 500 });
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('pilot-documents')
-        .getPublicUrl(sealFileName);
-      
-      sealUrl = publicUrl;
-    }
-
-    // Update pilot license record
+    // Update pilot license record (simplified schema)
     const { data: license, error: licenseError } = await supabase
       .from('pilot_licenses')
       .update({
-        place_of_birth: licenseData.placeOfBirth || null,
-        nationality: licenseData.nationality || null,
         state_of_issue: licenseData.stateOfIssue,
-        issuing_authority: licenseData.issuingAuthority,
         license_number: licenseData.licenseNumber,
         license_type: licenseData.licenseType,
-        date_of_initial_issue: validateDate(licenseData.dateOfInitialIssue),
-        country_code_of_initial_issue: licenseData.countryCodeOfInitialIssue,
         date_of_issue: validateDate(licenseData.dateOfIssue),
-        issuing_officer_name: licenseData.issuingOfficerName || null,
-        issuing_authority_seal: sealUrl || null,
-        class_type_ratings: licenseData.classTypeRatings || null,
-        ir_valid_until: validateDate(licenseData.irValidUntil),
-        language_proficiency: licenseData.languageProficiency || null,
-        medical_class_required: licenseData.medicalClassRequired || null,
-        medical_certificate_expiry: validateDate(licenseData.medicalCertificateExpiry),
-        radiotelephony_languages: licenseData.radiotelephonyLanguages || null,
-        radiotelephony_remarks: licenseData.radiotelephonyRemarks || null,
-        holder_signature_present: licenseData.holderSignaturePresent,
-        examiner_signatures: licenseData.examinerSignatures || null,
-        icao_compliant: licenseData.icaoCompliant,
-        abbreviations_reference: licenseData.abbreviationsReference || null
+        country_code_of_initial_issue: licenseData.countryCodeOfInitialIssue,
+        class_type_ratings: licenseData.classTypeRatings || [],
+        language_proficiency: licenseData.languageProficiency || []
       })
       .eq('id', licenseId)
       .eq('user_id', decoded.userId)
