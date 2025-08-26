@@ -90,7 +90,7 @@ export interface PilotLicense extends BaseEntity {
 // Form data interface for pilot license upload
 export interface PilotLicenseFormData {
   // File upload
-  licenseFile: File;
+  licenseFile: File | null;
   
   // Holder Information
   placeOfBirth: string;
@@ -263,7 +263,7 @@ export interface MedicalCertificate extends BaseEntity {
 // Form data interface for medical certificate upload
 export interface MedicalCertificateFormData {
   // File upload
-  certificateFile: File;
+  certificateFile: File | null;
   
   // Certificate Details
   licensingAuthority: string;
