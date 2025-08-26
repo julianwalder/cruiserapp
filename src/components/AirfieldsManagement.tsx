@@ -179,10 +179,53 @@ export default function AirfieldsManagement() {
     },
   });
 
+  // Helper function to handle token refresh
+  const refreshTokenIfNeeded = async (): Promise<string | null> => {
+    const token = localStorage.getItem('token');
+    const refreshToken = localStorage.getItem('refreshToken');
+    const userId = localStorage.getItem('userId');
+    
+    if (!token || !refreshToken || !userId) {
+      console.log('🔍 Missing token, refresh token, or user ID');
+      return null;
+    }
+    
+    try {
+      const response = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          refreshToken,
+          userId
+        }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem('token', data.accessToken);
+        localStorage.setItem('refreshToken', data.refreshToken);
+        console.log('🔍 Token refreshed successfully');
+        return data.accessToken;
+      } else {
+        console.log('🔍 Token refresh failed, redirecting to login');
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('userId');
+        window.location.href = '/login';
+        return null;
+      }
+    } catch (error) {
+      console.error('Error refreshing token:', error);
+      return null;
+    }
+  };
+
   const fetchAirfields = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      let token = localStorage.getItem('token');
       
       // Fetch all airfields
       const params = new URLSearchParams({
@@ -196,11 +239,29 @@ export default function AirfieldsManagement() {
       if (countryFilter && countryFilter !== 'ALL_COUNTRIES') params.append('country', countryFilter);
       if (provinceFilter && provinceFilter !== 'ALL_PROVINCES') params.append('state', provinceFilter);
 
-      const airfieldsResponse = await fetch(`/api/airfields?${params}`, {
+      let airfieldsResponse = await fetch(`/api/airfields?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
+
+      // If we get a 401, try to refresh the token
+      if (airfieldsResponse.status === 401) {
+        console.log('🔍 Token expired, attempting to refresh...');
+        const newToken = await refreshTokenIfNeeded();
+        if (newToken) {
+          // Retry the request with the new token
+          airfieldsResponse = await fetch(`/api/airfields?${params}`, {
+            headers: {
+              'Authorization': `Bearer ${newToken}`,
+            },
+          });
+          console.log('🔍 Airfields API retry response status:', airfieldsResponse.status);
+        } else {
+          // Refresh failed, user will be redirected to login
+          return;
+        }
+      }
 
       if (!airfieldsResponse.ok) {
         throw new Error('Failed to fetch airfields');
@@ -209,11 +270,29 @@ export default function AirfieldsManagement() {
       const airfieldsData = await airfieldsResponse.json();
       
       // Fetch imported airfields to determine source and base status
-      const importedResponse = await fetch('/api/airfields/imported', {
+      let importedResponse = await fetch('/api/airfields/imported', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
+
+      // If we get a 401 on imported airfields, try to refresh the token
+      if (importedResponse.status === 401) {
+        console.log('🔍 Token expired for imported airfields, attempting to refresh...');
+        const newToken = await refreshTokenIfNeeded();
+        if (newToken) {
+          // Retry the request with the new token
+          importedResponse = await fetch('/api/airfields/imported', {
+            headers: {
+              'Authorization': `Bearer ${newToken}`,
+            },
+          });
+          console.log('🔍 Imported airfields API retry response status:', importedResponse.status);
+        } else {
+          // Refresh failed, user will be redirected to login
+          return;
+        }
+      }
 
       let importedData = { airfields: [] };
       if (importedResponse.ok) {
@@ -249,14 +328,32 @@ export default function AirfieldsManagement() {
 
   const fetchAvailableTypes = async () => {
     try {
-      const token = localStorage.getItem('token');
+      let token = localStorage.getItem('token');
       
       // Fetch all airfields to get unique types (with a high limit to get all types)
-      const response = await fetch('/api/airfields?limit=1000', {
+      let response = await fetch('/api/airfields?limit=1000', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
+
+      // If we get a 401, try to refresh the token
+      if (response.status === 401) {
+        console.log('🔍 Token expired for available types, attempting to refresh...');
+        const newToken = await refreshTokenIfNeeded();
+        if (newToken) {
+          // Retry the request with the new token
+          response = await fetch('/api/airfields?limit=1000', {
+            headers: {
+              'Authorization': `Bearer ${newToken}`,
+            },
+          });
+          console.log('🔍 Available types API retry response status:', response.status);
+        } else {
+          // Refresh failed, user will be redirected to login
+          return;
+        }
+      }
 
       if (response.ok) {
         const data = await response.json();
@@ -270,14 +367,32 @@ export default function AirfieldsManagement() {
 
   const fetchAvailableCountries = async () => {
     try {
-      const token = localStorage.getItem('token');
+      let token = localStorage.getItem('token');
       
       // Fetch all airfields to get unique countries (with a high limit to get all countries)
-      const response = await fetch('/api/airfields?limit=1000', {
+      let response = await fetch('/api/airfields?limit=1000', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
+
+      // If we get a 401, try to refresh the token
+      if (response.status === 401) {
+        console.log('🔍 Token expired for available countries, attempting to refresh...');
+        const newToken = await refreshTokenIfNeeded();
+        if (newToken) {
+          // Retry the request with the new token
+          response = await fetch('/api/airfields?limit=1000', {
+            headers: {
+              'Authorization': `Bearer ${newToken}`,
+            },
+          });
+          console.log('🔍 Available countries API retry response status:', response.status);
+        } else {
+          // Refresh failed, user will be redirected to login
+          return;
+        }
+      }
 
       if (response.ok) {
         const data = await response.json();
@@ -841,7 +956,6 @@ export default function AirfieldsManagement() {
         open={showCreateDialog}
         onClose={() => setShowCreateDialog(false)}
         title="Add New Airfield"
-        description="Add a new airfield to the Cruiser Aviation system"
       >
           <form onSubmit={handleSubmit(handleCreateAirfield)} className="space-y-6">
             {/* Basic Information */}
@@ -1072,7 +1186,6 @@ export default function AirfieldsManagement() {
         open={showAirfieldDialog}
         onClose={() => setShowAirfieldDialog(false)}
         title="Airfield Details"
-        description="Complete airfield information and details"
       >
           {selectedAirfield && (
             <div className="space-y-6">

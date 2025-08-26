@@ -613,9 +613,9 @@ export default function MyAccountPage() {
   return (
     <div className="space-y-6 mt-6">
       {/* User Profile Header */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-6">
+      <Card className="p-4">
+        <CardContent className="p-0">
+          <div className="flex items-center space-x-4">
             {/* Avatar Upload Section */}
             <div className="flex-shrink-0">
               <AvatarUpload
@@ -627,15 +627,33 @@ export default function MyAccountPage() {
             </div>
             
             {/* User Info Section */}
-            <div className="flex-1 flex flex-col justify-center min-h-[96px]">
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-2xl font-bold">{user.firstName} {user.lastName}</h1>
-                
-                {/* Verification Status */}
+            <div className="flex-1 flex flex-col justify-center min-h-[96px] min-w-0">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <h1 className="text-lg font-bold">
+                  {user.firstName} {user.lastName}
+                </h1>
+              </div>
+              
+              <div className="flex gap-2 flex-wrap">
+                {user.userRoles?.map((userRole, index) => (
+                  <Badge 
+                    key={`${userRole.roles.name}-${index}`} 
+                    className={cn("text-xs flex-shrink-0", getRoleBadgeColor(userRole.roles.name))}
+                  >
+                    {getRoleDisplayName(userRole.roles.name)}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            
+            {/* Status Section */}
+            <div className="flex-shrink-0 text-right flex flex-col justify-center min-h-[96px] items-end w-32">
+              {/* Verification Status */}
+              <div className="mb-2 self-end">
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <div className="flex items-center">
+                      <div className="flex items-center justify-end">
                         {getVerificationShieldIcon()}
                       </div>
                     </TooltipTrigger>
@@ -646,27 +664,13 @@ export default function MyAccountPage() {
                 </TooltipProvider>
               </div>
               
-              <div className="flex gap-2">
-                {user.userRoles?.map((userRole, index) => (
-                  <Badge 
-                    key={`${userRole.roles.name}-${index}`} 
-                    className={cn("text-sm", getRoleBadgeColor(userRole.roles.name))}
-                  >
-                    {getRoleDisplayName(userRole.roles.name)}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-            
-            {/* Status Section */}
-            <div className="text-right flex flex-col justify-center min-h-[96px]">
               <Badge 
                 variant={user.status === 'ACTIVE' ? 'default' : 'secondary'}
-                className="mb-2"
+                className="mb-2 self-end text-xs"
               >
                 {user.status === 'ACTIVE' ? 'Active' : user.status}
               </Badge>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground self-end">
                 Member since {formatDate(user.createdAt)}
               </p>
             </div>
@@ -1003,17 +1007,17 @@ export default function MyAccountPage() {
                 <div className="space-y-3">
                   {/* Active License */}
                   {pilotLicenses.filter(l => l.status === 'active').length > 0 && (
-                    <div className="flex items-center justify-between p-4 border rounded-lg bg-green-50 border-green-200">
-                      <div className="flex items-center space-x-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg bg-green-50 border-green-200 gap-4">
+                      <div className="flex items-center space-x-3 min-w-0 flex-1">
                         <Award className="h-5 w-5 text-green-600" />
-                        <div>
-                          <div className="flex items-center gap-2">
+                        <div className="min-w-0">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                             <h4 className="font-medium">Active Pilot License</h4>
-                            <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">
+                            <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 self-start">
                               v{pilotLicenses.filter(l => l.status === 'active')[0].version}
                             </Badge>
                           </div>
-                          <p className="text-sm text-muted-foreground">
+                          <p className="text-sm text-muted-foreground truncate">
                             {pilotLicenses.filter(l => l.status === 'active')[0].license_type} - {pilotLicenses.filter(l => l.status === 'active')[0].license_number}
                           </p>
                           {(() => {
@@ -1021,7 +1025,7 @@ export default function MyAccountPage() {
                             const validation = getValidationStatus(activeLicense);
                             const expirationDate = getEarliestExpirationDate(activeLicense);
                             return (
-                              <div className="flex items-center gap-2 mt-1">
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
                                 <Badge 
                                   variant="outline" 
                                   className={`${validation.bgColor} ${validation.color} border-current`}
@@ -1045,7 +1049,7 @@ export default function MyAccountPage() {
                           })()}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center space-x-2 flex-shrink-0 self-end sm:self-auto">
                         <Badge variant="default">Active</Badge>
                         <PilotLicenseUpload 
                           existingLicense={pilotLicenses.filter(l => l.status === 'active')[0]}
@@ -1065,24 +1069,26 @@ export default function MyAccountPage() {
                         License History
                       </h5>
                       {pilotLicenses.filter(l => l.status !== 'active').map((license) => (
-                        <div key={license.id} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50 border-gray-200">
-                          <div className="flex items-center space-x-3">
+                        <div key={license.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg bg-gray-50 border-gray-200 gap-4">
+                          <div className="flex items-center space-x-3 min-w-0 flex-1">
                             <FileText className="h-4 w-4 text-gray-500" />
-                            <div>
-                              <div className="flex items-center gap-2">
+                            <div className="min-w-0">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                                 <h4 className="font-medium text-sm">{license.license_type} - {license.license_number}</h4>
-                                <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-300 text-xs">
-                                  v{license.version}
-                                </Badge>
-                                <Badge variant="outline" className={
-                                  license.status === 'expired' 
-                                    ? 'bg-red-100 text-red-700 border-red-300' 
-                                    : 'bg-gray-100 text-gray-700 border-gray-300'
-                                }>
-                                  {license.status === 'expired' ? 'Expired' : 'Archived'}
-                                </Badge>
+                                <div className="flex gap-2 self-start">
+                                  <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-300 text-xs">
+                                    v{license.version}
+                                  </Badge>
+                                  <Badge variant="outline" className={
+                                    license.status === 'expired' 
+                                      ? 'bg-red-100 text-red-700 border-red-300' 
+                                      : 'bg-gray-100 text-gray-700 border-gray-300'
+                                  }>
+                                    {license.status === 'expired' ? 'Expired' : 'Archived'}
+                                  </Badge>
+                                </div>
                               </div>
-                              <p className="text-xs text-muted-foreground">
+                              <p className="text-xs text-muted-foreground truncate">
                                 {license.status === 'expired' 
                                   ? 'Automatically expired' 
                                   : license.status === 'archived'
@@ -1096,7 +1102,7 @@ export default function MyAccountPage() {
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-2 flex-shrink-0 self-end sm:self-auto">
                             <PilotLicenseUpload 
                               existingLicense={license}
                               onLicenseUploaded={(updatedLicense) => {

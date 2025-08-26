@@ -29,7 +29,10 @@ export function Logo({ className = '', width = 120, height = 40 }: LogoProps) {
       alt="Cruiser Aviation"
       width={width}
       height={height}
-      className={className}
+      className={`${className} object-contain`}
+      style={{
+        aspectRatio: `${width} / ${height}`
+      }}
       priority
     />
   );

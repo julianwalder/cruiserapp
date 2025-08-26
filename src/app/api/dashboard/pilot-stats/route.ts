@@ -100,19 +100,22 @@ export async function GET(request: NextRequest) {
         night,
         instrument,
         date,
-        pilotId,
+        userId,
         departureAirfieldId,
-        arrivalAirfieldId
+        arrivalAirfieldId,
+        flightType
       `)
-      .eq('pilotId', user.id)
+      .eq('userId', user.id)
       .order('date', { ascending: false })
       .order('departureTime', { ascending: false });
 
     if (flightLogsError) {
       console.error('Error fetching flight logs:', flightLogsError);
+    } else {
+      console.log(`✅ Successfully fetched ${flightLogs?.length || 0} flight logs for user ${user.id}`);
     }
 
-    // Calculate total used hours from flight logs
+    // Calculate total used hours from flight logs (excluding ferry, demo, and charter flights)
     const calculateFlightHours = (departureTime: string, arrivalTime: string) => {
       const departure = new Date(`2000-01-01T${departureTime}`);
       const arrival = new Date(`2000-01-01T${arrivalTime}`);
@@ -121,7 +124,18 @@ export async function GET(request: NextRequest) {
       return Math.max(0, diffHours);
     };
 
-    const totalUsedHours = (flightLogs || []).reduce((sum, flight) => {
+    // Filter out special flight types (ferry, demo, charter) for hour calculation
+    const regularFlights = (flightLogs || []).filter(flight => {
+      // Check if flight type indicates special flight types
+      const flightType = flight.flightType?.toLowerCase() || '';
+      const isFerryFlight = flightType.includes('ferry') || flightType.includes('ferry');
+      const isDemoFlight = flightType.includes('demo') || flightType.includes('demonstration');
+      const isCharterFlight = flightType.includes('charter') || flightType.includes('charter');
+      
+      return !isFerryFlight && !isDemoFlight && !isCharterFlight;
+    });
+
+    const totalUsedHours = regularFlights.reduce((sum, flight) => {
       // Use stored totalHours if available, otherwise calculate from departure/arrival times
       if (flight.totalHours !== null && flight.totalHours !== undefined) {
         return sum + flight.totalHours;
@@ -153,23 +167,23 @@ export async function GET(request: NextRequest) {
     const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
     const twelveMonthsAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
 
-    const last90DaysFlights = flightLogs?.filter(flight => 
+    const last90DaysFlights = regularFlights?.filter(flight => 
       new Date(flight.date) >= ninetyDaysAgo
     ) || [];
 
-    const last12MonthsFlights = flightLogs?.filter(flight => 
+    const last12MonthsFlights = regularFlights?.filter(flight => 
       new Date(flight.date) >= twelveMonthsAgo
     ) || [];
 
     const last90DaysHours = last90DaysFlights.reduce((sum, flight) => sum + (flight.totalHours || 0), 0);
     const last12MonthsHours = last12MonthsFlights.reduce((sum, flight) => sum + (flight.totalHours || 0), 0);
 
-    // Get last 3 takeoffs and landings (using dayLandings + nightLandings)
+    // Get last 3 takeoffs and landings (using dayLandings + nightLandings) - use all flights for physical counts
     const recentFlights = flightLogs?.slice(0, 3) || [];
     const totalTakeoffs = recentFlights.reduce((sum, flight) => sum + ((flight.dayLandings || 0) + (flight.nightLandings || 0)), 0);
     const totalLandings = recentFlights.reduce((sum, flight) => sum + ((flight.dayLandings || 0) + (flight.nightLandings || 0)), 0);
 
-    // Find last night flight and instrument flight
+    // Find last night flight and instrument flight - use all flights
     const lastNightFlight = flightLogs?.find(flight => flight.night && flight.night > 0);
     const lastInstrumentFlight = flightLogs?.find(flight => flight.instrument && flight.instrument > 0);
 
@@ -177,8 +191,8 @@ export async function GET(request: NextRequest) {
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
     
-    // This month (current month)
-    const thisMonthFlights = flightLogs?.filter(flight => {
+    // This month (current month) - only regular flights
+    const thisMonthFlights = regularFlights?.filter(flight => {
       const flightDate = new Date(flight.date);
       return flightDate.getMonth() === currentMonth && flightDate.getFullYear() === currentYear;
     }) || [];
@@ -192,11 +206,11 @@ export async function GET(request: NextRequest) {
       return sum;
     }, 0);
 
-    // Last month
+    // Last month - only regular flights
     const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
     const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
     
-    const lastMonthFlights = flightLogs?.filter(flight => {
+    const lastMonthFlights = regularFlights?.filter(flight => {
       const flightDate = new Date(flight.date);
       return flightDate.getMonth() === lastMonth && flightDate.getFullYear() === lastMonthYear;
     }) || [];
@@ -229,11 +243,11 @@ export async function GET(request: NextRequest) {
         roles: userRoles
       },
       flights: {
-        total: flightLogs?.length || 0,
+        total: regularFlights?.length || 0,
         thisMonth: thisMonthFlights.length,
         lastMonth: lastMonthFlights.length,
         change: flightsChange,
-        recent: flightLogs?.slice(0, 5).map(flight => ({
+        recent: regularFlights?.slice(0, 5).map(flight => ({
           id: flight.id,
           date: flight.date,
           totalHours: flight.totalHours,

@@ -333,9 +333,9 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
         <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border flex-shrink-0">
           <div className="flex items-center relative z-10">
             {!isCollapsed ? (
-              <Logo width={120} height={28} className="h-7 w-auto lg:ml-0 ml-12" />
+              <Logo width={120} height={28} className="h-8 w-auto lg:ml-0 ml-12" />
             ) : (
-              <Logo width={28} height={28} className="h-7 w-7 lg:ml-0 ml-12" />
+              <Logo width={28} height={28} className="h-8 w-8 lg:ml-0 ml-12" />
             )}
           </div>
           

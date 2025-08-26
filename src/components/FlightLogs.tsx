@@ -420,7 +420,7 @@ interface FlightLogsProps {
 }
 
 export default function FlightLogs({ openCreateModal = false }: FlightLogsProps) {
-  console.log('🔍 FlightLogs component rendering');
+
   
   // State management
   const [loading, setLoading] = useState(true);
@@ -459,7 +459,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
   });
   const [showFilters, setShowFilters] = useState(false);
 
-  console.log('🔍 Component state initialized');
+
   
   // State management
   const [error, setError] = useState<string | null>(null);
@@ -580,7 +580,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         
         // If user should not show pilot selection, set the pilotId after reset
         if (currentUser && !shouldShowPilotSelection()) {
-                  console.log('🔄 Setting userId for user without pilot selection after form reset:', currentUser.id);
+          
         form.setValue('userId', currentUser.id);
         }
       }
@@ -591,26 +591,25 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
   // Fetch current user function
   const fetchCurrentUser = async () => {
     try {
-      console.log('🔍 fetchCurrentUser called');
+    
       const token = localStorage.getItem('token');
       if (!token) {
         console.error('No authentication token found');
         return;
       }
 
-      console.log('🔍 Calling /api/auth/me...');
+      
       const response = await fetch('/api/auth/me', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
       
-      console.log('🔍 /api/auth/me response status:', response.status);
+      
       
       if (response.ok) {
         const data = await response.json();
-        console.log('🔍 /api/auth/me response data:', data);
-        console.log('🔍 Setting currentUser to:', data);
+        
         setCurrentUser(data);
         
         // Set appropriate view mode based on user role
@@ -621,17 +620,16 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         const isAdmin = userRoles.includes('ADMIN') || userRoles.includes('SUPER_ADMIN');
         const isBaseManager = userRoles.includes('BASE_MANAGER');
         
-        console.log('🔍 User roles detected:', userRoles);
-        console.log('🔍 Role flags:', { isPilot, isStudent, isInstructor, isAdmin, isBaseManager });
+        
         
         // Admins, instructors, and base managers should default to company view (priority over pilot/student)
         if (isAdmin || isInstructor || isBaseManager) {
-          console.log('🔍 Setting view mode to company (admin/instructor/base_manager)');
+          
           setViewMode('company');
         }
         // Pilots and students should ONLY see personal view (no toggle allowed)
         else if (isPilot || isStudent) {
-          console.log('🔍 Setting view mode to personal (pilot/student)');
+          
           setViewMode('personal');
         }
         
@@ -683,10 +681,10 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
     }
   }, [currentUser]);
 
-  // Debug form errors
+  
   useEffect(() => {
     if (Object.keys(form.formState.errors).length > 0) {
-      console.log('❌ Form validation errors:', form.formState.errors);
+      
     }
   }, [form.formState.errors]);
 
@@ -699,20 +697,10 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
 
   // Fetch data when component mounts or currentUser changes
   useEffect(() => {
-    console.log('🔍 useEffect triggered - currentUser:', currentUser);
-    console.log('🔍 useEffect dependencies:', { 
-      currentUser: !!currentUser, 
-      page: pagination.page, 
-      limit: pagination.limit, 
-      viewMode 
-    });
+
     
     const fetchData = async () => {
-      console.log('🔄 Fetching flight logs data...');
-      console.log('👤 Current user:', currentUser);
-      if (currentUser) {
-        console.log('👤 Current user roles:', currentUser.userRoles?.map(ur => ur.role?.name) || []);
-      }
+
       setLoading(true);
       try {
         await Promise.all([
@@ -730,10 +718,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
     };
 
     if (currentUser) {
-      console.log('🔍 Current user exists, calling fetchData');
       fetchData();
-    } else {
-      console.log('🔍 No current user, skipping fetchData');
     }
   }, [currentUser, pagination.page, pagination.limit, viewMode]);
 
@@ -760,14 +745,14 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
     
     // If user is BASE_MANAGER + PILOT/STUDENT and switches to personal view, set pilot filter to self
     if (isBaseManager && (isPilot || isStudent) && viewMode === 'personal') {
-      console.log('🔍 BASE_MANAGER + PILOT/STUDENT switched to personal view - setting pilot filter to self');
+
               setFilters(prev => ({ ...prev, userId: currentUser.id }));
     }
   }, [viewMode, currentUser]);
 
   const fetchFlightLogs = async () => {
     try {
-      console.log('🔍 fetchFlightLogs called');
+
       const token = localStorage.getItem('token');
       if (!token) {
         console.error('No authentication token found');
@@ -780,13 +765,12 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
         const isProspect = userRoles.includes('PROSPECT');
         if (isProspect) {
-          console.log('🔍 User is prospect, skipping flight logs API call');
           setFlightLogs([]);
           return;
         }
       }
 
-      console.log('🔍 Building query parameters...');
+
       // Build query parameters
       const params = new URLSearchParams({
         page: pagination.page.toString(),
@@ -827,9 +811,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       }
 
       const url = `/api/flight-logs?${params}`;
-      console.log('🔍 Making API call to:', url);
-      console.log('🔍 View mode:', viewMode);
-      console.log('🔍 Active tab:', activeTab);
+
 
       const response = await fetch(url, {
         headers: {
@@ -837,21 +819,18 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         },
       });
       
-      console.log('🔍 Response status:', response.status);
+
       
       if (response.ok) {
         const data = await response.json();
-        console.log('🔍 Flight logs data received:', data);
-        console.log('🔍 Number of flight logs:', data.flightLogs?.length || 0);
-        console.log('🔍 Total records from API:', data.totalRecords);
-        console.log('🔍 Total pages from API:', data.totalPages);
+
         setFlightLogs(data.flightLogs || []);
         const newPagination = {
           ...pagination,
           total: data.totalRecords || 0,
           pages: data.totalPages || 1,
         };
-        console.log('🔍 Setting pagination to:', newPagination);
+
         setPagination(newPagination);
       } else {
         console.error('Error fetching flight logs:', response.status);
@@ -872,7 +851,6 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
         const isProspect = userRoles.includes('PROSPECT');
         if (isProspect) {
-          console.log('🔍 User is prospect, skipping aircraft API call');
           return;
         }
       }
@@ -909,7 +887,6 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
         const isProspect = userRoles.includes('PROSPECT');
         if (isProspect) {
-          console.log('🔍 User is prospect, skipping pilots API call');
           return;
         }
       }
@@ -951,9 +928,9 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         const isBaseManager = userRoles.includes('BASE_MANAGER');
         
         if (isBaseManager && viewMode === 'personal') {
-          console.log('🔍 User is BASE_MANAGER + PILOT/STUDENT in personal view - restricting to self in pilot filter');
+  
         } else {
-          console.log('🔍 User is PILOT/STUDENT only - restricting to self in pilot filter');
+  
         }
         
         setPilots([currentUser]);
@@ -981,7 +958,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       if (pilotsResponse.ok) {
         pilotsData = await pilotsResponse.json();
       } else if (pilotsResponse.status === 403) {
-        console.log('User does not have permission to access pilots list (expected for some users)');
+
       } else {
         console.error('Error fetching pilots:', pilotsResponse.status);
       }
@@ -991,7 +968,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       if (studentsResponse.ok) {
         studentsData = await studentsResponse.json();
       } else if (studentsResponse.status === 403) {
-        console.log('User does not have permission to access students list (expected for some users)');
+
       } else {
         console.error('Error fetching students:', studentsResponse.status);
       }
@@ -1027,39 +1004,104 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
         const isProspect = userRoles.includes('PROSPECT');
         if (isProspect) {
-          console.log('🔍 User is prospect, skipping instructors API call');
           return;
         }
       }
 
-      const token = localStorage.getItem('token');
+      let token = localStorage.getItem('token');
       if (!token) {
         console.error('No authentication token found');
         setInstructors([]);
         return;
       }
+      
+
 
       // If current user is a pilot-only user, they might not have access to instructor list
       // This is fine since instructor is optional
-      const response = await fetch('/api/users?role=INSTRUCTOR&limit=1000', {
+      let response = await fetch('/api/users?role=INSTRUCTOR&limit=1000', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
+      
+
+      
+      // If we get a 401, try to refresh the token
+      if (response.status === 401) {
+        const newToken = await refreshTokenIfNeeded();
+        if (newToken) {
+          // Retry the request with the new token
+          response = await fetch('/api/users?role=INSTRUCTOR&limit=1000', {
+            headers: {
+              'Authorization': `Bearer ${newToken}`,
+            },
+          });
+        } else {
+          // Refresh failed, user will be redirected to login
+          return;
+        }
+      }
+      
       if (response.ok) {
         const data = await response.json();
+
         setInstructors(data.users || []);
       } else if (response.status === 403) {
         // User doesn't have permission to access instructors list - this is expected for pilots
-        console.log('User does not have permission to access instructors list (expected for pilots)');
+
         setInstructors([]);
       } else {
-        console.error('Error fetching instructors:', response.status);
+        const errorText = await response.text();
+        console.error('Error fetching instructors:', response.status, errorText);
         setInstructors([]);
       }
     } catch (error) {
       console.error('Error fetching instructors:', error);
       setInstructors([]);
+    }
+  };
+
+  // Helper function to handle token refresh
+  const refreshTokenIfNeeded = async (): Promise<string | null> => {
+    const token = localStorage.getItem('token');
+    const refreshToken = localStorage.getItem('refreshToken');
+    const userId = localStorage.getItem('userId');
+    
+    if (!token || !refreshToken || !userId) {
+
+      return null;
+    }
+    
+    try {
+      const response = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          refreshToken,
+          userId
+        }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        localStorage.setItem('token', data.accessToken);
+        localStorage.setItem('refreshToken', data.refreshToken);
+
+        return data.accessToken;
+      } else {
+
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('userId');
+        window.location.href = '/login';
+        return null;
+      }
+    } catch (error) {
+      console.error('Error refreshing token:', error);
+      return null;
     }
   };
 
@@ -1070,28 +1112,50 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
         const isProspect = userRoles.includes('PROSPECT');
         if (isProspect) {
-          console.log('🔍 User is prospect, skipping airfields API call');
           return;
         }
       }
 
-      const token = localStorage.getItem('token');
+      let token = localStorage.getItem('token');
       if (!token) {
         console.error('No authentication token found');
         setAirfields([]);
         return;
       }
+      
 
-      const response = await fetch('/api/airfields?limit=1000', {
+
+      let response = await fetch('/api/airfields?limit=1000', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
+      
+
+      
+      // If we get a 401, try to refresh the token
+      if (response.status === 401) {
+        const newToken = await refreshTokenIfNeeded();
+        if (newToken) {
+          // Retry the request with the new token
+          response = await fetch('/api/airfields?limit=1000', {
+            headers: {
+              'Authorization': `Bearer ${newToken}`,
+            },
+          });
+        } else {
+          // Refresh failed, user will be redirected to login
+          return;
+        }
+      }
+      
       if (response.ok) {
         const data = await response.json();
+
         setAirfields(data.airfields || []);
       } else {
-        console.error('Error fetching airfields:', response.status);
+        const errorText = await response.text();
+        console.error('Error fetching airfields:', response.status, errorText);
         setAirfields([]);
       }
     } catch (error) {
@@ -1101,30 +1165,13 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
   };
 
   const handleCreateFlightLog = async (data: CreateFlightLogForm) => {
-    console.log('🎯 handleCreateFlightLog called!');
-    console.log('🎯 Form submitted with data:', data);
-    console.log('🎯 Is edit mode:', isEditMode);
-    console.log('🎯 Flight log to edit:', flightLogToEdit);
-    
     try {
-      console.log('🚀 Form submission started!');
-      console.log('📝 Is edit mode:', isEditMode);
-      console.log('📝 Flight log to edit:', flightLogToEdit);
-      console.log('Form data being submitted:', data);
-      console.log('Form errors:', form.formState.errors);
-      console.log('Form is valid:', form.formState.isValid);
-      console.log('Form is dirty:', form.formState.isDirty);
-      console.log('Departure time:', data.departureTime, 'Type:', typeof data.departureTime);
-      console.log('Arrival time:', data.arrivalTime, 'Type:', typeof data.arrivalTime);
       
       const token = localStorage.getItem('token');
       if (!token) {
-        console.log('❌ No token found in localStorage');
         toast.error('Authentication required');
         return;
       }
-
-      console.log('✅ Token found in localStorage');
 
       // Clean up the data - remove undefined instructorId
       const cleanData = {
@@ -1133,8 +1180,6 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       };
 
       if (isEditMode && flightLogToEdit) {
-        console.log('🔄 Updating existing flight log with ID:', flightLogToEdit.id);
-        console.log('📤 Sending data to:', `/api/flight-logs/${flightLogToEdit.id}`);
         
         // Update existing flight log
         const response = await fetch(`/api/flight-logs/${flightLogToEdit.id}`, {
@@ -1146,11 +1191,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
           body: JSON.stringify(cleanData),
         });
 
-        console.log('📥 Response status:', response.status);
-        console.log('📥 Response ok:', response.ok);
-
         if (response.ok) {
-          console.log('✅ Flight log updated successfully');
           toast.success('Flight log updated successfully');
           setShowCreateDialog(false);
           setIsEditMode(false);
@@ -1159,11 +1200,9 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
           fetchFlightLogs();
         } else {
           const error = await response.json();
-          console.log('❌ Update failed with error:', error);
           toast.error(error.error || 'Failed to update flight log');
         }
       } else {
-        console.log('🆕 Creating new flight log');
         // Create new flight log
         const response = await fetch('/api/flight-logs', {
           method: 'POST',
@@ -1232,8 +1271,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
   };
 
   const handleEditFlightLog = async (flightLog: FlightLog) => {
-    console.log('✏️ Edit button clicked for flight log:', flightLog.id);
-    console.log('📝 Flight log data:', flightLog);
+
     
     try {
       // Fetch fresh flight log data from API to ensure we have the latest remarks
@@ -1251,7 +1289,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
 
       if (response.ok) {
         const freshFlightLog = await response.json();
-        console.log('🔄 Fresh flight log data:', freshFlightLog);
+
         setFlightLogToEdit(freshFlightLog);
         setIsEditMode(true);
         setShowCreateDialog(true);
@@ -1439,22 +1477,18 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
   const canToggleViewMode = () => {
     if (!currentUser) return false;
     
-    console.log('🔍 canToggleViewMode - currentUser.userRoles:', JSON.stringify(currentUser.userRoles, null, 2));
+
     
     // Only allow view mode toggle for users who should see company-wide data
     const canToggle = currentUser.userRoles?.some((ur: UserRole) => {
       const roleName = ur.role?.name || ur.roles?.name;
-      console.log('🔍 Checking role:', roleName, 'from ur:', ur);
+      
       // Only INSTRUCTOR, ADMIN, SUPER_ADMIN, and BASE_MANAGER can toggle view mode
       // PILOT and STUDENT should only see their personal flights
       return roleName === 'INSTRUCTOR' || roleName === 'ADMIN' || roleName === 'SUPER_ADMIN' || roleName === 'BASE_MANAGER';
     });
     
-    console.log('🔍 canToggleViewMode check:', {
-      currentUser: currentUser?.email,
-      userRoles: currentUser?.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name),
-      canToggle
-    });
+
     return canToggle;
   };
 
@@ -1740,56 +1774,55 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
     return (
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col items-end space-y-3">
+          {/* Action Buttons */}
+          <div className="flex items-center space-x-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleExportFlightLogs}
+              disabled={exportLoading}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {exportLoading ? 'Exporting...' : 'Export'}
+            </Button>
+            {canToggleViewMode() && (
+              <Button variant="outline" size="sm" onClick={() => setShowImportDialog(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Import
+              </Button>
+            )}
+            <Button onClick={() => setShowCreateDialog(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Log Flight
+            </Button>
           </div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:space-x-2">
-            <div className="flex items-center space-x-2 order-2 sm:order-1">
-              <Tabs value={showPPLView ? "ppl" : "full"} onValueChange={(value) => setShowPPLView(value === "ppl")}>
+          
+          {/* Toggles */}
+          <div className="flex items-center space-x-2">
+            <Tabs value={showPPLView ? "ppl" : "full"} onValueChange={(value) => setShowPPLView(value === "ppl")}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="full" className="text-xs">Full View</TabsTrigger>
+                <TabsTrigger value="ppl" className="text-xs">PPL View</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            {canToggleViewMode() && (
+              <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "personal" | "company")}>
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="full" className="text-xs">Full View</TabsTrigger>
-                  <TabsTrigger value="ppl" className="text-xs">PPL View</TabsTrigger>
+                  <TabsTrigger value="personal" className="text-xs">Personal</TabsTrigger>
+                  <TabsTrigger value="company" className="text-xs">Company</TabsTrigger>
                 </TabsList>
               </Tabs>
-              {canToggleViewMode() && (
-                <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "personal" | "company")}>
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="personal" className="text-xs">Personal</TabsTrigger>
-                    <TabsTrigger value="company" className="text-xs">Company</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center space-x-2"
-              >
-                <Filter className="h-4 w-4" />
-                <span>Filters</span>
-              </Button>
-            </div>
-            <div className="flex items-center space-x-2 order-1 sm:order-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleExportFlightLogs}
-                disabled={exportLoading}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                {exportLoading ? 'Exporting...' : 'Export'}
-              </Button>
-              {canToggleViewMode() && (
-                <Button variant="outline" size="sm" onClick={() => setShowImportDialog(true)}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Import
-                </Button>
-              )}
-              <Button onClick={() => setShowCreateDialog(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Log Flight
-              </Button>
-            </div>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center space-x-2"
+            >
+              <Filter className="h-4 w-4" />
+              <span>Filters</span>
+            </Button>
           </div>
         </div>
 
@@ -2448,7 +2481,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mt-6 gap-4">
                       <div className="text-sm text-muted-foreground">
                         {(() => {
-                          console.log('🔍 Pagination display - total:', pagination.total, 'page:', pagination.page, 'limit:', pagination.limit);
+                      
                           return pagination.total > 0 ? (
                             <>
                               Showing <span className="font-medium">{((pagination.page - 1) * pagination.limit) + 1}</span> to{' '}
@@ -2542,19 +2575,24 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
           </>
         )}
 
-        {/* Create Flight Log Dialog */}
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogContent className="!max-w-[90vw] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{isEditMode ? 'Edit Flight Log' : 'Log New Flight'}</DialogTitle>
-              <DialogDescription>
-                {isEditMode ? 'Update the flight log details below.' : 'Fill in the flight details below to create a new flight log.'}
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={(e) => {
-              console.log('📝 Form onSubmit triggered!');
-              form.handleSubmit(handleCreateFlightLog)(e);
-            }} className="space-y-4">
+        {/* Create Flight Log Modal */}
+        <Modal
+          open={showCreateDialog}
+          onClose={() => setShowCreateDialog(false)}
+          title={isEditMode ? 'Edit Flight Log' : 'Log New Flight'}
+          headerActions={
+            <Button 
+              disabled={form.formState.isSubmitting}
+              onClick={() => form.handleSubmit(handleCreateFlightLog)()}
+            >
+              {form.formState.isSubmitting 
+                ? (isEditMode ? "Updating..." : "Creating...") 
+                : (isEditMode ? "Update Flight Log" : "Submit Flight Log")
+              }
+            </Button>
+          }
+        >
+            <form onSubmit={(e) => form.handleSubmit(handleCreateFlightLog)(e)} className="space-y-4">
               <div className="space-y-6">
                 {/* Flight Details */}
                 <div className="space-y-4">
@@ -2682,7 +2720,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                   <div className="bg-muted rounded-lg p-6 space-y-4 h-fit">
                     <h3 className="text-lg font-medium">Departure</h3>
                     
-                    <div className="grid grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="space-y-2 col-span-2">
                         <Combobox
                           options={airfields.map((airfield) => ({
@@ -2726,17 +2764,22 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                       </div>
 
                       <div className="space-y-2 col-span-1">
-                        <HobbsInput
-                          name="departureHobbs"
-                          value={form.watch("departureHobbs")}
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("departureHobbs", parseFloat(e.target.value) || 0)}
-                          onBlur={() => handleTimeHobbsBlur("departureHobbs")}
-                          className={cn(
-                            "border-gray-200 dark:border-gray-700 bg-background",
-                            form.formState.errors.departureHobbs ? "border-red-500 focus-visible:ring-red-500" : ""
-                          )}
-                        />
-
+                        <div>
+                          <HobbsInput
+                            name="departureHobbs"
+                            value={form.watch("departureHobbs")}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("departureHobbs", parseFloat(e.target.value) || 0)}
+                            onBlur={() => handleTimeHobbsBlur("departureHobbs")}
+                            className={cn(
+                              "border-gray-200 dark:border-gray-700 bg-background",
+                              form.formState.errors.departureHobbs ? "border-red-500 focus-visible:ring-red-500" : ""
+                            )}
+                          />
+                          <p className="text-xs text-muted-foreground mt-1 text-left">Hobbs</p>
+                        </div>
+                        {form.formState.errors.departureHobbs && (
+                          <p className="text-sm text-destructive">{form.formState.errors.departureHobbs.message}</p>
+                        )}
                       </div>
                     </div>
 
@@ -2796,7 +2839,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                   <div className="bg-muted rounded-lg p-6 space-y-4 h-fit">
                     <h3 className="text-lg font-medium">Arrival</h3>
                     
-                    <div className="grid grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="space-y-2 col-span-2">
                         <Combobox
                           options={airfields.map((airfield) => ({
@@ -2840,17 +2883,22 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                       </div>
 
                       <div className="space-y-2 col-span-1">
-                        <HobbsInput
-                          name="arrivalHobbs"
-                          value={form.watch("arrivalHobbs")}
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("arrivalHobbs", parseFloat(e.target.value) || 0)}
-                          onBlur={() => handleTimeHobbsBlur("arrivalHobbs")}
-                          className={cn(
-                            "border-gray-200 dark:border-gray-700 bg-background",
-                            form.formState.errors.arrivalHobbs ? "border-red-500 focus-visible:ring-red-500" : ""
-                          )}
-                        />
-
+                        <div>
+                          <HobbsInput
+                            name="arrivalHobbs"
+                            value={form.watch("arrivalHobbs")}
+                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => form.setValue("arrivalHobbs", parseFloat(e.target.value) || 0)}
+                            onBlur={() => handleTimeHobbsBlur("arrivalHobbs")}
+                            className={cn(
+                              "border-gray-200 dark:border-gray-700 bg-background",
+                              form.formState.errors.arrivalHobbs ? "border-red-500 focus-visible:ring-red-500" : ""
+                            )}
+                          />
+                          <p className="text-xs text-muted-foreground mt-1 text-left">Hobbs</p>
+                        </div>
+                        {form.formState.errors.arrivalHobbs && (
+                          <p className="text-sm text-destructive">{form.formState.errors.arrivalHobbs.message}</p>
+                        )}
                       </div>
                     </div>
 
@@ -2997,32 +3045,9 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                 {/* Additional Information */}
                 {/* REMOVE THIS BLOCK */}
               </div>
-              <div className="flex justify-end space-x-2 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleCloseModal}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  disabled={form.formState.isSubmitting}
-                  onClick={() => {
-                    console.log('🔘 Submit button clicked!');
-                    console.log('Form errors:', form.formState.errors);
-                    console.log('Form values:', form.getValues());
-                  }}
-                >
-                  {form.formState.isSubmitting 
-                    ? (isEditMode ? "Updating..." : "Creating...") 
-                    : (isEditMode ? "Update Flight Log" : "Create Flight Log")
-                  }
-                </Button>
-              </div>
+
             </form>
-          </DialogContent>
-        </Dialog>
+        </Modal>
 
         {/* View Flight Log Modal */}
         <Modal
@@ -3032,7 +3057,6 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
             setViewModalMode('view');
           }}
           title={viewModalMode === 'edit' ? 'Edit Flight Log' : 'Flight Log Details'}
-          description={viewModalMode === 'edit' ? 'Update the flight log details below.' : 'View detailed information about this flight log entry.'}
           headerActions={
             viewModalMode === 'view' ? (
               <Button onClick={handleEditFromView}>

@@ -373,14 +373,6 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
               ) 
             : 'Upload Pilot License'
         }`}
-        description={
-          existingLicense 
-            ? (isExpired 
-                ? 'View your archived pilot license information'
-                : (isViewMode ? 'View your pilot license information' : 'Update your pilot license information')
-              )
-            : 'Upload and configure your pilot license details'
-        }
         headerActions={
           existingLicense && (
             <div className="flex gap-2">
@@ -1209,7 +1201,6 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
         open={showFileViewer}
         onClose={() => setShowFileViewer(false)}
         title={`Viewing: ${selectedFile?.name || 'Document'}`}
-        description="View your uploaded pilot license document"
       >
         <div className="space-y-4">
           {selectedFile && (
