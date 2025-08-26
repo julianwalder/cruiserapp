@@ -357,7 +357,7 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
         ) : (
           <>
             <Upload className="h-4 w-4 mr-2" />
-            Upload License
+            Upload
           </>
         )}
       </Button>

@@ -197,3 +197,84 @@ export const AVIATION_LANGUAGES = [
 ] as const;
 
 export type AviationLanguage = typeof AVIATION_LANGUAGES[number];
+
+// EASA Countries for medical certificate licensing authority
+export const EASA_COUNTRIES = [
+  'Austria',
+  'Belgium',
+  'Bulgaria',
+  'Croatia',
+  'Cyprus',
+  'Czech Republic',
+  'Denmark',
+  'Estonia',
+  'Finland',
+  'France',
+  'Germany',
+  'Greece',
+  'Hungary',
+  'Ireland',
+  'Italy',
+  'Latvia',
+  'Lithuania',
+  'Luxembourg',
+  'Malta',
+  'Netherlands',
+  'Poland',
+  'Portugal',
+  'Romania',
+  'Slovakia',
+  'Slovenia',
+  'Spain',
+  'Sweden',
+] as const;
+
+export type EASACountry = typeof EASA_COUNTRIES[number];
+
+// Medical Certificate interface
+export interface MedicalCertificate extends BaseEntity {
+  id: UUID;
+  user_id: UUID;
+  document_id?: UUID;
+  
+  // Certificate archiving fields
+  status: 'active' | 'archived' | 'expired';
+  version: number;
+  archived_at?: Date;
+  archive_reason?: string;
+  
+  // Certificate Details
+  licensing_authority: string; // EASA country
+  medical_class: string; // Class 1 or Class 2
+  certificate_number: string;
+  valid_until: Date;
+  
+  // Additional Information
+  issued_date?: Date;
+  issuing_doctor?: string;
+  medical_center?: string;
+  restrictions?: string;
+  remarks?: string;
+  
+  // Related documents (added by API)
+  pilot_documents?: PilotDocument[];
+}
+
+// Form data interface for medical certificate upload
+export interface MedicalCertificateFormData {
+  // File upload
+  certificateFile: File;
+  
+  // Certificate Details
+  licensingAuthority: string;
+  medicalClass: string;
+  certificateNumber: string;
+  validUntil: string; // ISO date string
+  
+  // Additional Information
+  issuedDate?: string; // ISO date string
+  issuingDoctor?: string;
+  medicalCenter?: string;
+  restrictions?: string;
+  remarks?: string;
+}

@@ -49,6 +49,7 @@ import { useDateFormatUtils } from '@/hooks/use-date-format';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { PilotLicenseUpload } from '@/components/PilotLicenseUpload';
+import { MedicalCertificateUpload } from '@/components/MedicalCertificateUpload';
 
 // Extended User interface for My Account with userRoles and verification data
 interface MyAccountUser extends UserType {
@@ -189,6 +190,7 @@ export default function MyAccountPage() {
   
   // Pilot documents state
   const [pilotLicenses, setPilotLicenses] = useState<any[]>([]);
+  const [medicalCertificates, setMedicalCertificates] = useState<any[]>([]);
   const [pilotDocuments, setPilotDocuments] = useState<any[]>([]);
   const [loadingPilotData, setLoadingPilotData] = useState(false);
   
@@ -245,6 +247,25 @@ export default function MyAccountPage() {
         });
         
         setPilotLicenses(licensesWithDocuments);
+      }
+
+      // Fetch medical certificates
+      const certificatesResponse = await fetch('/api/my-account/medical-certificates', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (certificatesResponse.ok) {
+        const certificatesData = await certificatesResponse.json();
+        const certificatesWithDocuments = (certificatesData.certificates || []).map((certificate: any) => {
+          const associatedDocument = (certificatesData.documents || []).find((doc: any) => doc.id === certificate.document_id);
+          return {
+            ...certificate,
+            pilot_documents: associatedDocument ? [associatedDocument] : []
+          };
+        });
+        setMedicalCertificates(certificatesWithDocuments);
       }
     } catch (error) {
       console.error('Failed to fetch pilot data:', error);
@@ -1066,7 +1087,7 @@ export default function MyAccountPage() {
                     <div className="space-y-2">
                       <h5 className="text-sm font-medium text-gray-700 flex items-center gap-2">
                         <FileText className="h-4 w-4" />
-                        License History
+                        Pilot License History
                       </h5>
                       {pilotLicenses.filter(l => l.status !== 'active').map((license) => (
                         <div key={license.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg bg-gray-50 border-gray-200 gap-4">
@@ -1135,31 +1156,133 @@ export default function MyAccountPage() {
                 </div>
 
                 {/* Medical Certificate */}
-                <div className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <Shield className="h-5 w-5 text-green-600" />
-                    <div>
-                      <h4 className="font-medium">Medical Certificate</h4>
-                      <p className="text-sm text-muted-foreground">
-                        {user.medicalClass ? `Class ${user.medicalClass}` : 'Not uploaded'}
-                      </p>
+                <div className="space-y-4">
+                  {/* Active Medical Certificate */}
+                  {medicalCertificates.filter(c => c.status === 'active' && new Date(c.valid_until) > new Date()).length > 0 && (
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg bg-green-50 border-green-200 gap-4">
+                                              <div className="flex items-center space-x-3 min-w-0 flex-1">
+                          <FileText className="h-5 w-5 text-green-600" />
+                        <div className="min-w-0">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                            <h4 className="font-medium">Active Medical Certificate</h4>
+                            <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 self-start">
+                              v{medicalCertificates.filter(c => c.status === 'active')[0].version}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground truncate">
+                            {medicalCertificates.filter(c => c.status === 'active')[0].medical_class} - {medicalCertificates.filter(c => c.status === 'active')[0].certificate_number}
+                          </p>
+                          {(() => {
+                            const activeCertificate = medicalCertificates.filter(c => c.status === 'active')[0];
+                            const expirationDate = new Date(activeCertificate.valid_until);
+                            const isExpiringSoon = expirationDate.getTime() - new Date().getTime() < 30 * 24 * 60 * 60 * 1000; // 30 days
+                            const isExpired = expirationDate < new Date();
+                            
+                            return (
+                              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                <Badge 
+                                  variant="outline" 
+                                  className={cn(
+                                    "text-xs",
+                                    isExpired ? "bg-red-100 text-red-700 border-red-300" :
+                                    isExpiringSoon ? "bg-yellow-100 text-yellow-700 border-yellow-300" :
+                                    "bg-green-100 text-green-700 border-green-300"
+                                  )}
+                                >
+                                  {isExpired ? 'Expired' : isExpiringSoon ? 'Expiring Soon' : 'Valid'}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">
+                                  Valid until: {formatDate(expirationDate.toISOString())}
+                                </span>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2 flex-shrink-0 self-end sm:self-auto">
+                        <Badge variant="default">Active</Badge>
+                        <MedicalCertificateUpload 
+                          existingCertificate={medicalCertificates.filter(c => c.status === 'active')[0]}
+                          onCertificateUploaded={(certificate) => {
+                            setMedicalCertificates([certificate, ...medicalCertificates.filter(c => c.id !== certificate.id)]);
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    {user.medicalClass ? (
-                      <>
-                        <Badge variant="default">Uploaded</Badge>
-                        <Button variant="ghost" size="sm">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </>
-                    ) : (
-                      <Button variant="outline" size="sm">
-                        <Upload className="h-4 w-4 mr-2" />
-                        Upload
-                      </Button>
-                    )}
-                  </div>
+                  )}
+
+                  {/* Expired/Archived Medical Certificates */}
+                  {medicalCertificates.filter(c => c.status !== 'active' || new Date(c.valid_until) <= new Date()).length > 0 && (
+                    <div className="space-y-2">
+                      <h5 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Medical Certificate History
+                      </h5>
+                      {medicalCertificates.filter(c => c.status !== 'active' || new Date(c.valid_until) <= new Date()).map((certificate) => (
+                        <div key={certificate.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg bg-gray-50 border-gray-200 gap-4">
+                          <div className="flex items-center space-x-3 min-w-0 flex-1">
+                            <FileText className="h-4 w-4 text-gray-500" />
+                            <div className="min-w-0">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                <h4 className="font-medium text-sm">{certificate.medical_class} - {certificate.certificate_number}</h4>
+                                <div className="flex gap-2 self-start">
+                                  <Badge variant="outline" className="bg-gray-100 text-gray-600 border-gray-300 text-xs">
+                                    v{certificate.version}
+                                  </Badge>
+                                  <Badge variant="outline" className={
+                                    certificate.status === 'expired' || new Date(certificate.valid_until) <= new Date()
+                                      ? 'bg-red-100 text-red-700 border-red-300' 
+                                      : 'bg-gray-100 text-gray-700 border-gray-300'
+                                  }>
+                                    {certificate.status === 'expired' || new Date(certificate.valid_until) <= new Date() ? 'Expired' : 'Archived'}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {certificate.status === 'expired' || new Date(certificate.valid_until) <= new Date()
+                                  ? `Automatically expired • ${formatDate(certificate.valid_until)}`
+                                  : certificate.status === 'archived'
+                                  ? (certificate.archive_reason || 'Manually archived')
+                                  : 'Active certificate'}
+                                {certificate.archived_at && certificate.status === 'archived' && (
+                                  <span className="ml-2">
+                                    • {formatDate(certificate.archived_at)}
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2 flex-shrink-0 self-end sm:self-auto">
+                            <MedicalCertificateUpload 
+                              existingCertificate={certificate}
+                              onCertificateUploaded={(updatedCertificate) => {
+                                setMedicalCertificates([updatedCertificate, ...medicalCertificates.filter(c => c.id !== updatedCertificate.id)]);
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* No Medical Certificates */}
+                  {medicalCertificates.filter(c => c.status === 'active' && new Date(c.valid_until) > new Date()).length === 0 && 
+                   medicalCertificates.filter(c => c.status !== 'active' || new Date(c.valid_until) <= new Date()).length === 0 && (
+                    <div className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <FileText className="h-5 w-5 text-gray-400" />
+                        <div>
+                          <h4 className="font-medium">Medical Certificate</h4>
+                          <p className="text-sm text-muted-foreground">Not uploaded</p>
+                        </div>
+                      </div>
+                      <MedicalCertificateUpload 
+                        onCertificateUploaded={(certificate) => {
+                          setMedicalCertificates([certificate, ...medicalCertificates]);
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Radio Certificate */}
