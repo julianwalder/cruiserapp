@@ -1050,15 +1050,12 @@ export default function MyAccountPage() {
                 <div className="space-y-3">
                   {/* Active License */}
                   {pilotLicenses.filter(l => l.status === 'active').length > 0 && (
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg bg-green-50 border-green-200 gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg gap-4">
                       <div className="flex items-center space-x-3 min-w-0 flex-1">
                         <Award className="h-5 w-5 text-green-600" />
                         <div className="min-w-0">
                           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                             <h4 className="font-medium">Active Pilot License</h4>
-                            <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 self-start">
-                              v{pilotLicenses.filter(l => l.status === 'active')[0].version}
-                            </Badge>
                           </div>
                           <p className="text-sm text-muted-foreground truncate">
                             {pilotLicenses.filter(l => l.status === 'active')[0].license_type} - {pilotLicenses.filter(l => l.status === 'active')[0].license_number}
@@ -1069,6 +1066,9 @@ export default function MyAccountPage() {
                             const expirationDate = getEarliestExpirationDate(activeLicense);
                             return (
                               <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-xs">
+                                  v{pilotLicenses.filter(l => l.status === 'active')[0].version}
+                                </Badge>
                                 <Badge 
                                   variant="outline" 
                                   className={`${validation.bgColor} ${validation.color} border-current`}
@@ -1181,15 +1181,12 @@ export default function MyAccountPage() {
                 <div className="space-y-4">
                   {/* Active Medical Certificate */}
                   {medicalCertificates.filter(c => c.status === 'active' && new Date(c.valid_until) > new Date()).length > 0 && (
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg bg-green-50 border-green-200 gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg gap-4">
                                               <div className="flex items-center space-x-3 min-w-0 flex-1">
                           <FileText className="h-5 w-5 text-green-600" />
                         <div className="min-w-0">
                           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                             <h4 className="font-medium">Active Medical Certificate</h4>
-                            <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 self-start">
-                              v{medicalCertificates.filter(c => c.status === 'active')[0].version}
-                            </Badge>
                           </div>
                           <p className="text-sm text-muted-foreground truncate">
                             {medicalCertificates.filter(c => c.status === 'active')[0].medical_class} - {medicalCertificates.filter(c => c.status === 'active')[0].certificate_number}
@@ -1202,6 +1199,9 @@ export default function MyAccountPage() {
                             
                             return (
                               <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-xs">
+                                  v{medicalCertificates.filter(c => c.status === 'active')[0].version}
+                                </Badge>
                                 <Badge 
                                   variant="outline" 
                                   className={cn(
@@ -1311,15 +1311,12 @@ export default function MyAccountPage() {
                 <div className="space-y-4">
                   {/* Active Radio Certificate */}
                   {radioCertificates.filter(c => c.status === 'active' && new Date(c.valid_until) > new Date()).length > 0 && (
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg bg-green-50 border-green-200 gap-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border rounded-lg gap-4">
                       <div className="flex items-center space-x-3 min-w-0 flex-1">
                         <Radio className="h-5 w-5 text-green-600" />
                         <div className="min-w-0">
                           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                             <h4 className="font-medium">Active Radio Certificate</h4>
-                            <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 self-start">
-                              v{radioCertificates.filter(c => c.status === 'active')[0].version}
-                            </Badge>
                           </div>
                           <p className="text-sm text-muted-foreground truncate">
                             {radioCertificates.filter(c => c.status === 'active')[0].certificate_number}
@@ -1332,6 +1329,9 @@ export default function MyAccountPage() {
                             
                             return (
                               <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300 text-xs">
+                                  v{radioCertificates.filter(c => c.status === 'active')[0].version}
+                                </Badge>
                                 <Badge 
                                   variant="outline" 
                                   className={cn(
@@ -1346,7 +1346,7 @@ export default function MyAccountPage() {
                                 <span className="text-xs text-muted-foreground">
                                   Valid until: {formatDate(expirationDate.toISOString())}
                                 </span>
-                    </div>
+                              </div>
                             );
                           })()}
                   </div>
