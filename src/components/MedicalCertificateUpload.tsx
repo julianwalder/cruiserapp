@@ -359,8 +359,13 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
                   Upload New Certificate
                 </Button>
               ) : (
-                <Button variant="outline" size="sm" onClick={toggleViewMode}>
-                  {isViewMode ? 'Edit' : 'View'}
+                <Button 
+                  variant={isViewMode ? "outline" : "default"} 
+                  size="sm" 
+                  onClick={isViewMode ? toggleViewMode : handleSubmit}
+                  disabled={!isViewMode && isUploading}
+                >
+                  {isViewMode ? 'Edit' : (isUploading ? 'Saving...' : 'Save Changes')}
                 </Button>
               )}
             </div>
@@ -777,8 +782,8 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
                     </div>
                   </div>
 
-                  {/* Save Button - Only show in edit mode */}
-                  {!isViewMode && (
+                  {/* Save Button - Only show in edit mode for new uploads, not for existing certificates */}
+                  {!isViewMode && !existingCertificate && (
                     <div className="flex justify-end pt-4">
                       <Button onClick={handleSubmit} disabled={isUploading}>
                         {isUploading ? 'Saving...' : 'Save Changes'}
