@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -293,6 +293,23 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
     existingCertificate.status === 'archived' || 
     new Date(existingCertificate.valid_until) <= new Date()
   );
+
+  // Memoize the object URL to prevent PDF reloading on form changes
+  const memoizedFileUrl = useMemo(() => {
+    if (formData.certificateFile) {
+      return URL.createObjectURL(formData.certificateFile);
+    }
+    return null;
+  }, [formData.certificateFile]);
+
+  // Cleanup object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (memoizedFileUrl) {
+        URL.revokeObjectURL(memoizedFileUrl);
+      }
+    };
+  }, [memoizedFileUrl]);
   
   return (
     <>
@@ -410,11 +427,10 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
                                 existingCertificate.pilot_documents[0].file_name || 'Document',
                                 existingCertificate.pilot_documents[0].mime_type || 'application/pdf'
                               );
-                            } else if (formData.certificateFile) {
-                              // For newly uploaded files, create a temporary URL
-                              const fileUrl = URL.createObjectURL(formData.certificateFile);
+                            } else if (formData.certificateFile && memoizedFileUrl) {
+                              // For newly uploaded files, use the memoized URL
                               handleViewFile(
-                                fileUrl,
+                                memoizedFileUrl,
                                 formData.certificateFile.name,
                                 formData.certificateFile.type
                               );
@@ -479,12 +495,11 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
                       }
                     }
                     // For newly uploaded files, create a preview
-                    else if (currentStep === 2 && formData.certificateFile) {
-                      const fileUrl = URL.createObjectURL(formData.certificateFile);
+                    else if (currentStep === 2 && formData.certificateFile && memoizedFileUrl) {
                       if (formData.certificateFile.type.startsWith('image/')) {
                         return (
                           <img 
-                            src={fileUrl} 
+                            src={memoizedFileUrl} 
                             alt={formData.certificateFile.name}
                             className="w-full h-full object-contain"
                           />
@@ -492,7 +507,7 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
                       } else if (formData.certificateFile.type === 'application/pdf') {
                         return (
                           <iframe
-                            src={fileUrl}
+                            src={memoizedFileUrl}
                             className="w-full h-full border-0"
                             title={formData.certificateFile.name}
                           />
@@ -507,7 +522,7 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
                               </p>
                               <Button onClick={() => {
                                 const link = document.createElement('a');
-                                link.href = fileUrl;
+                                link.href = memoizedFileUrl;
                                 link.download = formData.certificateFile?.name || 'document';
                                 link.click();
                               }}>

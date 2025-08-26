@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -357,6 +357,23 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
 
   // Check if the license is expired
   const isExpired = existingLicense && (existingLicense.status === 'expired' || existingLicense.status === 'archived');
+
+  // Memoize the object URL to prevent PDF reloading on form changes
+  const memoizedFileUrl = useMemo(() => {
+    if (formData.licenseFile) {
+      return URL.createObjectURL(formData.licenseFile);
+    }
+    return null;
+  }, [formData.licenseFile]);
+
+  // Cleanup object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (memoizedFileUrl) {
+        URL.revokeObjectURL(memoizedFileUrl);
+      }
+    };
+  }, [memoizedFileUrl]);
   
   return (
     <>
@@ -475,11 +492,10 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
                                 existingLicense.pilot_documents[0].file_name || 'Document',
                                 existingLicense.pilot_documents[0].mime_type || 'application/pdf'
                               );
-                            } else if (formData.licenseFile) {
-                              // For newly uploaded files, create a temporary URL
-                              const fileUrl = URL.createObjectURL(formData.licenseFile);
+                            } else if (formData.licenseFile && memoizedFileUrl) {
+                              // For newly uploaded files, use the memoized URL
                               handleViewFile(
-                                fileUrl,
+                                memoizedFileUrl,
                                 formData.licenseFile.name,
                                 formData.licenseFile.type
                               );
@@ -544,12 +560,11 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
                       }
                     }
                     // For newly uploaded files, create a preview
-                    else if (currentStep === 2 && formData.licenseFile) {
-                      const fileUrl = URL.createObjectURL(formData.licenseFile);
+                    else if (currentStep === 2 && formData.licenseFile && memoizedFileUrl) {
                       if (formData.licenseFile.type.startsWith('image/')) {
                         return (
                           <img 
-                            src={fileUrl} 
+                            src={memoizedFileUrl} 
                             alt={formData.licenseFile.name}
                             className="w-full h-full object-contain"
                           />
@@ -557,7 +572,7 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
                       } else if (formData.licenseFile.type === 'application/pdf') {
                         return (
                           <iframe
-                            src={fileUrl}
+                            src={memoizedFileUrl}
                             className="w-full h-full border-0"
                             title={formData.licenseFile.name}
                           />
@@ -572,7 +587,7 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
                               </p>
                               <Button onClick={() => {
                                 const link = document.createElement('a');
-                                link.href = fileUrl;
+                                link.href = memoizedFileUrl;
                                 link.download = formData.licenseFile?.name || 'document';
                                 link.click();
                               }}>
