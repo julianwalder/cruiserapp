@@ -34,6 +34,7 @@ import {
   MEDICAL_CLASSES, 
   LANGUAGE_LEVELS, 
   AVIATION_LANGUAGES,
+  EASA_COUNTRIES,
   type PilotLicense,
   type ClassTypeRating,
   type LanguageProficiency,
@@ -655,14 +656,21 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
                         {isViewMode ? (
                           <p className="text-gray-900 mt-1">{existingLicense?.state_of_issue || 'Not specified'}</p>
                         ) : (
-                        <Input
-                          id="stateOfIssue"
+                        <Select
                           value={formData.stateOfIssue}
-                          onChange={(e) => setFormData(prev => ({ ...prev, stateOfIssue: e.target.value }))}
-                          placeholder="e.g., Romania"
-                            className="mt-1"
-                          required
-                        />
+                          onValueChange={(value) => setFormData(prev => ({ ...prev, stateOfIssue: value }))}
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder="Select issuing state" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {EASA_COUNTRIES.map((country) => (
+                              <SelectItem key={country} value={country}>
+                                {country}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         )}
                       </div>
 
