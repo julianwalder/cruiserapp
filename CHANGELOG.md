@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3] - 2025-08-26
+
+### Added
+- **Radio Certificate Upload System**
+  - Complete radio certificate upload functionality with versioning
+  - Radio certificate management with active/archived status
+  - Document preview and full-screen viewing capabilities
+  - Certificate number and validity date management
+  - Radio certificate history tracking
+  - Consistent UI/UX with pilot license and medical certificate uploads
+  - File size validation (10MB limit) and type validation
+  - Client-side and server-side error handling for uploads
+
+### Fixed
+- **Radio Certificate Document Display**
+  - Fixed API response structure to properly associate documents with certificates
+  - Resolved "No document available" issue in radio certificate modal
+  - Updated API to match medical certificate data structure pattern
+  - Fixed document preview not showing in radio certificate viewer
+- **Pilot License Upload UX**
+  - Updated edit button to transform into "Save Changes" when in edit mode
+  - Removed duplicate "Save Changes" button from bottom of modal for existing licenses
+  - Consistent button behavior across all certificate upload components
+  - Improved modal step management for existing certificates
+
+### Changed
+- **Certificate Upload Consistency**
+  - Standardized button behavior across Pilot License, Medical Certificate, and Radio Certificate uploads
+  - Unified modal header actions with dynamic button text
+  - Consistent document preview and editing experience
+  - Improved error handling and user feedback across all certificate types
+
+## [0.1.9] - 2025-01-27
+
 ## [0.1.9] - 2025-01-27
 
 ### Added

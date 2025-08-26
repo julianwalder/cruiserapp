@@ -278,3 +278,33 @@ export interface MedicalCertificateFormData {
   restrictions?: string;
   remarks?: string;
 }
+
+export interface RadioCertificate {
+  id: string;
+  user_id: string;
+  document_id: string;
+  status: 'active' | 'expired' | 'archived';
+  version: number;
+  archived_at?: string;
+  archive_reason?: string;
+  
+  // Certificate Details
+  certificate_number: string;
+  valid_until: string;
+  
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+  
+  // Relations
+  pilot_documents?: PilotDocument[];
+}
+
+export interface RadioCertificateFormData {
+  // File upload
+  certificateFile: File | null;
+  
+  // Certificate Details
+  certificateNumber: string;
+  validUntil: string;
+}

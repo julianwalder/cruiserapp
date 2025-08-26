@@ -4,47 +4,35 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Modal } from '@/components/ui/Modal';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Separator } from '@/components/ui/separator';
 import { 
   Upload, 
   FileText, 
   Award, 
   Calendar, 
-  MapPin, 
-  User, 
-  Languages, 
-  Shield, 
   Radio, 
-  Signature, 
   Info,
   Plus,
   X,
   Eye,
   Download,
-  Trash2,
-  Stethoscope
+  Trash2
 } from 'lucide-react';
 import { 
-  EASA_COUNTRIES,
-  MEDICAL_CLASSES,
-  type MedicalCertificate,
-  type MedicalCertificateFormData
+  type RadioCertificate,
+  type RadioCertificateFormData
 } from '@/types/pilot-documents';
 import { useDateFormatUtils } from '@/hooks/use-date-format';
 import { toast } from 'sonner';
 
-interface MedicalCertificateUploadProps {
-  onCertificateUploaded?: (certificate: MedicalCertificate) => void;
-  existingCertificate?: MedicalCertificate;
+interface RadioCertificateUploadProps {
+  onCertificateUploaded?: (certificate: RadioCertificate) => void;
+  existingCertificate?: RadioCertificate;
 }
 
-export function MedicalCertificateUpload({ onCertificateUploaded, existingCertificate }: MedicalCertificateUploadProps) {
+export function RadioCertificateUpload({ onCertificateUploaded, existingCertificate }: RadioCertificateUploadProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [currentStep, setCurrentStep] = useState(existingCertificate ? 2 : 1);
@@ -56,22 +44,13 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
   const { formatDate } = useDateFormatUtils();
 
   // Form state
-  const [formData, setFormData] = useState<MedicalCertificateFormData>({
+  const [formData, setFormData] = useState<RadioCertificateFormData>({
     // File upload
     certificateFile: null as File | null,
     
     // Certificate Details
-    licensingAuthority: '',
-    medicalClass: '',
     certificateNumber: '',
     validUntil: '',
-    
-    // Additional Information
-    issuedDate: '',
-    issuingDoctor: '',
-    medicalCenter: '',
-    restrictions: '',
-    remarks: '',
   });
 
   // Update form data when existingCertificate changes
@@ -84,17 +63,8 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
         certificateFile: null as File | null,
         
         // Certificate Details
-        licensingAuthority: existingCertificate.licensing_authority || '',
-        medicalClass: existingCertificate.medical_class || '',
         certificateNumber: existingCertificate.certificate_number || '',
         validUntil: existingCertificate.valid_until ? new Date(existingCertificate.valid_until).toISOString().split('T')[0] : '',
-        
-        // Additional Information
-        issuedDate: existingCertificate.issued_date ? new Date(existingCertificate.issued_date).toISOString().split('T')[0] : '',
-        issuingDoctor: existingCertificate.issuing_doctor || '',
-        medicalCenter: existingCertificate.medical_center || '',
-        restrictions: existingCertificate.restrictions || '',
-        remarks: existingCertificate.remarks || '',
       });
     }
   }, [existingCertificate]);
@@ -129,7 +99,7 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
       }
 
       const formData = new FormData();
-      formData.append('documentType', 'medical_certificate');
+      formData.append('documentType', 'radio_certificate');
       formData.append('file', file);
 
       const response = await fetch('/api/my-account/pilot-documents', {
@@ -151,11 +121,11 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
       const { document } = await response.json();
       setUploadedDocumentId(document.id);
       setFormData(prev => ({ ...prev, certificateFile: file }));
-      toast.success('Medical certificate file uploaded successfully');
+      toast.success('Radio certificate file uploaded successfully');
       setCurrentStep(2);
     } catch (error) {
       console.error('Error uploading file:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to upload medical certificate file');
+      toast.error(error instanceof Error ? error.message : 'Failed to upload radio certificate file');
     } finally {
       setIsUploading(false);
     }
@@ -163,7 +133,7 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
 
   const handleSubmit = async () => {
     if (!existingCertificate && !uploadedDocumentId) {
-      toast.error('Please upload a medical certificate file first');
+      toast.error('Please upload a radio certificate file first');
       return;
     }
 
@@ -202,7 +172,7 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
         submitFormData.append('certificateId', existingCertificate.id);
       }
 
-      const response = await fetch('/api/my-account/medical-certificates', {
+      const response = await fetch('/api/my-account/radio-certificates', {
         method: existingCertificate ? 'PUT' : 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -212,17 +182,17 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to save medical certificate');
+        throw new Error(error.error || 'Failed to save radio certificate');
       }
 
-      const { certificate } = await response.json();
-      toast.success('Medical certificate saved successfully');
-      onCertificateUploaded?.(certificate);
+      const { radioCertificate } = await response.json();
+      toast.success('Radio certificate saved successfully');
+      onCertificateUploaded?.(radioCertificate);
       setIsOpen(false);
       resetForm();
     } catch (error) {
-      console.error('Error saving medical certificate:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to save medical certificate');
+      console.error('Error saving radio certificate:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to save radio certificate');
     } finally {
       setIsUploading(false);
     }
@@ -231,15 +201,8 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
   const resetForm = () => {
     setFormData({
       certificateFile: null,
-      licensingAuthority: '',
-      medicalClass: '',
       certificateNumber: '',
       validUntil: '',
-      issuedDate: '',
-      issuingDoctor: '',
-      medicalCenter: '',
-      restrictions: '',
-      remarks: '',
     });
     setCurrentStep(1);
     setUploadedDocumentId(null);
@@ -249,6 +212,7 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
     setIsOpen(true);
     if (existingCertificate) {
       setIsViewMode(true);
+      setCurrentStep(2); // Set to step 2 to show document viewer
     }
   };
 
@@ -272,17 +236,8 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
         certificateFile: null as File | null,
         
         // Certificate Details
-        licensingAuthority: existingCertificate.licensing_authority || '',
-        medicalClass: existingCertificate.medical_class || '',
         certificateNumber: existingCertificate.certificate_number || '',
         validUntil: existingCertificate.valid_until ? new Date(existingCertificate.valid_until).toISOString().split('T')[0] : '',
-        
-        // Additional Information
-        issuedDate: existingCertificate.issued_date ? new Date(existingCertificate.issued_date).toISOString().split('T')[0] : '',
-        issuingDoctor: existingCertificate.issuing_doctor || '',
-        medicalCenter: existingCertificate.medical_center || '',
-        restrictions: existingCertificate.restrictions || '',
-        remarks: existingCertificate.remarks || '',
       });
     }
   };
@@ -340,10 +295,10 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
         title={`${
           existingCertificate 
             ? (isExpired 
-                ? 'View Archived Medical Certificate' 
-                : (isViewMode ? 'View Medical Certificate' : 'Edit Medical Certificate')
+                ? 'View Archived Radio Certificate' 
+                : (isViewMode ? 'View Radio Certificate' : 'Edit Radio Certificate')
               ) 
-            : 'Upload Medical Certificate'
+            : 'Upload Radio Certificate'
         }`}
         headerActions={
           existingCertificate && (
@@ -377,11 +332,11 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
           {currentStep === 1 && (
             <div className="bg-gray-50 rounded-lg p-6">
               <div className="flex items-center gap-2 mb-4">
-                <Stethoscope className="h-5 w-5 text-blue-600" />
-                <h3 className="text-lg font-semibold">Step 1: Upload Medical Certificate Document</h3>
+                <Radio className="h-5 w-5 text-blue-600" />
+                <h3 className="text-lg font-semibold">Step 1: Upload Radio Certificate Document</h3>
               </div>
               <p className="text-gray-600 mb-6">
-                Upload a clear scan or photo of your medical certificate
+                Upload a clear scan or photo of your radio certificate
               </p>
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center bg-white">
                 <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
@@ -417,8 +372,8 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
               {/* Left Side - Document Viewer */}
               <div className="bg-gray-50 rounded-lg p-4 flex flex-col">
                 <div className="flex items-center gap-2 mb-4">
-                  <Stethoscope className="h-5 w-5 text-blue-600" />
-                  <h3 className="text-lg font-semibold">Medical Certificate Document</h3>
+                  <Radio className="h-5 w-5 text-blue-600" />
+                  <h3 className="text-lg font-semibold">Radio Certificate Document</h3>
                   <div className="ml-auto flex gap-2">
                     {(existingCertificate?.pilot_documents?.[0]?.file_url || (currentStep === 2 && formData.certificateFile)) && (
                       <>
@@ -468,7 +423,7 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
                         return (
                           <img 
                             src={doc.file_url} 
-                            alt={doc.file_name || 'Medical Certificate Document'}
+                            alt={doc.file_name || 'Radio Certificate Document'}
                             className="w-full h-full object-contain"
                           />
                         );
@@ -477,7 +432,7 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
                           <iframe
                             src={doc.file_url}
                             className="w-full h-full border-0"
-                            title={doc.file_name || 'Medical Certificate Document'}
+                            title={doc.file_name || 'Radio Certificate Document'}
                           />
                         );
                       } else {
@@ -587,7 +542,7 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
                       <span className="font-medium text-gray-500">Type:</span>
                       <p className="text-gray-900">
                         {existingCertificate?.pilot_documents?.[0]?.document_type || 
-                         (formData.certificateFile ? formData.certificateFile.type : 'Medical Certificate')}
+                         (formData.certificateFile ? formData.certificateFile.type : 'Radio Certificate')}
                       </p>
                     </div>
                   </div>
@@ -596,62 +551,17 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
 
               {/* Right Side - Certificate Data (Editable) */}
               <div className="bg-gray-50 rounded-lg p-4 overflow-y-auto">
-                              <div className="flex items-center gap-2 mb-4">
-                <Award className="h-5 w-5 text-blue-600" />
-                <h3 className="text-lg font-semibold">Medical Certificate Information</h3>
-              </div>
+                <div className="flex items-center gap-2 mb-4">
+                  <Award className="h-5 w-5 text-blue-600" />
+                  <h3 className="text-lg font-semibold">Radio Certificate Information</h3>
+                </div>
                 
                 <div className="space-y-4">
                   {/* Certificate Details */}
                   <div className="grid grid-cols-1 gap-3">
-                    {/* I. Licensing Authority */}
+                    {/* Number of Certificate */}
                     <div>
-                      <Label htmlFor="licensingAuthority" className="text-sm font-medium text-gray-500">I. Licensing Authority</Label>
-                      {isViewMode ? (
-                        <p className="text-gray-900 mt-1">{existingCertificate?.licensing_authority || 'Not specified'}</p>
-                      ) : (
-                        <Select
-                          value={formData.licensingAuthority}
-                          onValueChange={(value) => setFormData(prev => ({ ...prev, licensingAuthority: value }))}
-                        >
-                          <SelectTrigger className="mt-1">
-                            <SelectValue placeholder="Select EASA country" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {EASA_COUNTRIES.map((country) => (
-                              <SelectItem key={country} value={country}>
-                                {country}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
-
-                    {/* II. Medical Class */}
-                    <div>
-                      <Label htmlFor="medicalClass" className="text-sm font-medium text-gray-500">II. Medical Class</Label>
-                      {isViewMode ? (
-                        <p className="text-gray-900 mt-1">{existingCertificate?.medical_class || 'Not specified'}</p>
-                      ) : (
-                        <Select
-                          value={formData.medicalClass}
-                          onValueChange={(value) => setFormData(prev => ({ ...prev, medicalClass: value }))}
-                        >
-                          <SelectTrigger className="mt-1">
-                            <SelectValue placeholder="Select medical class" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Class 1">Class 1</SelectItem>
-                            <SelectItem value="Class 2">Class 2</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
-
-                    {/* III. Certificate Number */}
-                    <div>
-                      <Label htmlFor="certificateNumber" className="text-sm font-medium text-gray-500">III. Certificate Number</Label>
+                      <Label htmlFor="certificateNumber" className="text-sm font-medium text-gray-500">Number of Certificate</Label>
                       {isViewMode ? (
                         <p className="text-gray-900 mt-1">{existingCertificate?.certificate_number || 'Not specified'}</p>
                       ) : (
@@ -666,9 +576,9 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
                       )}
                     </div>
 
-                    {/* IX. Valid Until */}
+                    {/* Valid Until */}
                     <div>
-                      <Label htmlFor="validUntil" className="text-sm font-medium text-gray-500">IX. Valid Until</Label>
+                      <Label htmlFor="validUntil" className="text-sm font-medium text-gray-500">Valid Until</Label>
                       {isViewMode ? (
                         <p className="text-gray-900 mt-1">
                           {existingCertificate?.valid_until 
@@ -686,98 +596,6 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
                           required
                         />
                       )}
-                    </div>
-
-                    {/* Additional Information */}
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-medium text-gray-700">Additional Information</h4>
-                      
-                      {/* Issued Date */}
-                      <div>
-                        <Label htmlFor="issuedDate" className="text-sm font-medium text-gray-500">Issued Date</Label>
-                        {isViewMode ? (
-                          <p className="text-gray-900 mt-1">
-                            {existingCertificate?.issued_date 
-                              ? new Date(existingCertificate.issued_date).toLocaleDateString()
-                              : 'Not specified'
-                            }
-                          </p>
-                        ) : (
-                          <Input
-                            id="issuedDate"
-                            type="date"
-                            value={formData.issuedDate}
-                            onChange={(e) => setFormData(prev => ({ ...prev, issuedDate: e.target.value }))}
-                            className="mt-1"
-                          />
-                        )}
-                      </div>
-
-                      {/* Issuing Doctor */}
-                      <div>
-                        <Label htmlFor="issuingDoctor" className="text-sm font-medium text-gray-500">Issuing Doctor</Label>
-                        {isViewMode ? (
-                          <p className="text-gray-900 mt-1">{existingCertificate?.issuing_doctor || 'Not specified'}</p>
-                        ) : (
-                          <Input
-                            id="issuingDoctor"
-                            value={formData.issuingDoctor}
-                            onChange={(e) => setFormData(prev => ({ ...prev, issuingDoctor: e.target.value }))}
-                            placeholder="Enter issuing doctor name"
-                            className="mt-1"
-                          />
-                        )}
-                      </div>
-
-                      {/* Medical Center */}
-                      <div>
-                        <Label htmlFor="medicalCenter" className="text-sm font-medium text-gray-500">Medical Center</Label>
-                        {isViewMode ? (
-                          <p className="text-gray-900 mt-1">{existingCertificate?.medical_center || 'Not specified'}</p>
-                        ) : (
-                          <Input
-                            id="medicalCenter"
-                            value={formData.medicalCenter}
-                            onChange={(e) => setFormData(prev => ({ ...prev, medicalCenter: e.target.value }))}
-                            placeholder="Enter medical center name"
-                            className="mt-1"
-                          />
-                        )}
-                      </div>
-
-                      {/* Restrictions */}
-                      <div>
-                        <Label htmlFor="restrictions" className="text-sm font-medium text-gray-500">Restrictions</Label>
-                        {isViewMode ? (
-                          <p className="text-gray-900 mt-1">{existingCertificate?.restrictions || 'None'}</p>
-                        ) : (
-                          <Textarea
-                            id="restrictions"
-                            value={formData.restrictions}
-                            onChange={(e) => setFormData(prev => ({ ...prev, restrictions: e.target.value }))}
-                            placeholder="Enter any restrictions (optional)"
-                            className="mt-1"
-                            rows={2}
-                          />
-                        )}
-                      </div>
-
-                      {/* Remarks */}
-                      <div>
-                        <Label htmlFor="remarks" className="text-sm font-medium text-gray-500">Remarks</Label>
-                        {isViewMode ? (
-                          <p className="text-gray-900 mt-1">{existingCertificate?.remarks || 'None'}</p>
-                        ) : (
-                          <Textarea
-                            id="remarks"
-                            value={formData.remarks}
-                            onChange={(e) => setFormData(prev => ({ ...prev, remarks: e.target.value }))}
-                            placeholder="Enter any additional remarks (optional)"
-                            className="mt-1"
-                            rows={2}
-                          />
-                        )}
-                      </div>
                     </div>
                   </div>
 
@@ -800,46 +618,9 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
               {/* Certificate Details */}
               <div className="bg-gray-50 rounded-lg p-6">
                 <div className="grid grid-cols-1 gap-3">
-                  {/* I. Licensing Authority */}
+                  {/* Number of Certificate */}
                   <div>
-                    <Label htmlFor="licensingAuthority" className="text-sm font-medium text-gray-500">I. Licensing Authority</Label>
-                    <Select
-                      value={formData.licensingAuthority}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, licensingAuthority: value }))}
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="Select EASA country" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {EASA_COUNTRIES.map((country) => (
-                          <SelectItem key={country} value={country}>
-                            {country}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* II. Medical Class */}
-                  <div>
-                    <Label htmlFor="medicalClass" className="text-sm font-medium text-gray-500">II. Medical Class</Label>
-                    <Select
-                      value={formData.medicalClass}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, medicalClass: value }))}
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue placeholder="Select medical class" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Class 1">Class 1</SelectItem>
-                        <SelectItem value="Class 2">Class 2</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* III. Certificate Number */}
-                  <div>
-                    <Label htmlFor="certificateNumber" className="text-sm font-medium text-gray-500">III. Certificate Number</Label>
+                    <Label htmlFor="certificateNumber" className="text-sm font-medium text-gray-500">Number of Certificate</Label>
                     <Input
                       id="certificateNumber"
                       value={formData.certificateNumber}
@@ -850,9 +631,9 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
                     />
                   </div>
 
-                  {/* IX. Valid Until */}
+                  {/* Valid Until */}
                   <div>
-                    <Label htmlFor="validUntil" className="text-sm font-medium text-gray-500">IX. Valid Until</Label>
+                    <Label htmlFor="validUntil" className="text-sm font-medium text-gray-500">Valid Until</Label>
                     <Input
                       id="validUntil"
                       type="date"
@@ -861,73 +642,6 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
                       className="mt-1"
                       required
                     />
-                  </div>
-
-                  {/* Additional Information */}
-                  <div className="space-y-3">
-                    <h4 className="text-sm font-medium text-gray-700">Additional Information</h4>
-                    
-                    {/* Issued Date */}
-                    <div>
-                      <Label htmlFor="issuedDate" className="text-sm font-medium text-gray-500">Issued Date</Label>
-                      <Input
-                        id="issuedDate"
-                        type="date"
-                        value={formData.issuedDate}
-                        onChange={(e) => setFormData(prev => ({ ...prev, issuedDate: e.target.value }))}
-                        className="mt-1"
-                      />
-                    </div>
-
-                    {/* Issuing Doctor */}
-                    <div>
-                      <Label htmlFor="issuingDoctor" className="text-sm font-medium text-gray-500">Issuing Doctor</Label>
-                      <Input
-                        id="issuingDoctor"
-                        value={formData.issuingDoctor}
-                        onChange={(e) => setFormData(prev => ({ ...prev, issuingDoctor: e.target.value }))}
-                        placeholder="Enter issuing doctor name"
-                        className="mt-1"
-                      />
-                    </div>
-
-                    {/* Medical Center */}
-                    <div>
-                      <Label htmlFor="medicalCenter" className="text-sm font-medium text-gray-500">Medical Center</Label>
-                      <Input
-                        id="medicalCenter"
-                        value={formData.medicalCenter}
-                        onChange={(e) => setFormData(prev => ({ ...prev, medicalCenter: e.target.value }))}
-                        placeholder="Enter medical center name"
-                        className="mt-1"
-                      />
-                    </div>
-
-                    {/* Restrictions */}
-                    <div>
-                      <Label htmlFor="restrictions" className="text-sm font-medium text-gray-500">Restrictions</Label>
-                      <Textarea
-                        id="restrictions"
-                        value={formData.restrictions}
-                        onChange={(e) => setFormData(prev => ({ ...prev, restrictions: e.target.value }))}
-                        placeholder="Enter any restrictions (optional)"
-                        className="mt-1"
-                        rows={2}
-                      />
-                    </div>
-
-                    {/* Remarks */}
-                    <div>
-                      <Label htmlFor="remarks" className="text-sm font-medium text-gray-500">Remarks</Label>
-                      <Textarea
-                        id="remarks"
-                        value={formData.remarks}
-                        onChange={(e) => setFormData(prev => ({ ...prev, remarks: e.target.value }))}
-                        placeholder="Enter any additional remarks (optional)"
-                        className="mt-1"
-                        rows={2}
-                      />
-                    </div>
                   </div>
                 </div>
               </div>
@@ -948,7 +662,7 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
                   onClick={handleSubmit}
                   disabled={isUploading}
                 >
-                  {isUploading ? 'Saving...' : 'Save Medical Certificate'}
+                  {isUploading ? 'Saving...' : 'Save Radio Certificate'}
                 </Button>
               </div>
             </div>

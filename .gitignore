@@ -46,6 +46,9 @@ next-env.d.ts
 # But keep build scripts in build-scripts directory
 /scripts/*.js
 
+# SQL migration scripts (should be run manually, not tracked in Git)
+/scripts/sql/*.sql
+
 # Local test and utility files in root
 test-*.js
 debug-*.js

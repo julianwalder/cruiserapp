@@ -423,8 +423,13 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
                   Upload New License
                 </Button>
               ) : (
-                <Button variant="outline" size="sm" onClick={toggleViewMode}>
-                  {isViewMode ? 'Edit' : 'View'}
+                <Button 
+                  variant={isViewMode ? "outline" : "default"} 
+                  size="sm" 
+                  onClick={isViewMode ? toggleViewMode : handleSubmit}
+                  disabled={!isViewMode && isUploading}
+                >
+                  {isViewMode ? 'Edit' : (isUploading ? 'Saving...' : 'Save Changes')}
                 </Button>
               )}
             </div>
@@ -659,7 +664,6 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
                 <div className="flex items-center gap-2 mb-4">
                   <Award className="h-5 w-5 text-blue-600" />
                   <h3 className="text-lg font-semibold">License Information</h3>
-                  <Badge variant="outline" className="ml-auto">Editable</Badge>
                 </div>
                 
                 <div className="space-y-4">
@@ -967,8 +971,8 @@ export function PilotLicenseUpload({ onLicenseUploaded, existingLicense }: Pilot
                         </div>
                   </div>
 
-                  {/* Save Button - Only show in edit mode */}
-                  {!isViewMode && (
+                  {/* Save Button - Only show in edit mode for new uploads, not for existing licenses */}
+                  {!isViewMode && !existingLicense && (
                     <div className="flex justify-end pt-4">
                       <Button onClick={handleSubmit} disabled={isUploading}>
                         {isUploading ? 'Saving...' : 'Save Changes'}
