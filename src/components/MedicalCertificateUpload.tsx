@@ -107,6 +107,20 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
   const handleFileUpload = async (file: File) => {
     if (!file) return;
 
+    // File size validation (10MB limit)
+    const maxSize = 10 * 1024 * 1024; // 10MB in bytes
+    if (file.size > maxSize) {
+      toast.error('File size must be less than 10MB. Please compress your file or choose a smaller one.');
+      return;
+    }
+
+    // File type validation
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Please upload a PDF, JPG, PNG, or WEBP file.');
+      return;
+    }
+
     setIsUploading(true);
     try {
       const token = localStorage.getItem('token');
@@ -127,7 +141,11 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
       });
 
       if (!response.ok) {
-        throw new Error('Failed to upload file');
+        if (response.status === 413) {
+          throw new Error('File is too large. Please compress your file or choose a smaller one (max 10MB).');
+        }
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Upload failed with status ${response.status}`);
       }
 
       const { document } = await response.json();
@@ -137,7 +155,7 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
       setCurrentStep(2);
     } catch (error) {
       console.error('Error uploading file:', error);
-      toast.error('Failed to upload medical certificate file');
+      toast.error(error instanceof Error ? error.message : 'Failed to upload medical certificate file');
     } finally {
       setIsUploading(false);
     }
@@ -347,6 +365,9 @@ export function MedicalCertificateUpload({ onCertificateUploaded, existingCertif
                 <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
                 <p className="text-sm text-gray-600 mb-4">
                   Supported formats: PDF, JPG, PNG, WEBP (max 10MB)
+                </p>
+                <p className="text-xs text-gray-500 mb-4">
+                  For best results, compress large files before uploading. If you get a "413" error, try reducing the file size.
                 </p>
                 <Button
                   onClick={() => fileInputRef.current?.click()}

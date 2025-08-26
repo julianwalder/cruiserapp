@@ -8,6 +8,14 @@
   "functions": {
     "src/app/api/**/*.ts": {
       "maxDuration": 30
+    },
+    "src/app/api/my-account/pilot-documents/route.ts": {
+      "maxDuration": 30,
+      "maxRequestBodySize": "10mb"
+    },
+    "src/app/api/my-account/medical-certificates/route.ts": {
+      "maxDuration": 30,
+      "maxRequestBodySize": "10mb"
     }
   },
   "env": {
