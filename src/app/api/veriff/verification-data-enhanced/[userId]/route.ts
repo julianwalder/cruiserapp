@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { veriffDataManager } from '@/lib/veriff-data-manager';
-import { verifyToken } from '@/lib/auth';
+import { AuthService } from '@/lib/auth';
 
 export async function GET(
   request: NextRequest,
@@ -14,7 +14,7 @@ export async function GET(
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const decoded = await verifyToken(token);
+    const decoded = AuthService.verifyToken(token);
     
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
