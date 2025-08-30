@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4] - 2025-08-30
+
+### Fixed
+- **Authentication Race Condition**
+  - Fixed critical bug where users were repeatedly asked to log in when accessing flight logs
+  - Resolved token synchronization issues between localStorage and cookies
+  - Enhanced token consistency with AuthService utilities
+  - Added retry logic for authentication API calls to handle network issues
+  - Improved error handling with redirect parameters for better user experience
+  - Fixed Secure flag handling for cookies on localhost vs production environments
+- **React Hooks Order Violation**
+  - Resolved React Hooks order violation in FlightLogs component
+  - Moved nested components with hooks outside main component to prevent hook order issues
+  - Fixed conditional return statements to maintain consistent hook order
+  - Restructured component architecture to follow React Hooks rules
+  - Eliminated duplicate component definitions causing conflicts
+
+### Added
+- **Enhanced Authentication Debugging**
+  - Comprehensive logging throughout authentication flow
+  - Middleware debugging for token validation and route protection
+  - Client-side authentication state tracking
+  - Server-side authentication verification logging
+  - Token consistency validation between localStorage and cookies
+- **Improved Error Handling**
+  - Better error messages for authentication failures
+  - Redirect parameters for seamless user experience
+  - Loading states during authentication checks
+  - Graceful fallbacks for authentication edge cases
+
+### Changed
+- **Authentication Flow Improvements**
+  - Streamlined token management between client and server
+  - Enhanced cookie handling for different environments
+  - Improved authentication state management
+  - Better user experience during authentication transitions
+- **Component Architecture**
+  - Restructured FlightLogs component for better maintainability
+  - Separated concerns between authentication and component logic
+  - Improved code organization and readability
+
 ## [0.3.3] - 2025-08-26
 
 ### Added
