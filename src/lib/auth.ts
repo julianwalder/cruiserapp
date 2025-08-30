@@ -145,22 +145,71 @@ export class AuthService {
           "expiresAt": expiresAt.toISOString(),
           "userAgent": userAgent,
           "ipAddress": ipAddress,
-          "deviceInfo": {
-            userAgent,
-            ipAddress,
-            createdAt: new Date().toISOString()
-          }
         });
 
       if (error) {
-        console.error('Error storing refresh token:', error);
-        throw new Error('Failed to store refresh token');
+        throw new Error(`Failed to store refresh token: ${error.message}`);
       }
 
       return refreshToken;
     } catch (error) {
       console.error('Error generating refresh token:', error);
       throw error;
+    }
+  }
+
+  // Utility function to synchronize token between localStorage and cookies
+  static syncTokenToCookie(token: string): void {
+    try {
+      // Check if we're in a browser environment
+      if (typeof window === 'undefined') {
+        return;
+      }
+      
+      // Set cookie with proper attributes - conditionally add Secure flag for production
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const secureFlag = isLocalhost ? '' : '; Secure';
+      const cookieValue = `token=${token}; path=/; max-age=${24 * 60 * 60}; SameSite=Strict${secureFlag}`;
+      document.cookie = cookieValue;
+      
+      console.log('🔍 AuthService - Token synchronized to cookie');
+    } catch (error) {
+      console.error('🔍 AuthService - Failed to sync token to cookie:', error);
+    }
+  }
+
+  // Utility function to get token from either localStorage or cookies
+  static getToken(): string | null {
+    // Try localStorage first
+    const localStorageToken = localStorage.getItem('token');
+    if (localStorageToken) {
+      return localStorageToken;
+    }
+    
+    // Fallback to cookies
+    const cookies = document.cookie.split(';');
+    const tokenCookie = cookies.find(cookie => cookie.trim().startsWith('token='));
+    if (tokenCookie) {
+      return tokenCookie.split('=')[1];
+    }
+    
+    return null;
+  }
+
+  // Utility function to ensure token consistency
+  static ensureTokenConsistency(): void {
+    const localStorageToken = localStorage.getItem('token');
+    const cookieToken = document.cookie
+      .split(';')
+      .find(cookie => cookie.trim().startsWith('token='))
+      ?.split('=')[1];
+    
+    if (localStorageToken && !cookieToken) {
+      // Token exists in localStorage but not in cookies, sync it
+      this.syncTokenToCookie(localStorageToken);
+    } else if (cookieToken && !localStorageToken) {
+      // Token exists in cookies but not in localStorage, sync it
+      localStorage.setItem('token', cookieToken);
     }
   }
 

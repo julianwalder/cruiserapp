@@ -169,8 +169,18 @@ export async function middleware(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   const token = authHeader?.replace('Bearer ', '') || request.cookies.get('token')?.value;
   
+  console.log('🔍 Middleware - Authentication check:', {
+    pathname,
+    hasAuthHeader: !!authHeader,
+    hasCookie: !!request.cookies.get('token'),
+    hasToken: !!token,
+    tokenPreview: token ? token.substring(0, 20) + '...' : 'none',
+    allCookies: request.cookies.getAll().map(c => c.name)
+  });
+  
   // If no token, redirect to login (except for API routes which should return 401)
   if (!token) {
+    console.log('🔍 Middleware - No token found, redirecting to login');
     if (pathname.startsWith('/api/')) {
       return NextResponse.json(
         { error: 'Unauthorized' },

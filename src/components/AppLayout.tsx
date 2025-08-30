@@ -4,21 +4,19 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { NewSidebar } from '@/components/NewSidebar';
 import { UserMenu } from '@/components/UserMenu';
+import { User } from '@/types/uuid-types';
 import { useNotificationCount } from '@/hooks/use-notification-count';
+import { AuthService } from '@/lib/auth';
 
-interface User {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  avatarUrl?: string;
+interface AuthenticatedUser extends User {
   userRoles: Array<{
     roles: {
       id: string;
       name: string;
     };
   }>;
-  status: string;
+  isImpersonation?: boolean;
+  originalUserId?: string;
 }
 
 interface AppLayoutProps {
@@ -29,7 +27,7 @@ interface AppLayoutProps {
 export function AppLayout({ children, pageTitle }: AppLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [isHydrated, setIsHydrated] = useState(false);
   const { count: notificationCount } = useNotificationCount();
@@ -40,23 +38,34 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
   }, []);
 
   useEffect(() => {
-    const fetchUser = async () => {
+    const fetchUser = async (retryCount = 0) => {
       try {
+        // Ensure token consistency between localStorage and cookies
+        AuthService.ensureTokenConsistency();
+        
         // Check for impersonation token first, then fall back to regular token
         const impersonationToken = localStorage.getItem('impersonationToken');
-        const token = impersonationToken || localStorage.getItem('token');
+        const token = impersonationToken || AuthService.getToken();
         
         console.log('🔍 AppLayout - Token check:', {
           hasImpersonationToken: !!impersonationToken,
-          hasRegularToken: !!localStorage.getItem('token'),
+          hasRegularToken: !!AuthService.getToken(),
           usingImpersonationToken: !!impersonationToken,
           impersonationTokenPreview: impersonationToken ? impersonationToken.substring(0, 20) + '...' : 'none',
-          regularTokenPreview: localStorage.getItem('token') ? localStorage.getItem('token')?.substring(0, 20) + '...' : 'none'
+          regularTokenPreview: AuthService.getToken() ? AuthService.getToken()?.substring(0, 20) + '...' : 'none',
+          retryCount
         });
         
         if (!token) {
+          console.log('🔍 AppLayout - No token found, redirecting to login');
           router.push('/login');
           return;
+        }
+
+        // Ensure cookie is set if we have a token in localStorage
+        if (token && !document.cookie.includes('token=')) {
+          console.log('🔍 AppLayout - Token in localStorage but not in cookie, setting cookie');
+          AuthService.syncTokenToCookie(token);
         }
 
         console.log('🔍 AppLayout - Making /api/auth/me request with token:', token.substring(0, 20) + '...');
@@ -69,13 +78,32 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
 
         if (response.ok) {
           const userData = await response.json();
+          console.log('🔍 AppLayout - User data fetched successfully:', userData.email);
           setUser(userData);
         } else {
+          console.log('🔍 AppLayout - API call failed, status:', response.status);
+          
+          // If it's a 401 and we have a token, try to refresh or retry once
+          if (response.status === 401 && retryCount < 1) {
+            console.log('🔍 AppLayout - 401 error, retrying once...');
+            // Small delay before retry
+            await new Promise(resolve => setTimeout(resolve, 500));
+            return fetchUser(retryCount + 1);
+          }
+          
           router.push('/login');
           return;
         }
       } catch (error) {
-        console.error('Failed to fetch user:', error);
+        console.error('🔍 AppLayout - Failed to fetch user:', error);
+        
+        // Retry once on network errors
+        if (retryCount < 1) {
+          console.log('🔍 AppLayout - Network error, retrying once...');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          return fetchUser(retryCount + 1);
+        }
+        
         router.push('/login');
         return;
       } finally {

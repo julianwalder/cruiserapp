@@ -49,7 +49,11 @@ import { toast } from "sonner";
 import { useFormattedDate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-// Remove duplicate imports - we'll use local interfaces
+import { useRouter } from "next/navigation";
+import { AuthService } from "@/lib/auth";
+import { DateRange } from "react-day-picker";
+
+// Move nested components outside to prevent hook order violations
 
 // Client-side date formatter component to prevent hydration issues
 function FormattedDate({ date }: { date: string | Date | null | undefined }) {
@@ -100,37 +104,195 @@ const createFlightLogSchema = z.object({
     }, "Hour must be 00-23 and minute must be 00-59"),
   arrivalHobbs: z.number().min(0.1, "Arrival Hobbs must be greater than 0"),
   
-  // Flight details
-  flightType: z.enum(["INVOICED", "SCHOOL", "FERRY", "CHARTER", "DEMO", "PROMO"]),
-  purpose: z.string().optional().or(z.null()),
-  
-  // Pilot time breakdown (Jeppesen standard)
-  pilotInCommand: z.number().min(0, "PIC time must be 0 or greater"),
-  secondInCommand: z.number().min(0, "SIC time must be 0 or greater"),
-  dualReceived: z.number().min(0, "Dual received time must be 0 or greater"),
-  dualGiven: z.number().min(0, "Dual given time must be 0 or greater"),
-  solo: z.number().min(0, "Solo time must be 0 or greater"),
-  crossCountry: z.number().min(0, "Cross country time must be 0 or greater"),
-  night: z.number().min(0, "Night time must be 0 or greater"),
-  instrument: z.number().min(0, "Instrument time must be 0 or greater"),
-  actualInstrument: z.number().min(0, "Actual instrument time must be 0 or greater"),
-  simulatedInstrument: z.number().min(0, "Simulated instrument time must be 0 or greater"),
+  // Flight hours
+  pilotInCommand: z.number().min(0, "PIC hours must be 0 or greater"),
+  secondInCommand: z.number().min(0, "SIC hours must be 0 or greater"),
+  dualReceived: z.number().min(0, "Dual received hours must be 0 or greater"),
+  dualGiven: z.number().min(0, "Dual given hours must be 0 or greater"),
+  solo: z.number().min(0, "Solo hours must be 0 or greater"),
+  crossCountry: z.number().min(0, "Cross country hours must be 0 or greater"),
+  night: z.number().min(0, "Night hours must be 0 or greater"),
+  instrument: z.number().min(0, "Instrument hours must be 0 or greater"),
+  actualInstrument: z.number().min(0, "Actual instrument hours must be 0 or greater"),
+  simulatedInstrument: z.number().min(0, "Simulated instrument hours must be 0 or greater"),
   
   // Landings
-  dayLandings: z.number().int().min(0, "Day landings must be a whole number 0 or greater"),
-  nightLandings: z.number().int().min(0, "Night landings must be a whole number 0 or greater"),
+  dayLandings: z.number().min(0, "Day landings must be 0 or greater"),
+  nightLandings: z.number().min(0, "Night landings must be 0 or greater"),
   
   // Additional information
-  remarks: z.string().optional().or(z.null()),
-  route: z.string().optional().or(z.null()),
-  conditions: z.string().optional().or(z.null()),
-  
-  // Fuel and oil information
-  oilAdded: z.number().int().min(0, "Oil added must be a whole number 0 or greater").optional(),
-  fuelAdded: z.number().int().min(0, "Fuel added must be a whole number 0 or greater").optional(),
+  oilAdded: z.number().min(0, "Oil added must be 0 or greater"),
+  fuelAdded: z.number().min(0, "Fuel added must be 0 or greater"),
+  purpose: z.string().optional().or(z.undefined()),
+  remarks: z.string().optional().or(z.undefined()),
+  route: z.string().optional().or(z.undefined()),
+  conditions: z.string().optional().or(z.undefined()),
+  flightType: z.enum(["INVOICED", "SCHOOL", "FERRY", "CHARTER", "DEMO", "PROMO"]),
 });
 
 type CreateFlightLogForm = z.infer<typeof createFlightLogSchema>;
+
+// Move TimeInput component outside
+interface TimeInputProps {
+  value?: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  name?: string;
+  className?: string;
+  [key: string]: any;
+}
+
+function TimeInput({ value, onChange, name, className, ...props }: TimeInputProps) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  // Handle input change with basic validation
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let inputValue = e.target.value;
+    
+    // Remove any non-digit characters except colon
+    inputValue = inputValue.replace(/[^\d:]/g, '');
+    
+    // Auto-add colon after 2 digits
+    if (inputValue.length === 2 && !inputValue.includes(':')) {
+      inputValue = inputValue + ':';
+    }
+    
+    // Limit to HH:MM format
+    if (inputValue.length > 5) {
+      inputValue = inputValue.substring(0, 5);
+    }
+    
+    // Validate hours (00-23)
+    if (inputValue.length >= 2) {
+      const hours = parseInt(inputValue.substring(0, 2));
+      if (hours > 23) {
+        inputValue = '23' + inputValue.substring(2);
+      }
+    }
+    
+    // Validate minutes (00-59)
+    if (inputValue.length >= 5) {
+      const minutes = parseInt(inputValue.substring(3, 5));
+      if (minutes > 59) {
+        inputValue = inputValue.substring(0, 3) + '59';
+      }
+    }
+    
+    // Update the input value
+    e.target.value = inputValue;
+    
+    // Call the original onChange
+    onChange(e);
+  };
+
+  // Handle focus to position cursor at beginning
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    // Position cursor at the beginning of the input
+    e.target.setSelectionRange(0, 0);
+    
+    // Call the original onFocus if provided
+    if (props.onFocus) {
+      props.onFocus(e);
+    }
+  };
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      name={name}
+      value={value || ''}
+      placeholder="HH:MM (UTC)"
+      className={cn(
+        "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 text-center",
+        className
+      )}
+      style={{
+        textAlign: 'center',
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        letterSpacing: '1px'
+      }}
+      onChange={handleChange}
+      onFocus={handleFocus}
+      maxLength={5}
+      {...props}
+    />
+  );
+}
+
+// Move HobbsInput component outside
+interface HobbsInputProps {
+  value?: string | number;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  name?: string;
+  className?: string;
+  [key: string]: any;
+}
+
+function HobbsInput({ value, onChange, name, className, ...props }: HobbsInputProps) {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let inputValue = e.target.value;
+    
+    // Allow normal number input but limit to one decimal place
+    if (inputValue.includes('.')) {
+      const parts = inputValue.split('.');
+      if (parts[1] && parts[1].length > 1) {
+        // Limit to one decimal place
+        inputValue = parts[0] + '.' + parts[1].substring(0, 1);
+      }
+    }
+    
+    // Update the input value
+    e.target.value = inputValue;
+    
+    // Call the original onChange
+    onChange(e);
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    let inputValue = e.target.value;
+    
+    // Format to one decimal place on blur
+    if (inputValue && !isNaN(parseFloat(inputValue))) {
+      const numValue = parseFloat(inputValue);
+      if (numValue >= 0) {
+        const formattedValue = numValue.toFixed(1);
+        e.target.value = formattedValue;
+        
+        // Create a new event with the formatted value
+        const newEvent = {
+          ...e,
+          target: { ...e.target, value: formattedValue }
+        } as React.ChangeEvent<HTMLInputElement>;
+        
+        onChange(newEvent);
+      }
+    }
+  };
+
+  return (
+    <input
+      type="number"
+      name={name}
+      value={value || ''}
+      step="0.1"
+      min="0"
+      placeholder="0.0"
+      className={cn(
+        "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 text-center",
+        className
+      )}
+      style={{
+        textAlign: 'center',
+        fontFamily: 'monospace',
+        fontSize: '14px'
+      }}
+      onChange={handleChange}
+      onBlur={handleBlur}
+      {...props}
+    />
+  );
+}
 
 interface Aircraft {
   id: string;
@@ -248,188 +410,38 @@ interface ExtendedFlightLog extends FlightLog {
   [key: string]: any;
 }
 
-interface TimeInputProps {
-  value?: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  name?: string;
-  className?: string;
-  onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void;
-  [key: string]: any;
-}
 
-function TimeInput({ value, onChange, name, className, ...props }: TimeInputProps) {
-  const inputRef = React.useRef<HTMLInputElement>(null);
-
-  // Handle input change with basic validation
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let inputValue = e.target.value;
-    
-    // Remove any non-digit characters except colon
-    inputValue = inputValue.replace(/[^\d:]/g, '');
-    
-    // Auto-add colon after 2 digits
-    if (inputValue.length === 2 && !inputValue.includes(':')) {
-      inputValue = inputValue + ':';
-    }
-    
-    // Limit to HH:MM format
-    if (inputValue.length > 5) {
-      inputValue = inputValue.substring(0, 5);
-    }
-    
-    // Validate hours (00-23)
-    if (inputValue.length >= 2) {
-      const hours = parseInt(inputValue.substring(0, 2));
-      if (hours > 23) {
-        inputValue = '23' + inputValue.substring(2);
-      }
-    }
-    
-    // Validate minutes (00-59)
-    if (inputValue.length >= 5) {
-      const minutes = parseInt(inputValue.substring(3, 5));
-      if (minutes > 59) {
-        inputValue = inputValue.substring(0, 3) + '59';
-      }
-    }
-    
-    // Update the input value
-    e.target.value = inputValue;
-    
-    // Call the original onChange
-    onChange(e);
-  };
-
-  // Handle focus to position cursor at beginning
-  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    // Position cursor at the beginning of the input
-    e.target.setSelectionRange(0, 0);
-    
-    // Call the original onFocus if provided
-    if (props.onFocus) {
-      props.onFocus(e);
-    }
-  };
-
-  return (
-    <input
-      ref={inputRef}
-      type="text"
-      name={name}
-      value={value || ''}
-      placeholder="HH:MM (UTC)"
-      className={cn(
-        "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 text-center",
-        className
-      )}
-      style={{
-        textAlign: 'center',
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        letterSpacing: '1px'
-      }}
-      onChange={handleChange}
-      onFocus={handleFocus}
-      maxLength={5}
-      {...props}
-    />
-  );
-}
-
-interface HobbsInputProps {
-  value?: string | number;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  name?: string;
-  className?: string;
-  [key: string]: any;
-}
-
-function HobbsInput({ value, onChange, name, className, ...props }: HobbsInputProps) {
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let inputValue = e.target.value;
-    
-    // Allow normal number input but limit to one decimal place
-    if (inputValue.includes('.')) {
-      const parts = inputValue.split('.');
-      if (parts[1] && parts[1].length > 1) {
-        // Limit to one decimal place
-        inputValue = parts[0] + '.' + parts[1].substring(0, 1);
-      }
-    }
-    
-    // Create a synthetic event with the limited value
-    const syntheticEvent = {
-      target: { name, value: inputValue }
-    } as React.ChangeEvent<HTMLInputElement>;
-    
-    onChange(syntheticEvent);
-  };
-
-  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    let inputValue = e.target.value;
-    
-    if (inputValue && inputValue.trim() !== '') {
-      // Parse the number
-      const numValue = parseFloat(inputValue);
-      if (!isNaN(numValue)) {
-        // Format to one decimal place
-        const formattedValue = numValue.toFixed(1);
-        e.target.value = formattedValue;
-        
-        // Create a synthetic event for the onChange
-        const syntheticEvent = {
-          target: { name, value: formattedValue }
-        } as React.ChangeEvent<HTMLInputElement>;
-        onChange(syntheticEvent);
-      }
-    }
-    
-    // Call the original onBlur if provided
-    if (props.onBlur) {
-      props.onBlur(e);
-    }
-  };
-
-  return (
-    <input
-      type="number"
-      name={name}
-      value={value !== undefined ? value.toString() : ''}
-      placeholder="0.0"
-      step="0.1"
-      min="0"
-      className={cn(
-        "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 text-center",
-        className
-      )}
-      style={{
-        textAlign: 'center',
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        letterSpacing: '1px'
-      }}
-      onChange={handleChange}
-      onBlur={handleBlur}
-      {...props}
-    />
-  );
-}
 
 interface FlightLogsProps {
   openCreateModal?: boolean;
 }
 
 export default function FlightLogs({ openCreateModal = false }: FlightLogsProps) {
-
-  
-  // State management
+  const [flightLogs, setFlightLogs] = useState<FlightLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [flightLogs, setFlightLogs] = useState<ExtendedFlightLog[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [showCreateDialog, setShowCreateDialog] = useState(openCreateModal);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [flightLogToEdit, setFlightLogToEdit] = useState<FlightLog | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [flightLogToDelete, setFlightLogToDelete] = useState<FlightLog | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedAircraft, setSelectedAircraft] = useState<string>('all');
+  const [selectedPilot, setSelectedPilot] = useState<string>('all');
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+    to: new Date(),
+  });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [itemsPerPage] = useState(10);
   const [aircraft, setAircraft] = useState<Aircraft[]>([]);
   const [pilots, setPilots] = useState<User[]>([]);
-  const [instructors, setInstructors] = useState<User[]>([]);
   const [airfields, setAirfields] = useState<Airfield[]>([]);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [instructors, setInstructors] = useState<User[]>([]);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [showViewDialog, setShowViewDialog] = useState(false);
   const [selectedFlightLog, setSelectedFlightLog] = useState<FlightLog | null>(null);
   const [viewModalMode, setViewModalMode] = useState<'view' | 'edit'>('view');
@@ -437,17 +449,12 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
   const [exportLoading, setExportLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"personal" | "company">("personal");
   const [activeTab, setActiveTab] = useState("all");
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     limit: 10,
     total: 0,
     pages: 1,
   });
-
-
-
-  // Filter state
   const [filters, setFilters] = useState({
     aircraftId: '',
     userId: '',
@@ -458,19 +465,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
     dateTo: '',
   });
   const [showFilters, setShowFilters] = useState(false);
-
-
-  
-  // State management
-  const [error, setError] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [flightLogToDelete, setFlightLogToDelete] = useState<FlightLog | null>(null);
-  
-  // Edit functionality state
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [flightLogToEdit, setFlightLogToEdit] = useState<FlightLog | null>(null);
-
-  // New state for import functionality
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importProgress, setImportProgress] = useState<{
@@ -480,6 +475,8 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
     status: string;
   } | null>(null);
   const [importResults, setImportResults] = useState<any>(null);
+
+  const router = useRouter();
 
   // Form management
   const form = useForm<CreateFlightLogForm>({
@@ -492,7 +489,6 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       fuelAdded: 0,
       dayLandings: 1,
       nightLandings: 0,
-      // Add default values for all required fields
       pilotInCommand: 0,
       secondInCommand: 0,
       dualReceived: 0,
@@ -506,87 +502,45 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
     },
   });
 
-  // Reset form to default values every time the create modal is opened
+  // Client-side authentication check - moved to proper location
   useEffect(() => {
-    if (showCreateDialog) {
-      if (isEditMode && flightLogToEdit) {
-        // Populate form with existing flight log data for editing
-        form.reset({
-          flightType: flightLogToEdit.flightType as "INVOICED" | "SCHOOL" | "FERRY" | "CHARTER" | "DEMO" | "PROMO",
-          departureHobbs: flightLogToEdit.departureHobbs,
-          arrivalHobbs: flightLogToEdit.arrivalHobbs,
-          oilAdded: flightLogToEdit.oilAdded || 0,
-          fuelAdded: flightLogToEdit.fuelAdded || 0,
-          dayLandings: flightLogToEdit.dayLandings,
-          nightLandings: flightLogToEdit.nightLandings,
-          pilotInCommand: flightLogToEdit.pilotInCommand,
-          secondInCommand: flightLogToEdit.secondInCommand,
-          dualReceived: flightLogToEdit.dualReceived,
-          dualGiven: flightLogToEdit.dualGiven,
-          solo: flightLogToEdit.solo,
-          crossCountry: flightLogToEdit.crossCountry,
-          night: flightLogToEdit.night,
-          instrument: flightLogToEdit.instrument,
-          actualInstrument: flightLogToEdit.actualInstrument,
-          simulatedInstrument: flightLogToEdit.simulatedInstrument,
-          date: flightLogToEdit.date,
-          aircraftId: flightLogToEdit.aircraftId,
-          userId: flightLogToEdit.userId,
-          instructorId: flightLogToEdit.instructorId || undefined,
-          departureAirfieldId: flightLogToEdit.departureAirfieldId,
-          departureTime: flightLogToEdit.departureTime,
-          arrivalAirfieldId: flightLogToEdit.arrivalAirfieldId,
-          arrivalTime: flightLogToEdit.arrivalTime,
-          purpose: flightLogToEdit.purpose || undefined,
-          remarks: flightLogToEdit.remarks || '',
-          route: flightLogToEdit.route || undefined,
-          conditions: flightLogToEdit.conditions || undefined,
-        });
-      } else {
-        // Reset to default values for creating new flight log
-        form.reset({
-          flightType: "SCHOOL",
-          departureHobbs: undefined,
-          arrivalHobbs: undefined,
-          oilAdded: 0,
-          fuelAdded: 0,
-          dayLandings: 1,
-          nightLandings: 0,
-          // Add default values for all required fields
-          pilotInCommand: 0,
-          secondInCommand: 0,
-          dualReceived: 0,
-          dualGiven: 0,
-          solo: 0,
-          crossCountry: 0,
-          night: 0,
-          instrument: 0,
-          actualInstrument: 0,
-          simulatedInstrument: 0,
-          // Clear all other fields
-          date: undefined,
-          aircraftId: undefined,
-          userId: undefined,
-          instructorId: undefined,
-          departureAirfieldId: undefined,
-          departureTime: undefined,
-          arrivalAirfieldId: undefined,
-          arrivalTime: undefined,
-          purpose: undefined,
-          remarks: undefined,
-          route: undefined,
-          conditions: undefined,
-        });
-        
-        // If user should not show pilot selection, set the pilotId after reset
-        if (currentUser && !shouldShowPilotSelection()) {
-          
-        form.setValue('userId', currentUser.id);
+    const checkAuthentication = async () => {
+      try {
+        const token = AuthService.getToken();
+        if (!token) {
+          console.log('🔍 FlightLogs - No token found, redirecting to login');
+          setIsAuthenticated(false);
+          router.push('/login?redirect=/flight-logs&error=auth_required');
+          return;
         }
-      }
-    }
-  }, [showCreateDialog, currentUser, isEditMode, flightLogToEdit]);
 
+        const response = await fetch('/api/auth/me', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const userData = await response.json();
+          setCurrentUser(userData);
+          setIsAuthenticated(true);
+          console.log('🔍 FlightLogs - Client-side authentication successful');
+        } else {
+          console.log('🔍 FlightLogs - Client-side authentication failed, redirecting to login');
+          setIsAuthenticated(false);
+          router.push('/login?redirect=/flight-logs&error=auth_required');
+        }
+      } catch (error) {
+        console.error('🔍 FlightLogs - Authentication check error:', error);
+        setIsAuthenticated(false);
+        router.push('/login?redirect=/flight-logs&error=auth_required');
+      }
+    };
+
+    checkAuthentication();
+  }, [router]);
+
+  // Note: Authentication check moved to end of component to avoid hook order issues
 
   // Fetch current user function
   const fetchCurrentUser = async () => {
@@ -1771,6 +1725,22 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
   };
 
   try {
+    // Authentication check - moved to end to avoid hook order issues
+    if (isAuthenticated === null) {
+      return (
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Checking authentication...</p>
+          </div>
+        </div>
+      );
+    }
+    
+    if (isAuthenticated === false) {
+      return null;
+    }
+    
     return (
       <div className="space-y-6">
         {/* Header */}
