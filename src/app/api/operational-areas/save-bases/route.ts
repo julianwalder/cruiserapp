@@ -128,8 +128,12 @@ function mapAirfieldType(ourAirportsType: string): string {
     'small_airport': 'SMALL_AIRPORT',
     'heliport': 'HELIPORT',
     'seaplane_base': 'SEAPLANE_BASE',
-    'balloonport': 'BALLOONPORT',
+    'balloonport': 'BALLOON_PORT',
+    'gliderport': 'GLIDER_PORT',
+    'ultralight_field': 'ULTRALIGHT_FIELD',
+    'airstrip': 'AIRSTRIP',
+    'airport': 'AIRPORT'
   };
   
-  return typeMapping[ourAirportsType] || 'UNKNOWN';
+  return typeMapping[ourAirportsType] || 'AIRPORT';
 } 

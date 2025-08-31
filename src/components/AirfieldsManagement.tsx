@@ -14,18 +14,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Modal } from './ui/Modal';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Search, Trash2, MapPin, Plane, Phone, Globe, Eye, ChevronsUpDown, Check, MoreVertical, Edit } from 'lucide-react';
+import { Search, Trash2, MapPin, Plane, Phone, Globe, Eye, ChevronsUpDown, Check, MoreVertical, Edit, Plus, Radio, Compass, MessageSquare } from 'lucide-react';
 import { useDateFormatUtils } from '@/hooks/use-date-format';
 import { cn } from '@/lib/utils';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import AddAirfieldModal from './AddAirfieldModal';
 
 // Airfield creation schema
 const createAirfieldSchema = z.object({
   name: z.string().min(2, 'Airfield name must be at least 2 characters'),
   code: z.string().min(2, 'Airfield code must be at least 2 characters').max(4, 'Airfield code must be at most 4 characters'),
-  type: z.enum(['AIRPORT', 'ULTRALIGHT_FIELD', 'HELIPORT', 'SEAPLANE_BASE', 'BALLOON_PORT', 'GLIDER_PORT', 'AIRSTRIP']),
+  type: z.enum(['AIRPORT', 'SMALL_AIRPORT', 'MEDIUM_AIRPORT', 'LARGE_AIRPORT', 'ULTRALIGHT_FIELD', 'HELIPORT', 'SEAPLANE_BASE', 'BALLOON_PORT', 'GLIDER_PORT', 'AIRSTRIP']),
   city: z.string().min(2, 'City must be at least 2 characters'),
   state: z.string().optional(),
   country: z.string().min(2, 'Country must be at least 2 characters'),
@@ -159,11 +160,14 @@ export default function AirfieldsManagement() {
 
   const [selectedAirfield, setSelectedAirfield] = useState<ExtendedAirfield | null>(null);
   const [showAirfieldDialog, setShowAirfieldDialog] = useState(false);
+  const [additionalAirfieldData, setAdditionalAirfieldData] = useState<any>(null);
+  const [loadingAdditionalData, setLoadingAdditionalData] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [availableTypes, setAvailableTypes] = useState<string[]>([]);
   const [availableCountries, setAvailableCountries] = useState<string[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [showSearchModal, setShowSearchModal] = useState(false);
 
   const {
     register,
@@ -603,6 +607,12 @@ export default function AirfieldsManagement() {
     switch (type) {
       case 'AIRPORT':
         return 'bg-primary-10 text-primary border-primary-20';
+      case 'SMALL_AIRPORT':
+        return 'bg-green-10 text-green border-green-20';
+      case 'MEDIUM_AIRPORT':
+        return 'bg-yellow-10 text-yellow border-yellow-20';
+      case 'LARGE_AIRPORT':
+        return 'bg-red-10 text-red border-red-20';
       case 'ULTRALIGHT_FIELD':
         return 'bg-success-10 text-success border-success-20';
       case 'HELIPORT':
@@ -651,29 +661,59 @@ export default function AirfieldsManagement() {
   const getAirportTypeLabel = (airfield: ExtendedAirfield) => {
     // Use the OurAirports type directly to determine the display label
     switch (airfield.type) {
-      case 'large_airport':
+      case 'LARGE_AIRPORT':
         return 'Large Airport';
-      case 'medium_airport':
+      case 'MEDIUM_AIRPORT':
         return 'Medium Airport';
-      case 'small_airport':
+      case 'SMALL_AIRPORT':
         return 'Small Airport';
-      case 'heliport':
+      case 'HELIPORT':
         return 'Heliport';
-      case 'seaplane_base':
+      case 'SEAPLANE_BASE':
         return 'Seaplane Base';
-      case 'balloonport':
+      case 'BALLOON_PORT':
         return 'Balloon Port';
-      case 'closed':
-        return 'Closed Airfield';
+      case 'GLIDER_PORT':
+        return 'Glider Port';
+      case 'ULTRALIGHT_FIELD':
+        return 'Ultralight Field';
+      case 'AIRSTRIP':
+        return 'Airstrip';
+      case 'AIRPORT':
+        return 'Airport';
       default:
         // Fallback for any unrecognized types
         return airfield.type.replace('_', ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
     }
   };
 
-  const handleRowClick = (airfield: ExtendedAirfield) => {
+  const handleRowClick = async (airfield: ExtendedAirfield) => {
     setSelectedAirfield(airfield);
     setShowAirfieldDialog(true);
+    
+    // Fetch additional aviation data
+    setLoadingAdditionalData(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/airfields/${airfield.id}/additional-data`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setAdditionalAirfieldData(data);
+      } else {
+        console.error('Failed to fetch additional airfield data');
+        setAdditionalAirfieldData(null);
+      }
+    } catch (error) {
+      console.error('Error fetching additional airfield data:', error);
+      setAdditionalAirfieldData(null);
+    } finally {
+      setLoadingAdditionalData(false);
+    }
   };
 
   return (
@@ -686,6 +726,24 @@ export default function AirfieldsManagement() {
 
       {/* Airfields Table */}
       <Card className="w-full">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Airfields Management</CardTitle>
+              <CardDescription>Manage airfields and search reference database</CardDescription>
+            </div>
+            <Button 
+              onClick={() => {
+                console.log('Button clicked, setting showSearchModal to true');
+                setShowSearchModal(true);
+              }}
+              className="flex items-center gap-2"
+            >
+              <Plus className="h-4 w-4" />
+              Add Airfield
+            </Button>
+          </div>
+        </CardHeader>
         <CardContent className="p-0">
           <div className="w-full overflow-x-auto">
             <Table>
@@ -1029,6 +1087,55 @@ export default function AirfieldsManagement() {
               </div>
             </div>
 
+              {/* Additional Data Summary */}
+              {additionalAirfieldData && Object.keys(additionalAirfieldData).length > 0 && (
+                <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+                  <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">Available Aviation Data</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {additionalAirfieldData.runways && additionalAirfieldData.runways.length > 0 && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                        {additionalAirfieldData.runways.length} Runway{additionalAirfieldData.runways.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {additionalAirfieldData.frequencies && additionalAirfieldData.frequencies.length > 0 && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                        {additionalAirfieldData.frequencies.length} Frequency{additionalAirfieldData.frequencies.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {additionalAirfieldData.navaids && additionalAirfieldData.navaids.length > 0 && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                        {additionalAirfieldData.navaids.length} Navaid{additionalAirfieldData.navaids.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                    {additionalAirfieldData.comments && additionalAirfieldData.comments.length > 0 && (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                        {additionalAirfieldData.comments.length} Comment{additionalAirfieldData.comments.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Loading Indicator for Additional Data */}
+              {loadingAdditionalData && (
+                <div className="bg-muted/50 rounded-lg p-6">
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                    <span className="text-muted-foreground">Loading aviation data...</span>
+                  </div>
+                </div>
+              )}
+
+              {/* No Additional Data Available */}
+              {!loadingAdditionalData && !additionalAirfieldData && (
+                <div className="bg-muted/50 rounded-lg p-6">
+                  <div className="text-center text-muted-foreground">
+                    <p>No additional aviation data available for this airfield.</p>
+                    <p className="text-sm mt-1">This airfield may not have detailed runway, frequency, or navaid information in our reference database.</p>
+                  </div>
+                </div>
+              )}
+
             {/* Location Information */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Location Information</h3>
@@ -1121,9 +1228,109 @@ export default function AirfieldsManagement() {
               </div>
             </div>
 
-            {/* Contact Information */}
+              {/* Radio Frequencies */}
+              {additionalAirfieldData?.frequencies && additionalAirfieldData.frequencies.length > 0 && (
+                <div className="bg-muted/50 rounded-lg p-6">
+                  <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
+                    <Radio className="h-5 w-5 mr-2" />
+                    Radio Frequencies
+                  </h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {additionalAirfieldData.frequencies.map((frequency: any, index: number) => (
+                      <div key={index} className="bg-background rounded-lg p-4 border">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-sm text-muted-foreground">
+                              {frequency.type || 'Frequency'}
+                            </span>
+                            <span className="text-sm font-mono bg-blue-100 text-blue-800 px-3 py-1 rounded border">
+                              {frequency.frequency_mhz} MHz
+                            </span>
+                          </div>
+                          {frequency.description && (
+                            <p className="text-sm text-card-foreground">{frequency.description}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Navigation Aids */}
+              {additionalAirfieldData?.navaids && additionalAirfieldData.navaids.length > 0 && (
+                <div className="bg-muted/50 rounded-lg p-6">
+                  <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
+                    <Compass className="h-5 w-5 mr-2" />
+                    Navigation Aids
+                  </h3>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {additionalAirfieldData.navaids.map((navaid: any, index: number) => (
+                      <div key={index} className="bg-background rounded-lg p-4 border">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium text-sm text-muted-foreground">
+                              {navaid.name || 'Navaid'}
+                            </span>
+                            <span className="text-sm font-mono bg-green-100 text-green-800 px-3 py-1 rounded border">
+                              {navaid.type}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">Frequency: </span>
+                              <span className="font-medium">{navaid.frequency_khz} kHz</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Range: </span>
+                              <span className="font-medium">{navaid.range_nm} nm</span>
+                            </div>
+                          </div>
+                          {navaid.usageType && (
+                            <div className="text-sm">
+                              <span className="text-muted-foreground">Usage: </span>
+                              <span className="font-medium">{navaid.usageType}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Airport Comments */}
+              {additionalAirfieldData?.comments && additionalAirfieldData.comments.length > 0 && (
+                <div className="bg-muted/50 rounded-lg p-6">
+                  <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
+                    <MessageSquare className="h-5 w-5 mr-2" />
+                    Airport Information
+                  </h3>
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Contact Information</h3>
+                    {additionalAirfieldData.comments.map((comment: any, index: number) => (
+                      <div key={index} className="bg-background rounded-lg p-4 border">
+                        <div className="space-y-2">
+                          {comment.date && (
+                            <div className="text-xs text-muted-foreground">
+                              {new Date(comment.date).toLocaleDateString()}
+                            </div>
+                          )}
+                          {comment.body && (
+                            <p className="text-sm text-card-foreground">{comment.body}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Contact Information */}
+                                              <div className="bg-muted/50 rounded-lg p-6">
+                  <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
+                    <Phone className="h-5 w-2 mr-2" />
+                    Contact Information
+                  </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone</Label>
@@ -1184,7 +1391,10 @@ export default function AirfieldsManagement() {
       {/* Airfield Details Dialog */}
       <Modal
         open={showAirfieldDialog}
-        onClose={() => setShowAirfieldDialog(false)}
+        onClose={() => {
+          setShowAirfieldDialog(false);
+          setAdditionalAirfieldData(null);
+        }}
         title="Airfield Details"
       >
           {selectedAirfield && (
@@ -1261,6 +1471,63 @@ export default function AirfieldsManagement() {
                   <Plane className="h-5 w-5 mr-2" />
                   Technical Information
                 </h3>
+                
+                {/* Runways */}
+                {additionalAirfieldData?.runways && additionalAirfieldData.runways.length > 0 ? (
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-medium text-card-foreground">Runways</h4>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {additionalAirfieldData.runways.map((runway: any, index: number) => (
+                        <div key={index} className="bg-background rounded-lg p-4 border">
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium text-sm text-muted-foreground">Runway {index + 1}</span>
+                              {runway.le_ident && runway.he_ident && (
+                                <span className="text-sm font-mono bg-primary/10 text-primary px-3 py-1 rounded border">
+                                  {runway.le_ident}/{runway.he_ident}
+                                </span>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              <div>
+                                <span className="text-muted-foreground">Length: </span>
+                                <span className="font-medium">{runway.length_ft?.toLocaleString()} ft</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Width: </span>
+                                <span className="font-medium">{runway.width_ft} ft</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Surface: </span>
+                                <span className="font-medium">{runway.surface || 'Unknown'}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Lighted: </span>
+                                <span className="font-medium">{runway.lighted ? 'Yes' : 'No'}</span>
+                              </div>
+                            </div>
+                            {(runway.le_heading_degT || runway.he_heading_degT) && (
+                              <div className="grid grid-cols-2 gap-2 text-sm">
+                                {runway.le_heading_degT && (
+                                  <div>
+                                    <span className="text-muted-foreground">LE Heading: </span>
+                                    <span className="font-medium">{runway.le_heading_degT}°</span>
+                                  </div>
+                                )}
+                                {runway.he_heading_degT && (
+                                  <div>
+                                    <span className="text-muted-foreground">HE Heading: </span>
+                                    <span className="font-medium">{runway.he_heading_degT}°</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-muted-foreground">Runway Length</Label>
@@ -1271,6 +1538,7 @@ export default function AirfieldsManagement() {
                     <p className="text-base text-card-foreground">-</p>
                   </div>
                 </div>
+                )}
               </div>
 
               {/* Contact Information */}
@@ -1315,6 +1583,13 @@ export default function AirfieldsManagement() {
             </div>
           )}
       </Modal>
+
+      {/* Add Airfield Modal */}
+      <AddAirfieldModal
+        isOpen={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+        onAirfieldAdded={() => fetchAirfields()}
+      />
     </div>
   );
 } 

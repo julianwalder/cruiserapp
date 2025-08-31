@@ -19,7 +19,7 @@ export interface User extends BaseEntity {
   state?: string;
   zipCode?: string;
   country?: string;
-  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'PENDING_APPROVAL';
   totalFlightHours?: number;
   licenseNumber?: string;
   medicalClass?: string;
@@ -93,7 +93,7 @@ export interface HourPackage extends BaseEntity {
 export interface Airfield extends BaseEntity {
   name: string;
   code: string;
-  type: string;
+  type: 'AIRPORT' | 'SMALL_AIRPORT' | 'MEDIUM_AIRPORT' | 'LARGE_AIRPORT' | 'AIRSTRIP' | 'HELIPORT' | 'SEAPLANE_BASE' | 'BALLOON_PORT' | 'GLIDER_PORT' | 'ULTRALIGHT_FIELD';
   city?: string;
   state?: string;
   country?: string;
@@ -103,13 +103,13 @@ export interface Airfield extends BaseEntity {
   phone?: string;
   email?: string;
   website?: string;
-  status: 'ACTIVE' | 'INACTIVE';
+  status: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE' | 'CLOSED';
   isBase: boolean;
 }
 
 export interface Aircraft extends BaseEntity {
   registration: string;
-  type: string;
+  type: 'LANDPLANE' | 'SEAPLANE' | 'AMPHIBIAN' | 'HELICOPTER' | 'GYROCOPTER' | 'GLIDER' | 'POWERED_GLIDER' | 'AIRSHIP' | 'BALLOON' | 'ULTRALIGHT';
   model: string;
   manufacturer: string;
   yearOfManufacture?: number;
@@ -130,7 +130,7 @@ export interface FlightLog extends BaseEntity {
   arrivalTime: string;
   departureAirfieldId: UUID;
   arrivalAirfieldId: UUID;
-  flightType: string;
+  flightType: 'TRAINING' | 'PERSONAL' | 'COMMERCIAL' | 'CHARTER' | 'FERRY' | 'TEST' | 'OTHER';
   purpose?: string;
   remarks?: string;
   totalHours: number;
@@ -167,14 +167,14 @@ export interface Company extends BaseEntity {
   phone?: string;
   email?: string;
   website?: string;
-  status: 'ACTIVE' | 'INACTIVE';
+  status: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE' | 'CLOSED';
 }
 
 export interface UserCompanyRelationship extends BaseEntity {
   userId: UUID;
   companyId: UUID;
-  role: string;
-  status: 'ACTIVE' | 'INACTIVE';
+  role: 'OWNER' | 'MANAGER' | 'EMPLOYEE' | 'CONTRACTOR' | 'STUDENT' | 'INSTRUCTOR';
+  status: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE' | 'CLOSED';
 }
 
 // My Account feature interfaces

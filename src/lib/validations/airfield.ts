@@ -1,7 +1,18 @@
 import { z } from 'zod';
 
 // Airfield type enum
-export const AirfieldTypeEnum = z.enum(['AIRPORT', 'AIRSTRIP', 'HELIPORT', 'SEAPLANE_BASE']);
+export const AirfieldTypeEnum = z.enum([
+  'AIRPORT', 
+  'SMALL_AIRPORT', 
+  'MEDIUM_AIRPORT', 
+  'LARGE_AIRPORT',
+  'AIRSTRIP', 
+  'HELIPORT', 
+  'SEAPLANE_BASE', 
+  'BALLOON_PORT', 
+  'GLIDER_PORT', 
+  'ULTRALIGHT_FIELD'
+]);
 
 // Airfield status enum
 export const AirfieldStatusEnum = z.enum(['ACTIVE', 'INACTIVE', 'MAINTENANCE', 'CLOSED']);
@@ -53,7 +64,7 @@ import { Airfield } from "@/types/uuid-types";
 export interface AirfieldFormData {
   name: string;
   code: string;
-  type: 'AIRPORT' | 'AIRSTRIP' | 'HELIPORT' | 'SEAPLANE_BASE';
+  type: 'AIRPORT' | 'SMALL_AIRPORT' | 'MEDIUM_AIRPORT' | 'LARGE_AIRPORT' | 'AIRSTRIP' | 'HELIPORT' | 'SEAPLANE_BASE' | 'BALLOON_PORT' | 'GLIDER_PORT' | 'ULTRALIGHT_FIELD';
   status: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE' | 'CLOSED';
   city: string;
   state?: string;

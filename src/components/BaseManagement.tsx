@@ -48,7 +48,7 @@ interface Airfield {
   id: string;
   name: string;
   code: string;
-  type: 'AIRPORT' | 'AIRSTRIP' | 'HELIPORT' | 'SEAPLANE_BASE';
+  type: 'AIRPORT' | 'SMALL_AIRPORT' | 'MEDIUM_AIRPORT' | 'LARGE_AIRPORT' | 'AIRSTRIP' | 'HELIPORT' | 'SEAPLANE_BASE' | 'BALLOON_PORT' | 'GLIDER_PORT' | 'ULTRALIGHT_FIELD';
   status: 'ACTIVE' | 'INACTIVE' | 'MAINTENANCE' | 'CLOSED';
   city: string;
   state?: string;
@@ -473,16 +473,26 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
 
   const getTypeBadgeColor = (type: string) => {
     switch (type) {
-      case 'large_airport':
+      case 'LARGE_AIRPORT':
         return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800';
-      case 'medium_airport':
+      case 'MEDIUM_AIRPORT':
         return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800';
-      case 'small_airport':
+      case 'SMALL_AIRPORT':
         return 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800';
-      case 'heliport':
+      case 'HELIPORT':
         return 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800';
-      case 'seaplane_base':
+      case 'SEAPLANE_BASE':
         return 'bg-cyan-100 text-cyan-800 border-cyan-200 dark:bg-cyan-900/20 dark:text-cyan-400 dark:border-cyan-800';
+      case 'BALLOON_PORT':
+        return 'bg-purple-100 text-purple-800 border-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:border-purple-800';
+      case 'GLIDER_PORT':
+        return 'bg-orange-100 text-orange-800 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800';
+      case 'ULTRALIGHT_FIELD':
+        return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800';
+      case 'AIRSTRIP':
+        return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800';
+      case 'AIRPORT':
+        return 'bg-primary-100 text-primary-800 border-primary-200 dark:bg-primary-900/20 dark:text-primary-400 dark:border-primary-800';
       default:
         return 'bg-gray-100 text-gray-800 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700';
     }
@@ -593,7 +603,6 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
             open={showCreateDialog}
             onClose={() => setShowCreateDialog(false)}
             title="Designate New Base"
-            description="Select an airfield to designate as a base and assign a base manager"
           >
               <div className="flex-1 overflow-y-auto space-y-4 pt-4">
                 <div>
@@ -872,7 +881,6 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
         open={showEditDialog}
         onClose={() => setShowEditDialog(false)}
         title="Edit Base"
-        description="Update base information and management details"
       >
           <div className="flex-1 overflow-y-auto space-y-8 pt-4">
             {/* Base Management Information */}
