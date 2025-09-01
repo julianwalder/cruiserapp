@@ -139,6 +139,7 @@ export async function GET(request: NextRequest) {
           date,
           flightType
         `)
+        .order('date', { ascending: false }) // Order by date, newest first
         .range(offset, offset + chunkSize - 1);
 
       if (flightLogsError) {
@@ -625,6 +626,11 @@ export async function GET(request: NextRequest) {
 
           // Get recent flights for this client (all records where they were involved)
           const recentFlights = clientFlightLogs.get(client.user_id) || [];
+          
+          // Sort flights by date (most recent first) and take the last 5
+          const sortedRecentFlights = recentFlights
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            .slice(0, 5);
 
           // Get year-specific data for this client
           const currentYearHours = clientFlightHoursCurrentYear.get(client.user_id) || 0;
@@ -665,7 +671,7 @@ export async function GET(request: NextRequest) {
             demoHoursCurrentYear: clientDemoHoursCurrentYear,
             demoHoursPreviousYear: clientDemoHoursPreviousYear,
             demoHoursTotal: clientDemoHoursTotal,
-            recentFlights: recentFlights.slice(0, 5) // Show last 5 flights
+            recentFlights: sortedRecentFlights // Show last 5 flights sorted by date
           };
         })
     );

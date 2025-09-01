@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
 import { AuthService } from '@/lib/auth';
+import { ActivityLogger } from '@/lib/activity-logger';
 import { UUID } from '@/types/uuid-types';
 
 
@@ -163,7 +164,7 @@ export async function PUT(
     
     const {
       aircraftId,
-      pilotId,
+      userId,
       instructorId,
       date,
       departureTime,
@@ -192,7 +193,7 @@ export async function PUT(
     } = body;
 
     // Validate required fields
-    if (!aircraftId || !pilotId || !date || !departureTime || !arrivalTime || !departureAirfieldId || !arrivalAirfieldId || !flightType) {
+    if (!aircraftId || !userId || !date || !departureTime || !arrivalTime || !departureAirfieldId || !arrivalAirfieldId || !flightType) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -231,7 +232,7 @@ export async function PUT(
           )
         )
       `)
-      .eq('id', pilotId)
+      .eq('id', userId)
       .single();
 
     if (pilotError || !pilot) {
@@ -281,7 +282,7 @@ export async function PUT(
     
     // Log the automatic flight type determination
     const pilotRoles = pilot.user_roles?.map((ur: any) => ur.roles?.name || '').filter(Boolean) || [];
-    console.log(`🔍 Flight type for pilot ${pilotId} (EDIT mode):`, {
+    console.log(`🔍 Flight type for pilot ${userId} (EDIT mode):`, {
       pilotRoles,
       providedFlightType: flightType,
       automaticFlightType,
@@ -290,7 +291,7 @@ export async function PUT(
     
     // Log suggestions but allow override
     if (flightType && flightType !== automaticFlightType) {
-      console.log(`💡 Suggestion: For pilot ${pilotId}, automatic logic suggests "${automaticFlightType}" but using provided "${flightType}"`);
+      console.log(`💡 Suggestion: For pilot ${userId}, automatic logic suggests "${automaticFlightType}" but using provided "${flightType}"`);
     }
 
     // Validate instructor if provided
@@ -357,7 +358,7 @@ export async function PUT(
       .from('flight_logs')
       .update({
         aircraftId,
-        pilotId,
+        userId,
         instructorId,
         date: date, // Keep the date as a string to avoid timezone conversion
         departureTime,
@@ -400,14 +401,23 @@ export async function PUT(
     }
 
     // Update pilot's total flight hours if pilot changed or hours changed
-    if (pilotId !== existingFlightLog.pilotId) {
-      // Remove hours from old pilot
-      await supabase
+    if (userId !== existingFlightLog.userId) {
+      // Get the old pilot's data to remove hours
+      const { data: oldPilot, error: oldPilotError } = await supabase
         .from('users')
-        .update({
-          totalFlightHours: existingFlightLog.pilot.totalFlightHours - existingFlightLog.totalHours,
-        })
-        .eq('id', existingFlightLog.pilotId);
+        .select('totalFlightHours')
+        .eq('id', existingFlightLog.userId)
+        .single();
+
+      if (!oldPilotError && oldPilot) {
+        // Remove hours from old pilot
+        await supabase
+          .from('users')
+          .update({
+            totalFlightHours: oldPilot.totalFlightHours - existingFlightLog.totalHours,
+          })
+          .eq('id', existingFlightLog.userId);
+      }
 
       // Add hours to new pilot
       await supabase
@@ -415,7 +425,7 @@ export async function PUT(
         .update({
           totalFlightHours: pilot.totalFlightHours + newTotalHours,
         })
-        .eq('id', pilotId);
+        .eq('id', userId);
     } else if (hoursDifference !== 0) {
       // Update hours for same pilot
       await supabase
@@ -423,8 +433,21 @@ export async function PUT(
         .update({
           totalFlightHours: pilot.totalFlightHours + hoursDifference,
         })
-        .eq('id', pilotId);
+        .eq('id', userId);
     }
+
+    // Log flight log update activity
+    await ActivityLogger.logFlightUpdated(
+      user.id,
+      flightLog.id,
+      {
+        oldPilotId: existingFlightLog.userId,
+        newPilotId: userId,
+        oldTotalHours: existingFlightLog.totalHours,
+        newTotalHours: newTotalHours,
+        hoursDifference
+      }
+    );
 
     return NextResponse.json({ flightLog });
   } catch (error) {
