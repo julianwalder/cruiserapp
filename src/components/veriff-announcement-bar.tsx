@@ -7,6 +7,7 @@ import { Shield, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AnnouncementBar } from '@/components/announcement-bar'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 interface User {
   id: string
@@ -22,7 +23,7 @@ interface VeriffAnnouncementBarProps {
   user: User | null
   /** Custom CSS classes */
   className?: string
-  /** Callback when user clicks "Start Verification" */
+  /** Callback when user clicks "Go to Verification" */
   onStartVerification?: () => void
 }
 
@@ -44,6 +45,7 @@ export function VeriffAnnouncementBar({
   const router = useRouter()
   const [shouldShow, setShouldShow] = useState(false)
   const [isTemporarilyDismissed, setIsTemporarilyDismissed] = useState(false)
+  const [isNavigating, setIsNavigating] = useState(false)
 
   useEffect(() => {
     console.log('🔍 VeriffAnnouncementBar - useEffect triggered:', {
@@ -81,12 +83,32 @@ export function VeriffAnnouncementBar({
 
   console.log('🔍 VeriffAnnouncementBar - Rendering announcement bar')
 
-  const handleStartVerification = () => {
-    if (onStartVerification) {
-      onStartVerification()
-    } else {
-      // Default behavior: navigate to my-account page with verification tab
-      router.push('/my-account?tab=verification')
+  const handleStartVerification = async () => {
+    console.log('🔍 VeriffAnnouncementBar - Go to Verification clicked')
+    
+    try {
+      setIsNavigating(true)
+      
+      if (onStartVerification) {
+        console.log('🔍 VeriffAnnouncementBar - Using custom onStartVerification callback')
+        await onStartVerification()
+      } else {
+        console.log('🔍 VeriffAnnouncementBar - Using direct navigation to verification tab')
+        
+        // Use direct navigation for more reliable behavior
+        toast.success('Taking you to verification page...')
+        
+        // Show immediate feedback and navigate
+        console.log('🔍 VeriffAnnouncementBar - About to navigate to verification tab')
+        
+        // Navigate immediately - no delay needed
+        window.location.href = '/my-account?tab=verification'
+      }
+    } catch (error) {
+      console.error('🔍 VeriffAnnouncementBar - Error in handleStartVerification:', error)
+      toast.error('Failed to start verification process. Please try again.')
+    } finally {
+      setIsNavigating(false)
     }
   }
 
@@ -136,10 +158,18 @@ export function VeriffAnnouncementBar({
         <div className="flex items-center space-x-3 ml-6">
           <Button
             onClick={handleStartVerification}
+            disabled={isNavigating}
             size="sm"
-            className="bg-blue-600 hover:bg-blue-700 text-white border-0 shadow-sm hover:shadow-md transition-all duration-200 font-medium px-4 py-2"
+            className="bg-blue-600 hover:bg-blue-700 text-white border-0 shadow-sm hover:shadow-md transition-all duration-200 font-medium px-4 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Start Verification
+            {isNavigating ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Redirecting...
+              </>
+            ) : (
+              'Go to Verification'
+            )}
           </Button>
         </div>
       </div>

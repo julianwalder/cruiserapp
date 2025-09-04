@@ -250,6 +250,7 @@ export class VeriffService {
       .from('users')
       .update({
         veriffSessionId: sessionId,
+        veriffSessionUrl: sessionUrl,
         veriffStatus: 'created',
         updatedAt: new Date().toISOString(),
       })
@@ -589,6 +590,7 @@ export class VeriffService {
         .from('users')
       .select(`
         veriffSessionId,
+        veriffSessionUrl,
         veriffVerificationId,
         veriffStatus,
         identityVerified,
@@ -611,6 +613,7 @@ export class VeriffService {
       console.log('User is already verified, returning verified status');
       return {
         sessionId: user.veriffSessionId,
+        sessionUrl: user.veriffSessionUrl,
         veriffStatus: user.veriffStatus || 'approved',
         isVerified: true,
         veriffData: user.veriffWebhookData || user.veriffData
@@ -664,6 +667,7 @@ export class VeriffService {
 
           return {
             sessionId: user.veriffSessionId,
+            sessionUrl: user.veriffSessionUrl,
             veriffStatus: sessionData.status,
             isVerified: sessionData.status === 'approved',
             veriffData: {
@@ -683,7 +687,7 @@ export class VeriffService {
             // After clearing, check if user was previously verified
             const { data: updatedUser, error: updatedUserError } = await supabase
               .from('users')
-              .select('identityVerified, veriffWebhookData, veriffData')
+              .select('veriffSessionId, veriffSessionUrl, identityVerified, veriffWebhookData, veriffData')
               .eq('id', userId)
               .single();
             
@@ -698,6 +702,8 @@ export class VeriffService {
             if (updatedUser.identityVerified) {
               console.log('User was previously verified, maintaining verification status');
               return {
+                sessionId: updatedUser.veriffSessionId,
+                sessionUrl: updatedUser.veriffSessionUrl,
                 isVerified: true,
                 veriffStatus: 'approved',
                 veriffData: updatedUser.veriffWebhookData || updatedUser.veriffData
@@ -738,6 +744,7 @@ export class VeriffService {
 
         return {
           sessionId: user.veriffSessionId,
+          sessionUrl: user.veriffSessionUrl,
           veriffStatus: verificationDetails.status,
           isVerified: verificationDetails.status === 'approved',
           veriffData: {
@@ -757,7 +764,7 @@ export class VeriffService {
           // After clearing, check if user was previously verified
           const { data: updatedUser, error: updatedUserError } = await supabase
             .from('users')
-            .select('identityVerified, veriffWebhookData, veriffData')
+            .select('veriffSessionId, veriffSessionUrl, identityVerified, veriffWebhookData, veriffData')
             .eq('id', userId)
             .single();
           
@@ -772,6 +779,8 @@ export class VeriffService {
           if (updatedUser.identityVerified) {
             console.log('User was previously verified, maintaining verification status');
             return {
+              sessionId: updatedUser.veriffSessionId,
+              sessionUrl: updatedUser.veriffSessionUrl,
               isVerified: true,
               veriffStatus: 'approved',
               veriffData: updatedUser.veriffWebhookData || updatedUser.veriffData
@@ -789,6 +798,7 @@ export class VeriffService {
     // Return current status from database if API calls fail
     return {
         sessionId: user.veriffSessionId,
+        sessionUrl: user.veriffSessionUrl,
       veriffStatus: user.veriffStatus,
         isVerified: user.identityVerified || false,
       veriffData: user.veriffWebhookData || user.veriffData

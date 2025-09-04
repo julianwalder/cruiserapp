@@ -106,6 +106,14 @@ export function VeriffVerification({
       const session = await hookCreateSession(userData);
       if (session) {
         toast.success('Verification session created successfully');
+        
+        // Automatically redirect to Veriff process if session URL is available
+        if (session.url) {
+          // Small delay to ensure the toast is visible
+          setTimeout(() => {
+            window.open(session.url, '_blank', 'noopener,noreferrer');
+          }, 1000);
+        }
       }
     } catch (error) {
       console.error('Error creating Veriff session:', error);
@@ -258,7 +266,7 @@ export function VeriffVerification({
                             ) : (
                               <>
                                 <Shield className="h-4 w-4 mr-2" />
-                                Start New Verification
+                                Continue Verification
                               </>
                             )}
                           </Button>
@@ -267,7 +275,7 @@ export function VeriffVerification({
                             variant="outline"
                           >
                             <RefreshCw className="h-4 w-4 mr-2" />
-                            Check Status
+                            Refresh Status
                           </Button>
                         </div>
                       );
@@ -279,7 +287,7 @@ export function VeriffVerification({
                         variant="outline"
                       >
                         <RefreshCw className="h-4 w-4 mr-2" />
-                        Check Status
+                        Refresh Status
                       </Button>
                     );
                   }
