@@ -42,6 +42,7 @@ export async function GET(
     const isBaseManager = userRoles.includes('BASE_MANAGER');
     const isInstructor = userRoles.includes('INSTRUCTOR');
     const isPilot = userRoles.includes('PILOT');
+    const isStudent = userRoles.includes('STUDENT');
 
     // Fetch the flight log with basic data (avoid complex joins)
     const { data: flightLog, error: flightLogError } = await supabase
@@ -64,9 +65,9 @@ export async function GET(
     if (isAdmin || isBaseManager || isInstructor) {
       // Admins, base managers, and instructors can view all flight logs
       hasAccess = true;
-    } else if (isPilot) {
-      // Pilots can only view their own flight logs
-      hasAccess = flightLog.pilotId === user.id;
+    } else if (isPilot || isStudent) {
+      // Pilots and students can only view their own flight logs
+      hasAccess = flightLog.userId === user.id;
     }
 
     if (!hasAccess) {
@@ -126,7 +127,9 @@ export async function PUT(
         userRole.roles.name === 'SUPER_ADMIN' ||
         userRole.roles.name === 'ADMIN' ||
         userRole.roles.name === 'BASE_MANAGER' ||
-        userRole.roles.name === 'INSTRUCTOR'
+        userRole.roles.name === 'INSTRUCTOR' ||
+        userRole.roles.name === 'PILOT' ||
+        userRole.roles.name === 'STUDENT'
     ) || false;
 
     console.log('🔐 Has permission:', hasPermission);
@@ -158,6 +161,25 @@ export async function PUT(
     }
 
     console.log('✅ Flight log found:', existingFlightLog.id);
+
+    // Additional validation for students and pilots - they can only edit their own flight logs
+    const userRoles = (user as any).user_roles?.map((ur: any) => ur.roles.name) || [];
+    const isStudent = userRoles.includes('STUDENT');
+    const isPilot = userRoles.includes('PILOT');
+    const isAdmin = userRoles.includes('SUPER_ADMIN') || userRoles.includes('ADMIN');
+    const isBaseManager = userRoles.includes('BASE_MANAGER');
+    const isInstructor = userRoles.includes('INSTRUCTOR');
+
+    if ((isStudent || isPilot) && !isAdmin && !isBaseManager && !isInstructor) {
+      // Students and pilots can only edit their own flight logs
+      if (existingFlightLog.userId !== user.id) {
+        console.log('❌ Student/Pilot attempted to edit another user\'s flight log');
+        return NextResponse.json(
+          { error: 'You can only edit your own flight logs' },
+          { status: 403 }
+        );
+      }
+    }
 
     const body = await request.json();
     console.log('📦 Request body received:', body);

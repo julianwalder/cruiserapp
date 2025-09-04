@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
     const isBaseManager = userRoles.includes('BASE_MANAGER');
     const isInstructor = userRoles.includes('INSTRUCTOR');
     const isPilot = userRoles.includes('PILOT');
+    const isStudent = userRoles.includes('STUDENT');
     const isProspect = userRoles.includes('PROSPECT');
 
     // Block prospects from accessing flight logs
@@ -91,8 +92,8 @@ export async function GET(request: NextRequest) {
 
     // Apply permission-based filtering based on viewMode
     if (viewMode === 'personal') {
-      if (isPilot && !isInstructor && !isAdmin && !isBaseManager) {
-        // Regular pilots can only see their own flight logs
+      if ((isPilot || isStudent) && !isInstructor && !isAdmin && !isBaseManager) {
+        // Regular pilots and students can only see their own flight logs
         query = query.eq('userId', user.id);
       } else if (isInstructor && !isAdmin && !isBaseManager) {
         // Instructors can see logs where they are the instructor OR their own logs
