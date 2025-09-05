@@ -183,7 +183,7 @@ export async function GET(request: NextRequest) {
           date,
           "totalHours",
           "aircraftId",
-          "pilotId",
+          "userId",
           "instructorId",
           "arrivalAirfieldId",
           "flightType"
@@ -267,10 +267,10 @@ export async function GET(request: NextRequest) {
       // Most active pilot (simplified)
       supabase
         .from('flight_logs')
-        .select('"pilotId"', { count: 'exact' })
+        .select('"userId"', { count: 'exact' })
         .gte('date', startDate)
         .lte('date', endDate)
-        .not('pilotId', 'is', null)
+        .not('userId', 'is', null)
         .limit(1),
       
       // Top destination (simplified)
@@ -428,7 +428,7 @@ export async function GET(request: NextRequest) {
 
     // Get most active pilot name
     const mostActivePilotId = mostActivePilotResult.count ? 
-      currentFlightLogs.find((log: any) => log.pilotId)?.pilotId : null;
+      currentFlightLogs.find((log: any) => log.userId)?.userId : null;
     const mostActivePilot = mostActivePilotId ? 
       userNames.find((u: any) => u.id === mostActivePilotId) : null;
     const mostActivePilotName = mostActivePilot ? 
