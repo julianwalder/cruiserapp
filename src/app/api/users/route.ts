@@ -208,8 +208,20 @@ async function createUser(request: NextRequest, currentUser: any) {
       );
     }
 
-    // Hash password
-    const hashedPassword = await AuthService.hashPassword(validatedData.password);
+    // Handle password setup
+    let hashedPassword = null;
+    if (validatedData.password) {
+      // If password is provided, hash it
+      hashedPassword = await AuthService.hashPassword(validatedData.password);
+    } else if (validatedData.requiresPasswordSetup) {
+      // If password setup is required, generate a temporary token
+      hashedPassword = null; // Will be set when user sets password via email
+    } else {
+      return NextResponse.json(
+        { error: 'Password or password setup method required' },
+        { status: 400 }
+      );
+    }
 
     // Determine roles to assign
     const roleNames = Array.isArray(validatedData.roles) && validatedData.roles.length > 0
@@ -230,31 +242,38 @@ async function createUser(request: NextRequest, currentUser: any) {
     }
 
     // Create user
+    const userData: any = {
+      id: crypto.randomUUID(),
+      email: validatedData.email,
+      password: hashedPassword,
+      firstName: validatedData.firstName,
+      lastName: validatedData.lastName,
+      personalNumber: validatedData.personalNumber,
+      phone: validatedData.phone,
+      dateOfBirth: validatedData.dateOfBirth ? new Date(validatedData.dateOfBirth).toISOString() : null,
+      address: validatedData.address,
+      city: validatedData.city,
+      state: validatedData.state,
+      zipCode: validatedData.zipCode,
+      country: validatedData.country,
+      status: validatedData.status || 'ACTIVE',
+      totalFlightHours: validatedData.totalFlightHours || 0,
+      licenseNumber: validatedData.licenseNumber,
+      medicalClass: validatedData.medicalClass,
+      instructorRating: validatedData.instructorRating,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      createdById: null,
+    };
+
+    // Add password setup flag if needed
+    if (validatedData.requiresPasswordSetup) {
+      userData.requiresPasswordSetup = true;
+    }
+
     const { data: user, error: createUserError } = await supabase
       .from('users')
-      .insert({
-        id: crypto.randomUUID(),
-        email: validatedData.email,
-        password: hashedPassword,
-        firstName: validatedData.firstName,
-        lastName: validatedData.lastName,
-        personalNumber: validatedData.personalNumber,
-        phone: validatedData.phone,
-        dateOfBirth: validatedData.dateOfBirth ? new Date(validatedData.dateOfBirth).toISOString() : null,
-        address: validatedData.address,
-        city: validatedData.city,
-        state: validatedData.state,
-        zipCode: validatedData.zipCode,
-        country: validatedData.country,
-        status: validatedData.status || 'ACTIVE',
-        totalFlightHours: validatedData.totalFlightHours || 0,
-        licenseNumber: validatedData.licenseNumber,
-        medicalClass: validatedData.medicalClass,
-        instructorRating: validatedData.instructorRating,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        createdById: null,
-      })
+      .insert(userData)
       .select(`
         id,
         email,
@@ -283,6 +302,7 @@ async function createUser(request: NextRequest, currentUser: any) {
     // Assign roles
     if (roles.length > 0) {
       const roleAssignments = roles.map((role) => ({
+        id: crypto.randomUUID(),
         userId: user.id,
         roleId: role.id,
         assignedBy: null, // Set to null to avoid foreign key constraint
@@ -292,7 +312,7 @@ async function createUser(request: NextRequest, currentUser: any) {
       console.log('🔍 createUser - Role assignments:', roleAssignments);
       
       const { error: assignRolesError } = await supabase
-        .from('userRoles')
+        .from('user_roles')
         .insert(roleAssignments);
 
       if (assignRolesError) {
@@ -309,9 +329,37 @@ async function createUser(request: NextRequest, currentUser: any) {
         roles: roles.map((role: any) => role.name),
       };
 
+      // Send password setup email if required
+      if (validatedData.requiresPasswordSetup) {
+        try {
+          const { PasswordSetupService } = await import('@/lib/password-setup-service');
+          const userName = `${validatedData.firstName} ${validatedData.lastName}`.trim() || validatedData.email;
+          
+          const emailResult = await PasswordSetupService.generateSetupToken(
+            user.id,
+            validatedData.email,
+            userName,
+            validatedData.lastName
+          );
+          
+          if (!emailResult.success) {
+            console.error('Failed to send password setup email:', emailResult.message);
+            // Don't fail the user creation, just log the error
+          }
+        } catch (error) {
+          console.error('Error sending password setup email:', error);
+          // Don't fail the user creation, just log the error
+        }
+      }
+
+      const message = validatedData.requiresPasswordSetup 
+        ? 'User created successfully. Password setup email will be sent to the user.'
+        : 'User created successfully';
+
       return NextResponse.json({
-        message: 'User created successfully',
+        message,
         user: userWithRolesArray,
+        requiresPasswordSetup: validatedData.requiresPasswordSetup || false,
       }, { status: 201 });
     }
 

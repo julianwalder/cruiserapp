@@ -21,9 +21,10 @@ export class EmailService {
   private transporter: nodemailer.Transporter;
 
   constructor() {
-    // Force Ethereal Email for development to avoid SMTP authentication issues
-    if (process.env.NODE_ENV === 'production' && process.env.SMTP_USER && process.env.SMTP_PASS) {
-      // Production: Use SMTP (Gmail, SendGrid, etc.)
+    // Use Gmail SMTP if credentials are available, otherwise fall back to Ethereal Email
+    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+      // Use SMTP (Gmail, SendGrid, etc.) - works in both development and production
+      console.log('📧 Using Gmail SMTP for email delivery...');
       this.transporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST || 'smtp.gmail.com',
         port: parseInt(process.env.SMTP_PORT || '587'),
@@ -34,8 +35,8 @@ export class EmailService {
         },
       });
     } else {
-      // Development: Always use Ethereal Email for testing
-      console.log('📧 Using Ethereal Email for development...');
+      // Fallback: Use Ethereal Email for testing when no SMTP credentials
+      console.log('📧 Using Ethereal Email for development (no SMTP credentials found)...');
       this.transporter = nodemailer.createTransport({
         host: 'smtp.ethereal.email',
         port: 587,
@@ -53,21 +54,21 @@ export class EmailService {
       // Handle "From" address based on environment and SMTP provider
       let fromAddress: string;
       
-      if (process.env.NODE_ENV === 'production' && process.env.SMTP_USER) {
-        // Production with Gmail SMTP
+      if (process.env.SMTP_USER) {
+        // Using Gmail SMTP
         const smtpUser = process.env.SMTP_USER;
         const fromEmail = process.env.FROM_EMAIL;
         
         if (fromEmail && fromEmail !== smtpUser) {
-          // Use display name format: "Cruiser Aviation" <smtp-user@gmail.com>
+          // Use display name format: "Cruiser Aviation" <from-email>
           fromAddress = `"Cruiser Aviation" <${fromEmail}>`;
         } else {
-          // Use SMTP_USER directly
-          fromAddress = smtpUser;
+          // Use SMTP_USER with Cruiser Aviation name
+          fromAddress = `"Cruiser Aviation" <${smtpUser}>`;
         }
       } else {
-        // Development or other SMTP providers
-        fromAddress = process.env.FROM_EMAIL || 'noreply@cruiseraviation.com';
+        // Fallback: Use FROM_EMAIL with Cruiser Aviation name
+        fromAddress = `"Cruiser Aviation" <${process.env.FROM_EMAIL || 'noreply@cruiseraviation.com'}>`;
       }
 
       const mailOptions = {
@@ -98,6 +99,127 @@ export class EmailService {
       console.error('❌ Failed to send email:', error);
       return false;
     }
+  }
+
+  async sendPasswordSetupEmail(email: string, setupToken: string, userName: string, lastName?: string): Promise<boolean> {
+    const setupUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/setup-password?token=${setupToken}`;
+    
+    const html = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Set Up Your Password - Cruiser Aviation</title>
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+    <style type="text/css">
+        body { margin: 0; padding: 0; }
+        table, td { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+        img { border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
+        p { display: block; margin: 13px 0; }
+    </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f5f5f5;">
+    <!--[if mso]>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+    <td align="center" style="background-color: #f5f5f5;">
+    <![endif]-->
+    
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f5f5f5;">
+        <tr>
+            <td align="center" style="padding: 20px;">
+                <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width: 600px; background-color: #ffffff; border-radius: 8px; border: 1px solid #e5e7eb;">
+                    
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" style="background-color: #1e3a8a; padding: 32px 24px; border-radius: 8px 8px 0 0;">
+                            <h1 style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 24px; font-weight: 600; color: #ffffff; letter-spacing: -0.025em;">Welcome to Cruiser Aviation</h1>
+
+                        </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 32px 24px; background-color: #ffffff;">
+                            <h2 style="margin: 0 0 16px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 20px; font-weight: 600; color: #000000;">Captain ${lastName || userName},</h2>
+                            <p style="margin: 0 0 16px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 14px; color: #6b7280; line-height: 1.6;">Your account has been created successfully. To complete your registration and access your <strong style="color: #000000;">Cruiser Aviation</strong> account, you need to set up your password.</p>
+                            
+                            <p style="margin: 0 0 16px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 14px; color: #6b7280; line-height: 1.6;">Click the button below to set up your password:</p>
+                            
+                            <!-- Button -->
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin: 20px 0;">
+                                <tr>
+                                    <td align="center">
+                                        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                                            <tr>
+                                                <td align="center" style="background-color: #1e3a8a; border-radius: 6px;">
+                                                    <a href="${setupUrl}" style="display: inline-block; padding: 12px 24px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 14px; font-weight: 600; color: #ffffff; text-decoration: none; border-radius: 6px;">Set Up Password</a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                            
+                            <p style="margin: 16px 0 0 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 12px; color: #9ca3af; line-height: 1.5;">If the button doesn't work, copy and paste this link into your browser:</p>
+                            <p style="margin: 4px 0 0 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 12px; color: #6b7280; word-break: break-all;">${setupUrl}</p>
+                            
+                            <div style="margin: 24px 0 0 0; padding: 16px; background-color: #fef3c7; border-radius: 6px; border-left: 4px solid #f59e0b;">
+                                <p style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 12px; color: #92400e; font-weight: 600;">⏰ Important:</p>
+                                <p style="margin: 4px 0 0 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 12px; color: #92400e; line-height: 1.4;">This link will expire in 24 hours for security reasons. If you don't set up your password within this time, please contact support.</p>
+                            </div>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 24px; background-color: #f9fafb; border-radius: 0 0 8px 8px; border-top: 1px solid #e5e7eb;">
+                            <p style="margin: 0 0 8px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 12px; color: #6b7280; text-align: center;">If you didn't create an account with Cruiser Aviation, you can safely ignore this email.</p>
+                            <p style="margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 12px; color: #9ca3af; text-align: center;">© 2024 Cruiser Aviation. All rights reserved.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+    
+    <!--[if mso]>
+    </td>
+    </tr>
+    </table>
+    <![endif]-->
+</body>
+</html>`;
+
+    const text = `Welcome to Cruiser Aviation!
+
+Hello ${userName},
+
+Your account has been created successfully. To complete your registration and access your Cruiser Aviation account, you need to set up your password.
+
+Set up your password by visiting this link:
+${setupUrl}
+
+This link will expire in 24 hours for security reasons.
+
+If you didn't create an account with Cruiser Aviation, you can safely ignore this email.
+
+© 2024 Cruiser Aviation. All rights reserved.`;
+
+    return this.sendEmail({
+      to: email,
+      subject: 'Set Up Your Password - Cruiser Aviation',
+      html,
+      text,
+    });
   }
 
   async sendPasswordResetEmail(email: string, resetToken: string, userName: string): Promise<boolean> {

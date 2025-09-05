@@ -92,7 +92,7 @@ export default function RegisterPage() {
           </CardDescription>
           <Alert className="mt-4">
             <AlertDescription>
-              <strong>Note:</strong> New accounts are created with inactive status. You will be activated after payment verification by our staff.
+              <strong>Note:</strong> New accounts are created with inactive status. You will be activated after verification by our staff.
             </AlertDescription>
           </Alert>
         </CardHeader>

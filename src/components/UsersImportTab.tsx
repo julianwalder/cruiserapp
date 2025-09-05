@@ -18,19 +18,19 @@ import { CompactCombobox } from './ui/compact-combobox';
 import { useDateFormat } from '@/contexts/DateFormatContext';
 import { formatDate, formatDateTimeWithCurrentFormat } from '@/lib/date-utils';
 import { toast } from 'sonner';
+import { EUROPEAN_COUNTRIES, getRegionsByCountryCode, type Country, type Region } from '@/lib/data/countries-regions';
 
 // User creation schema
 const createUserSchema = z.object({
   email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
   firstName: z.string().min(2, 'First name must be at least 2 characters'),
   lastName: z.string().min(2, 'Last name must be at least 2 characters'),
   personalNumber: z.string().optional(),
   phone: z.string().optional(),
   dateOfBirth: z.string().optional(),
-  address: z.string().optional(),
+  street: z.string().optional(),
   city: z.string().optional(),
-  state: z.string().optional(),
+  region: z.string().optional(),
   zipCode: z.string().optional(),
   country: z.string().optional(),
   roles: z.array(z.string()).min(1, 'At least one role must be selected'),
@@ -74,20 +74,20 @@ export default function UsersImportTab() {
 
   // Create user state
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [selectedCountry, setSelectedCountry] = useState<string>('');
+  const [selectedRegion, setSelectedRegion] = useState<string>('');
   const [createForm, setCreateForm] = useState({
     firstName: '',
     lastName: '',
     email: '',
-    password: '',
     personalNumber: '',
     phone: '',
     dateOfBirth: '',
-    address: '',
+    street: '',
     city: '',
-    state: '',
+    region: '',
     zipCode: '',
     country: '',
     roles: [],
@@ -102,6 +102,24 @@ export default function UsersImportTab() {
     setCreateForm(prev => ({
       ...prev,
       [field]: value
+    }));
+  };
+
+  const handleCountryChange = (countryCode: string) => {
+    setSelectedCountry(countryCode);
+    setSelectedRegion(''); // Reset region when country changes
+    setCreateForm(prev => ({
+      ...prev,
+      country: countryCode,
+      region: ''
+    }));
+  };
+
+  const handleRegionChange = (regionCode: string) => {
+    setSelectedRegion(regionCode);
+    setCreateForm(prev => ({
+      ...prev,
+      region: regionCode
     }));
   };
 
@@ -457,15 +475,14 @@ export default function UsersImportTab() {
       // Add the selected roles to the form data
       const userData = {
         email: createForm.email,
-        password: createForm.password,
         firstName: createForm.firstName,
         lastName: createForm.lastName,
         personalNumber: createForm.personalNumber,
         phone: createForm.phone,
         dateOfBirth: createForm.dateOfBirth,
-        address: createForm.address,
+        address: createForm.street, // Map street to address for API compatibility
         city: createForm.city,
-        state: createForm.state,
+        state: createForm.region, // Map region to state for API compatibility
         zipCode: createForm.zipCode,
         country: createForm.country,
         status: createForm.status,
@@ -474,6 +491,7 @@ export default function UsersImportTab() {
         medicalClass: createForm.medicalClass,
         instructorRating: createForm.instructorRating,
         roles: selectedRoles,
+        requiresPasswordSetup: true, // Flag to indicate password setup is needed
       };
       
       console.log('Sending user data:', userData); // Debug log
@@ -505,18 +523,25 @@ export default function UsersImportTab() {
       const result = await response.json();
       console.log('Success response:', result); // Debug log
 
+      // Show success message
+      toast.success(result.message || 'User created successfully', {
+        description: result.requiresPasswordSetup 
+          ? 'The user will receive an email to set up their password.'
+          : 'User account is ready to use.',
+        duration: 5000,
+      });
+
       // Reset form and close dialog
       setCreateForm({
         firstName: '',
         lastName: '',
         email: '',
-        password: '',
         personalNumber: '',
         phone: '',
         dateOfBirth: '',
-        address: '',
+        street: '',
         city: '',
-        state: '',
+        region: '',
         zipCode: '',
         country: '',
         roles: [],
@@ -527,6 +552,8 @@ export default function UsersImportTab() {
         instructorRating: '',
       });
       setSelectedRoles([]);
+      setSelectedCountry('');
+      setSelectedRegion('');
       setShowCreateDialog(false);
       
       // Refresh users list
@@ -962,13 +989,12 @@ export default function UsersImportTab() {
             firstName: '',
             lastName: '',
             email: '',
-            password: '',
             personalNumber: '',
             phone: '',
             dateOfBirth: '',
-            address: '',
+            street: '',
             city: '',
-            state: '',
+            region: '',
             zipCode: '',
             country: '',
             roles: [],
@@ -979,18 +1005,17 @@ export default function UsersImportTab() {
             instructorRating: '',
           });
           setSelectedRoles([]);
+          setSelectedCountry('');
+          setSelectedRegion('');
           setError('');
         }}
         title="Create New User"
-      >
-        <div className="flex items-center justify-end space-x-2 pb-6">
-          <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-            Cancel
-          </Button>
+        headerActions={
           <Button onClick={handleCreateUser} disabled={createLoading}>
             {createLoading ? 'Creating...' : 'Create User'}
           </Button>
-        </div>
+        }
+      >
           
           <div className="space-y-8">
             {/* Basic Information */}
@@ -1029,31 +1054,6 @@ export default function UsersImportTab() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Password *</Label>
-                  <div className="relative">
-                    <Input
-                      value={createForm.password}
-                      onChange={(e) => handleCreateFormChange('password', e.target.value)}
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="Enter password"
-                      className="bg-background border-input"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2">
                   <Label className="text-sm font-medium text-muted-foreground">Personal Number</Label>
                   <Input
                     value={createForm.personalNumber}
@@ -1071,6 +1071,15 @@ export default function UsersImportTab() {
                     className="bg-background border-input"
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Date of Birth</Label>
+                  <Input
+                    value={createForm.dateOfBirth}
+                    onChange={(e) => handleCreateFormChange('dateOfBirth', e.target.value)}
+                    type="date"
+                    className="bg-background border-input"
+                  />
+                </div>
               </div>
             </div>
 
@@ -1082,29 +1091,54 @@ export default function UsersImportTab() {
               </h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Address</Label>
-                  <Input
-                    value={createForm.address}
-                    onChange={(e) => handleCreateFormChange('address', e.target.value)}
-                    placeholder="Enter address"
-                    className="bg-background border-input"
-                  />
+                  <Label className="text-sm font-medium text-muted-foreground">Country *</Label>
+                  <Select value={selectedCountry} onValueChange={handleCountryChange}>
+                    <SelectTrigger className="bg-background border-input">
+                      <SelectValue placeholder="Select country" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {EUROPEAN_COUNTRIES.map((country) => (
+                        <SelectItem key={country.code} value={country.code}>
+                          {country.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">City</Label>
+                  <Label className="text-sm font-medium text-muted-foreground">Region/State</Label>
+                  <Select 
+                    value={selectedRegion} 
+                    onValueChange={handleRegionChange}
+                    disabled={!selectedCountry}
+                  >
+                    <SelectTrigger className="bg-background border-input">
+                      <SelectValue placeholder={selectedCountry ? "Select region" : "Select country first"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {selectedCountry && getRegionsByCountryCode(selectedCountry).map((region) => (
+                        <SelectItem key={region.code} value={region.code}>
+                          {region.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">City/Place *</Label>
                   <Input
                     value={createForm.city}
                     onChange={(e) => handleCreateFormChange('city', e.target.value)}
-                    placeholder="Enter city"
+                    placeholder="Enter city or place"
                     className="bg-background border-input"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">State/Province</Label>
+                  <Label className="text-sm font-medium text-muted-foreground">Street Details</Label>
                   <Input
-                    value={createForm.state}
-                    onChange={(e) => handleCreateFormChange('state', e.target.value)}
-                    placeholder="Enter state"
+                    value={createForm.street}
+                    onChange={(e) => handleCreateFormChange('street', e.target.value)}
+                    placeholder="Street, number, building, etc."
                     className="bg-background border-input"
                   />
                 </div>
@@ -1113,16 +1147,7 @@ export default function UsersImportTab() {
                   <Input
                     value={createForm.zipCode}
                     onChange={(e) => handleCreateFormChange('zipCode', e.target.value)}
-                    placeholder="Enter ZIP code"
-                    className="bg-background border-input"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Country</Label>
-                  <Input
-                    value={createForm.country}
-                    onChange={(e) => handleCreateFormChange('country', e.target.value)}
-                    placeholder="Enter country"
+                    placeholder="Enter postal code"
                     className="bg-background border-input"
                   />
                 </div>

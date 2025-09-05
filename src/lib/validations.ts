@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const userRegistrationSchema = z.object({
   email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password: z.string().min(8, 'Password must be at least 8 characters').optional(),
   firstName: z.string().min(2, 'First name must be at least 2 characters'),
   lastName: z.string().min(2, 'Last name must be at least 2 characters'),
   personalNumber: z.string().optional(),
@@ -20,6 +20,13 @@ export const userRegistrationSchema = z.object({
   licenseNumber: z.string().optional(),
   medicalClass: z.string().optional(),
   instructorRating: z.string().optional(),
+  requiresPasswordSetup: z.boolean().optional(),
+}).refine((data) => {
+  // Either password is provided OR requiresPasswordSetup is true
+  return data.password || data.requiresPasswordSetup;
+}, {
+  message: "Either password must be provided or requiresPasswordSetup must be true",
+  path: ["password"]
 });
 
 export const userLoginSchema = z.object({
