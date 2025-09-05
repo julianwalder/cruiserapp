@@ -23,6 +23,8 @@ const ROUTE_ACCESS = {
     '/api/veriff/callback',
     '/api/veriff/webhook',
     '/api/veriff/webhook-enhanced',
+    '/api/veriff/webhook-full-auto',
+    '/api/veriff/robust-webhook',
 
     '/invite',
   ],
@@ -39,6 +41,7 @@ const ROUTE_ACCESS = {
     '/api/dashboard',
     '/api/notifications',
     '/api/veriff',
+    '/api/veriff/robust-status',
   ],
   
   // Role-specific routes

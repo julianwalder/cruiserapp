@@ -61,6 +61,7 @@ export default function UsersImportTab() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [verifiedFilter, setVerifiedFilter] = useState('');
   const [importSummary, setImportSummary] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importLoading, setImportLoading] = useState(false);
@@ -131,6 +132,7 @@ export default function UsersImportTab() {
       if (search) params.append('search', search);
       if (roleFilter) params.append('role', roleFilter);
       if (statusFilter) params.append('status', statusFilter);
+      if (verifiedFilter) params.append('verified', verifiedFilter);
       const response = await fetch(`/api/users?${params}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -153,7 +155,7 @@ export default function UsersImportTab() {
   useEffect(() => {
     fetchUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination.page, search, roleFilter, statusFilter]);
+  }, [pagination.page, search, roleFilter, statusFilter, verifiedFilter]);
 
   // Add this effect to fetch users when limit changes
   useEffect(() => {
@@ -194,7 +196,7 @@ export default function UsersImportTab() {
 
   const roleOptions = useMemo(() => {
     return [
-      { value: '', label: 'All roles' },
+      { value: '', label: 'All' },
       ...ALL_ROLES.filter(Boolean).map((role) => ({ value: role, label: formatRoleLabel(role) })),
     ];
   }, []);
@@ -216,8 +218,16 @@ export default function UsersImportTab() {
   };
   const statusOptions = useMemo(() => {
     return [
-      { value: '', label: 'All statuses' },
+      { value: '', label: 'All' },
       ...ALL_STATUSES.filter(Boolean).map((status) => ({ value: status, label: formatStatusLabel(status) })),
+    ];
+  }, []);
+
+  const verifiedOptions = useMemo(() => {
+    return [
+      { value: '', label: 'All' },
+      { value: 'true', label: 'Verified' },
+      { value: 'false', label: 'Not Verified' },
     ];
   }, []);
 
@@ -776,6 +786,7 @@ export default function UsersImportTab() {
                   <TableHead>User</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Verified</TableHead>
                   <TableHead>Flight Hours</TableHead>
                   <TableHead>Created</TableHead>
                 </TableRow>
@@ -804,6 +815,14 @@ export default function UsersImportTab() {
                       placeholder="All statuses..."
                     />
                   </TableCell>
+                  <TableCell>
+                    <CompactCombobox
+                      options={verifiedOptions}
+                      value={verifiedFilter}
+                      onValueChange={v => { setVerifiedFilter(v); setPagination(p => ({ ...p, page: 1 })); }}
+                      placeholder="All verification statuses..."
+                    />
+                  </TableCell>
                   <TableCell />
                   <TableCell />
                 </TableRow>
@@ -811,13 +830,13 @@ export default function UsersImportTab() {
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8">
+                    <TableCell colSpan={6} className="text-center py-8">
                       Loading users...
                     </TableCell>
                   </TableRow>
                 ) : users.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8">
+                    <TableCell colSpan={6} className="text-center py-8">
                       No users found
                     </TableCell>
                   </TableRow>
@@ -837,6 +856,11 @@ export default function UsersImportTab() {
                       </TableCell>
                       <TableCell>
                         <Badge className={getStatusBadgeColor(user.status)}>{user.status}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={user.identityVerified ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'}>
+                          {user.identityVerified ? 'Verified' : 'Not Verified'}
+                        </Badge>
                       </TableCell>
                       <TableCell>{user.totalFlightHours}</TableCell>
                       <TableCell>{user.createdAt ? formatDate(user.createdAt, dateFormat) : ''}</TableCell>
@@ -958,7 +982,6 @@ export default function UsersImportTab() {
           setError('');
         }}
         title="Create New User"
-        description="Add a new user to the Cruiser Aviation system"
       >
         <div className="flex items-center justify-end space-x-2 pb-6">
           <Button variant="outline" onClick={() => setShowCreateDialog(false)}>

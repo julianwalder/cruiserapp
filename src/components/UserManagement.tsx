@@ -76,6 +76,22 @@ interface ExtendedUser extends User {
   roles: string[];
   lastLoginAt?: string;
   avatarUrl?: string;
+  identityVerified?: boolean;
+  personalNumber?: string;
+  normalizedAddress?: {
+    street_address?: string;
+    city?: string;
+    state_region?: string;
+    country?: string;
+    postal_code?: string;
+    phone?: string;
+    cnp?: string;
+    confidence_score?: number;
+    processing_notes?: string;
+    source_type?: string;
+    created_at?: string;
+    updated_at?: string;
+  };
   createdBy?: {
     id: string;
     firstName: string;
@@ -106,15 +122,9 @@ const CompactCombobox = ({
   placeholder: string;
 }) => {
   const [open, setOpen] = useState(false);
-  const [searchValue, setSearchValue] = useState("");
 
   return (
-    <Popover open={open} onOpenChange={(newOpen) => {
-      setOpen(newOpen);
-      if (!newOpen) {
-        setSearchValue("");
-      }
-    }}>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -131,39 +141,28 @@ const CompactCombobox = ({
       </PopoverTrigger>
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
         <Command shouldFilter={false}>
-          <CommandInput 
-            placeholder="Search..." 
-            value={searchValue}
-            onValueChange={setSearchValue}
-            className="h-8 text-xs"
-          />
           <CommandList>
             <CommandEmpty className="text-xs">No options found.</CommandEmpty>
             <CommandGroup>
-              {options
-                .filter((option) => {
-                  if (!searchValue) return true;
-                  return option.label.toLowerCase().includes(searchValue.toLowerCase());
-                })
-                .map((option) => (
-                  <CommandItem
-                    key={option.value}
-                    value={option.value}
-                    onSelect={(currentValue: string) => {
-                      onValueChange(currentValue === value ? "" : currentValue)
-                      setOpen(false)
-                    }}
-                    className="text-xs"
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-3 w-3",
-                        value === option.value ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    {option.label}
-                  </CommandItem>
-                ))}
+              {options.map((option) => (
+                <CommandItem
+                  key={option.value}
+                  value={option.value}
+                  onSelect={(currentValue: string) => {
+                    onValueChange(currentValue === value ? "" : currentValue)
+                    setOpen(false)
+                  }}
+                  className="text-xs"
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-3 w-3",
+                      value === option.value ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  {option.label}
+                </CommandItem>
+              ))}
             </CommandGroup>
           </CommandList>
         </Command>
@@ -186,6 +185,7 @@ export default function UserManagement() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL_STATUSES');
+  const [verifiedFilter, setVerifiedFilter] = useState('ALL_VERIFIED');
   const [selectedUser, setSelectedUser] = useState<ExtendedUser | null>(null);
   const [showUserDialog, setShowUserDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -257,6 +257,7 @@ export default function UserManagement() {
       if (search) params.append('search', search);
       if (roleFilter && roleFilter !== 'ALL') params.append('role', roleFilter);
       if (statusFilter && statusFilter !== 'ALL_STATUSES') params.append('status', statusFilter);
+      if (verifiedFilter && verifiedFilter !== 'ALL_VERIFIED') params.append('verified', verifiedFilter);
 
       const response = await fetch(`/api/users?${params}`, {
         headers: {
@@ -281,7 +282,7 @@ export default function UserManagement() {
 
   useEffect(() => {
     fetchUsers();
-  }, [pagination.page, pagination.limit, search, roleFilter, statusFilter]);
+  }, [pagination.page, pagination.limit, search, roleFilter, statusFilter, verifiedFilter]);
 
   // Fetch all users for combobox options (once on mount)
   useEffect(() => {
@@ -997,22 +998,30 @@ export default function UserManagement() {
   }, [allUsers]);
 
   const roleOptions = useMemo(() => [
-    { value: 'ALL', label: 'All Roles' },
+    { value: 'ALL', label: 'All' },
     ...allRoles.map(r => ({ value: r, label: getRoleDisplayName(r) }))
   ], [allRoles]);
   const statusOptions = useMemo(() => [
-    { value: 'ALL_STATUSES', label: 'All Statuses' },
+    { value: 'ALL_STATUSES', label: 'All' },
     ...allStatuses.map(s => ({ value: s, label: s.charAt(0) + s.slice(1).toLowerCase() }))
   ], [allStatuses]);
+
+  const verifiedOptions = useMemo(() => [
+    { value: 'ALL_VERIFIED', label: 'All' },
+    { value: 'true', label: 'Verified' },
+    { value: 'false', label: 'Not Verified' }
+  ], []);
 
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
       const matchesSearch = search ? (user.firstName + ' ' + user.lastName + ' ' + user.email + ' ' + user.personalNumber + ' ' + user.licenseNumber).toLowerCase().includes(search.toLowerCase()) : true;
       const matchesRole = roleFilter && roleFilter !== 'ALL' ? user.roles.includes(roleFilter) : true;
       const matchesStatus = statusFilter && statusFilter !== 'ALL_STATUSES' ? user.status === statusFilter : true;
-      return matchesSearch && matchesRole && matchesStatus;
+      const matchesVerified = verifiedFilter && verifiedFilter !== 'ALL_VERIFIED' ? 
+        (verifiedFilter === 'true' ? user.identityVerified === true : user.identityVerified === false) : true;
+      return matchesSearch && matchesRole && matchesStatus && matchesVerified;
     });
-  }, [users, search, roleFilter, statusFilter]);
+  }, [users, search, roleFilter, statusFilter, verifiedFilter]);
 
   return (
     <>
@@ -1028,6 +1037,7 @@ export default function UserManagement() {
                     <TableHead className="w-64">User</TableHead>
                     <TableHead className="w-48">Role</TableHead>
                     <TableHead className="w-32">Status</TableHead>
+                    <TableHead className="w-32">Verified</TableHead>
                     <TableHead className="w-32">Flight Hours</TableHead>
                     <TableHead className="w-32">Created</TableHead>
                     <TableHead className="w-24"></TableHead>
@@ -1057,6 +1067,14 @@ export default function UserManagement() {
                         placeholder="Select status..."
                       />
                     </TableCell>
+                    <TableCell>
+                      <CompactCombobox
+                        options={verifiedOptions}
+                        value={verifiedFilter}
+                        onValueChange={setVerifiedFilter}
+                        placeholder="Select verification status..."
+                      />
+                    </TableCell>
                     <TableCell />
                     <TableCell />
                     <TableCell />
@@ -1065,13 +1083,13 @@ export default function UserManagement() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8">
+                      <TableCell colSpan={8} className="text-center py-8">
                         Loading users...
                       </TableCell>
                     </TableRow>
                     ) : filteredUsers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8">
+                      <TableCell colSpan={8} className="text-center py-8">
                         No users found
                       </TableCell>
                     </TableRow>
@@ -1133,6 +1151,11 @@ export default function UserManagement() {
                         <TableCell className="w-32">
                           <Badge className={getStatusBadgeColor(user.status)}>
                             {user.status.replace('_', ' ')}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="w-32">
+                          <Badge className={user.identityVerified ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'}>
+                            {user.identityVerified ? 'Verified' : 'Not Verified'}
                           </Badge>
                         </TableCell>
                         <TableCell className="w-32">{user.totalFlightHours}</TableCell>
@@ -1573,7 +1596,6 @@ export default function UserManagement() {
         open={showUserDialog}
         onClose={() => setShowUserDialog(false)}
         title="User Details"
-        description="Complete user information and profile details"
         headerActions={
           selectedUser && (
             <div className="flex items-center gap-2">
@@ -1775,6 +1797,76 @@ export default function UserManagement() {
                 </div>
               </div>
             </div>
+
+            {/* Normalized Address Information */}
+            {selectedUser.normalizedAddress && (
+              <div className="bg-muted rounded-lg p-6">
+                <h3 className="text-xl font-semibold text-card-foreground mb-4 flex items-center">
+                  <MapPin className="h-5 w-5 mr-2" />
+                  Normalized Address Information
+                </h3>
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Street Address</Label>
+                    <p className="text-base text-card-foreground">{selectedUser.normalizedAddress.street_address || '-'}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">City</Label>
+                    <p className="text-base text-card-foreground">{selectedUser.normalizedAddress.city || '-'}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">State/Region</Label>
+                    <p className="text-base text-card-foreground">{selectedUser.normalizedAddress.state_region || '-'}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Country</Label>
+                    <p className="text-base text-card-foreground">{selectedUser.normalizedAddress.country || '-'}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Postal Code</Label>
+                    <p className="text-base text-card-foreground">{selectedUser.normalizedAddress.postal_code || '-'}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Phone</Label>
+                    <p className="text-base text-card-foreground">{selectedUser.normalizedAddress.phone || '-'}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">CNP</Label>
+                    <p className="text-base text-card-foreground">{selectedUser.normalizedAddress.cnp || '-'}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Confidence Score</Label>
+                    <p className="text-base text-card-foreground">
+                      {selectedUser.normalizedAddress.confidence_score ? `${Math.round(selectedUser.normalizedAddress.confidence_score * 100)}%` : '-'}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Source Type</Label>
+                    <p className="text-base text-card-foreground">{selectedUser.normalizedAddress.source_type || '-'}</p>
+                  </div>
+                </div>
+                {selectedUser.normalizedAddress.processing_notes && (
+                  <div className="mt-4 space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Processing Notes</Label>
+                    <p className="text-base text-card-foreground bg-background p-3 rounded border">
+                      {selectedUser.normalizedAddress.processing_notes}
+                    </p>
+                  </div>
+                )}
+                <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-4 text-sm text-muted-foreground">
+                  {selectedUser.normalizedAddress.created_at && (
+                    <div>
+                      <span className="font-medium">Created:</span> {formatDate(selectedUser.normalizedAddress.created_at)}
+                    </div>
+                  )}
+                  {selectedUser.normalizedAddress.updated_at && (
+                    <div>
+                      <span className="font-medium">Updated:</span> {formatDate(selectedUser.normalizedAddress.updated_at)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Flight School Information */}
             <div className="bg-muted rounded-lg p-6">
