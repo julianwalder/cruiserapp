@@ -24,6 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Modal } from './ui/Modal';
 import { User } from "@/types/uuid-types";
+import { EUROPEAN_COUNTRIES, getRegionsByCountryCode, type Country, type Region } from '@/lib/data/countries-regions';
 
 // User creation schema
 const createUserSchema = z.object({
@@ -194,6 +195,8 @@ export default function UserManagement() {
   const [selectedRoles, setSelectedRoles] = useState<string[]>(['STUDENT']);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importLoading, setImportLoading] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState<string>('');
+  const [selectedRegion, setSelectedRegion] = useState<string>('');
   const [importResults, setImportResults] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -242,6 +245,17 @@ export default function UserManagement() {
         return [...prev, role];
       }
     });
+  };
+
+  const handleCountryChange = (countryCode: string) => {
+    setSelectedCountry(countryCode);
+    setSelectedRegion(''); // Reset region when country changes
+    handleEditChange('country', countryCode);
+  };
+
+  const handleRegionChange = (regionCode: string) => {
+    setSelectedRegion(regionCode);
+    handleEditChange('state', regionCode);
   };
 
   const fetchUsers = async () => {
@@ -747,6 +761,10 @@ export default function UserManagement() {
         instructorRating: selectedUser.instructorRating || '',
         roles: selectedUser.roles
       });
+      
+      // Initialize country and region state for dropdowns
+      setSelectedCountry(selectedUser.country || '');
+      setSelectedRegion(selectedUser.state || '');
     }
   }, [selectedUser]);
 
@@ -1731,25 +1749,58 @@ export default function UserManagement() {
               </h3>
               <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Address</Label>
+                  <Label className="text-sm font-medium text-muted-foreground">Country</Label>
                   {isEditing ? (
-                    <Input
-                      value={editForm.address}
-                      onChange={(e) => handleEditChange('address', e.target.value)}
-                      placeholder="Enter address"
-                      className="bg-background border-input"
-                    />
+                    <Select value={selectedCountry} onValueChange={handleCountryChange}>
+                      <SelectTrigger className="bg-background border-input">
+                        <SelectValue placeholder="Select country" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {EUROPEAN_COUNTRIES.map((country) => (
+                          <SelectItem key={country.code} value={country.code}>
+                            {country.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   ) : (
-                    <p className="text-base text-card-foreground">{selectedUser.address || '-'}</p>
+                    <p className="text-base text-card-foreground">
+                      {selectedUser.country ? EUROPEAN_COUNTRIES.find(c => c.code === selectedUser.country)?.name || selectedUser.country : '-'}
+                    </p>
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">City</Label>
+                  <Label className="text-sm font-medium text-muted-foreground">Region/State</Label>
+                  {isEditing ? (
+                    <Select 
+                      value={selectedRegion} 
+                      onValueChange={handleRegionChange}
+                      disabled={!selectedCountry}
+                    >
+                      <SelectTrigger className="bg-background border-input">
+                        <SelectValue placeholder={selectedCountry ? "Select region" : "Select country first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectedCountry && getRegionsByCountryCode(selectedCountry).map((region) => (
+                          <SelectItem key={region.code} value={region.code}>
+                            {region.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="text-base text-card-foreground">
+                      {selectedUser.state ? getRegionsByCountryCode(selectedUser.country || '').find(r => r.code === selectedUser.state)?.name || selectedUser.state : '-'}
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">City/Place</Label>
                   {isEditing ? (
                     <Input
                       value={editForm.city}
                       onChange={(e) => handleEditChange('city', e.target.value)}
-                      placeholder="Enter city"
+                      placeholder="Enter city or place"
                       className="bg-background border-input"
                     />
                   ) : (
@@ -1757,16 +1808,16 @@ export default function UserManagement() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">State/Province</Label>
+                  <Label className="text-sm font-medium text-muted-foreground">Street Details</Label>
                   {isEditing ? (
                     <Input
-                      value={editForm.state}
-                      onChange={(e) => handleEditChange('state', e.target.value)}
-                      placeholder="Enter state"
+                      value={editForm.address}
+                      onChange={(e) => handleEditChange('address', e.target.value)}
+                      placeholder="Street, number, building, etc."
                       className="bg-background border-input"
                     />
                   ) : (
-                    <p className="text-base text-card-foreground">{selectedUser.state || '-'}</p>
+                    <p className="text-base text-card-foreground">{selectedUser.address || '-'}</p>
                   )}
                 </div>
                 <div className="space-y-2">
@@ -1775,24 +1826,11 @@ export default function UserManagement() {
                     <Input
                       value={editForm.zipCode}
                       onChange={(e) => handleEditChange('zipCode', e.target.value)}
-                      placeholder="Enter ZIP code"
+                      placeholder="Enter postal code"
                       className="bg-background border-input"
                     />
                   ) : (
                     <p className="text-base text-card-foreground">{selectedUser.zipCode || '-'}</p>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Country</Label>
-                  {isEditing ? (
-                    <Input
-                      value={editForm.country}
-                      onChange={(e) => handleEditChange('country', e.target.value)}
-                      placeholder="Enter country"
-                      className="bg-background border-input"
-                    />
-                  ) : (
-                    <p className="text-base text-card-foreground">{selectedUser.country || '-'}</p>
                   )}
                 </div>
               </div>
@@ -1973,19 +2011,21 @@ export default function UserManagement() {
                     <p className="text-base text-card-foreground">{selectedUser.medicalClass || '-'}</p>
                   )}
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-muted-foreground">Instructor Rating</Label>
-                  {isEditing ? (
-                    <Input
-                      value={editForm.instructorRating}
-                      onChange={(e) => handleEditChange('instructorRating', e.target.value)}
-                      placeholder="Enter instructor rating"
-                      className="bg-background border-input"
-                    />
-                  ) : (
-                    <p className="text-base text-card-foreground">{selectedUser.instructorRating || '-'}</p>
-                  )}
-                </div>
+                {(editForm.roles?.includes('INSTRUCTOR') || selectedUser.roles?.includes('INSTRUCTOR')) && (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-muted-foreground">Instructor Rating</Label>
+                    {isEditing ? (
+                      <Input
+                        value={editForm.instructorRating}
+                        onChange={(e) => handleEditChange('instructorRating', e.target.value)}
+                        placeholder="Enter instructor rating"
+                        className="bg-background border-input"
+                      />
+                    ) : (
+                      <p className="text-base text-card-foreground">{selectedUser.instructorRating || '-'}</p>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

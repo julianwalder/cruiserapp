@@ -121,12 +121,12 @@ const createFlightLogSchema = z.object({
   nightLandings: z.number().min(0, "Night landings must be 0 or greater"),
   
   // Additional information
-  oilAdded: z.number().min(0, "Oil added must be 0 or greater"),
-  fuelAdded: z.number().min(0, "Fuel added must be 0 or greater"),
-  purpose: z.string().optional().or(z.undefined()),
-  remarks: z.string().optional().or(z.undefined()),
-  route: z.string().optional().or(z.undefined()),
-  conditions: z.string().optional().or(z.undefined()),
+  oilAdded: z.number().min(0, "Oil added must be 0 or greater").optional(),
+  fuelAdded: z.number().min(0, "Fuel added must be 0 or greater").optional(),
+  purpose: z.string().optional().or(z.undefined()).nullable(),
+  remarks: z.string().optional().or(z.undefined()).nullable(),
+  route: z.string().optional().or(z.undefined()).nullable(),
+  conditions: z.string().optional().or(z.undefined()).nullable(),
   flightType: z.enum(["INVOICED", "SCHOOL", "FERRY", "CHARTER", "DEMO", "PROMO"]),
 });
 
@@ -457,7 +457,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
   });
   const [filters, setFilters] = useState({
     aircraftId: '',
-    userId: '',
+    userId: null as string | null,
     instructorId: '',
     departureAirfieldId: '',
     arrivalAirfieldId: '',
@@ -485,8 +485,8 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       flightType: "SCHOOL",
       departureHobbs: undefined,
       arrivalHobbs: undefined,
-      oilAdded: 0,
-      fuelAdded: 0,
+      oilAdded: undefined,
+      fuelAdded: undefined,
       dayLandings: 1,
       nightLandings: 0,
       pilotInCommand: 0,
@@ -683,6 +683,18 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
     }
   }, [pagination.page, pagination.limit, activeTab, viewMode, filters]);
 
+  // Specific effect to handle userId filter changes for base managers
+  useEffect(() => {
+    if (currentUser && !loading) {
+      const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
+      const isBaseManager = userRoles.includes('BASE_MANAGER');
+      
+      if (isBaseManager) {
+        fetchFlightLogs();
+      }
+    }
+  }, [filters.userId, currentUser, loading]);
+
   // Reset to first page when activeTab, viewMode, or filters change
   useEffect(() => {
     setPagination(prev => ({ ...prev, page: 1 }));
@@ -699,8 +711,12 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
     
     // If user is BASE_MANAGER + PILOT/STUDENT and switches to personal view, set pilot filter to self
     if (isBaseManager && (isPilot || isStudent) && viewMode === 'personal') {
-
-              setFilters(prev => ({ ...prev, userId: currentUser.id }));
+      setFilters(prev => ({ ...prev, userId: currentUser.id }));
+    }
+    
+    // If user is BASE_MANAGER and switches to company view, set userId to null to show all flights
+    if (isBaseManager && viewMode === 'company') {
+      setFilters(prev => ({ ...prev, userId: null }));
     }
   }, [viewMode, currentUser]);
 
@@ -745,7 +761,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       if (filters.aircraftId) {
         params.append('aircraftId', filters.aircraftId);
       }
-      if (filters.userId) {
+      if (filters.userId && filters.userId !== null && filters.userId.trim() !== '') {
         params.append('userId', filters.userId);
       }
       if (filters.instructorId) {
@@ -1865,6 +1881,11 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                           return currentUser.id;
                         }
                         
+                        // If user is BASE_MANAGER and in company view, show "All" (null value)
+                        if (isBaseManager && viewMode === 'company') {
+                          return null;
+                        }
+                        
                         return filters.userId;
                       })()}
                       onValueChange={(value) => setFilters(prev => ({ ...prev, userId: value }))}
@@ -1996,7 +2017,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                       onClick={() => {
                         setFilters({
                           aircraftId: '',
-                          userId: '',
+                          userId: null,
                           instructorId: '',
                           departureAirfieldId: '',
                           arrivalAirfieldId: '',

@@ -48,6 +48,7 @@ next-env.d.ts
 
 # SQL migration scripts (should be run manually, not tracked in Git)
 /scripts/sql/*.sql
+/scripts/*.sql
 
 # Local test and utility files in root
 test-*.js
