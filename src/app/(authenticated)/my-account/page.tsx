@@ -68,14 +68,14 @@ interface MyAccountUser extends UserType {
   idNumber?: string;
   personalNumber?: string;
   avatarUrl?: string;
-  postalCode?: string;
+  zipCode?: string;
   // Normalized address data
   normalizedAddress?: {
     streetAddress?: string;
     city?: string;
     stateRegion?: string;
     country?: string;
-    postalCode?: string;
+    zipCode?: string;
     phone?: string;
     cnp?: string;
     confidenceScore?: number;
@@ -902,7 +902,7 @@ export default function MyAccountPage() {
                 </div>
                 <div>
                   <label className="text-sm font-medium">Postal Code</label>
-                  <p className="text-sm text-muted-foreground">{user.postalCode || 'Not provided'}</p>
+                  <p className="text-sm text-muted-foreground">{user.zipCode || 'Not provided'}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium">Country</label>

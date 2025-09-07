@@ -391,7 +391,7 @@ export class EnhancedVeriffWebhook {
       updateData.city = verificationData.person.city;
     }
     if (verificationData.person?.postalCode) {
-      updateData.postalCode = verificationData.person.postalCode;
+      updateData.zipCode = verificationData.person.postalCode;
     }
 
     const { error } = await supabase

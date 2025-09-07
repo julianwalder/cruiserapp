@@ -20,16 +20,12 @@ export async function POST(request: NextRequest) {
 
     // Process with enhanced webhook handler
     console.log('Processing Veriff callback with enhanced handler...');
-    const result = await EnhancedVeriffWebhook.processWebhook(
-      payload,
-      signature || undefined,
-      Object.fromEntries(request.headers.entries())
-    );
-
-    if (result.success) {
-      console.log('Enhanced Veriff callback processed successfully:', result);
-    } else {
-      console.error('Enhanced Veriff callback failed:', result);
+    try {
+      await EnhancedVeriffWebhook.processWebhook(payload, signature || '');
+      console.log('Enhanced Veriff callback processed successfully');
+    } catch (enhancedError) {
+      console.error('Enhanced Veriff callback failed:', enhancedError);
+      throw enhancedError;
     }
 
     // Also call the legacy handler for backward compatibility
@@ -40,8 +36,7 @@ export async function POST(request: NextRequest) {
     // Return success response to Veriff
     return NextResponse.json({ 
       status: 'ok',
-      enhanced: result.success,
-      message: result.message
+      message: 'Webhook processed successfully'
     });
 
   } catch (error) {
