@@ -228,6 +228,9 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
   const [viewMode, setViewMode] = useState<'table' | 'card'>('card');
   // State for superadmin status
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  // State for tracking unsaved changes
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showCloseConfirmation, setShowCloseConfirmation] = useState(false);
 
   // 2. Fetch ICAO reference types on mount
   useEffect(() => {
@@ -305,12 +308,10 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
           'Authorization': `Bearer ${token}`,
         },
       });
-
+      
       if (response.ok) {
         const data = await response.json();
         const hobbsData = data.aircraftHobbs || [];
-        
-        console.log(`🔍 Fetched Hobbs data for ${hobbsData.length} aircraft`);
         
         // Create a map of Hobbs data by aircraft ID
         const aircraftHobbsMap = new Map<string, { hobbs: number; date: string }>();
@@ -321,14 +322,12 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
               hobbs: item.last_hobbs_reading,
               date: item.last_hobbs_date
             });
-            console.log(`📊 Found Hobbs data for ${item.aircraft?.callSign || item.aircraft_id}: ${item.last_hobbs_reading} hours on ${item.last_hobbs_date}`);
           }
         });
 
         // Add Hobbs data to aircraft
         return aircraftList.map(aircraft => {
           const hobbsData = aircraftHobbsMap.get(aircraft.id);
-          console.log(`✈️ Aircraft ${aircraft.callSign} (${aircraft.id}): ${hobbsData ? `${hobbsData.hobbs} hours on ${hobbsData.date}` : 'No Hobbs data'}`);
           
           return {
             ...aircraft,
@@ -517,8 +516,21 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
       resetEdit();
       setSelectedIcaoDesignator('');
       setSelectedManufacturer('');
+      setHasUnsavedChanges(false);
     }
   }, [showAircraftDialog, resetEdit]);
+
+  // Track form changes to detect unsaved changes
+  useEffect(() => {
+    if (isEditMode) {
+      const subscription = watchEdit((value, { name, type }) => {
+        if (type === 'change') {
+          setHasUnsavedChanges(true);
+        }
+      });
+      return () => subscription.unsubscribe();
+    }
+  }, [isEditMode, watchEdit]);
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -624,6 +636,7 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
       setIsEditMode(false);
       setAircraftImage(null);
       setImagePreview(null);
+      setHasUnsavedChanges(false);
       fetchAircraft();
       toast.success('Aircraft updated successfully!', {
         description: `${data.callSign} has been updated.`
@@ -770,6 +783,7 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
 
   const enterEditMode = () => {
     setIsEditMode(true);
+    setHasUnsavedChanges(false);
   };
 
   const handleEditClick = (aircraft: Aircraft) => {
@@ -785,6 +799,26 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
     resetEdit();
     setSelectedIcaoDesignator('');
     setSelectedManufacturer('');
+    setHasUnsavedChanges(false);
+  };
+
+  const handleCloseModal = () => {
+    if (isEditMode && hasUnsavedChanges) {
+      setShowCloseConfirmation(true);
+    } else {
+      setShowAircraftDialog(false);
+      exitEditMode();
+    }
+  };
+
+  const confirmClose = () => {
+    setShowCloseConfirmation(false);
+    setShowAircraftDialog(false);
+    exitEditMode();
+  };
+
+  const cancelClose = () => {
+    setShowCloseConfirmation(false);
   };
 
   const getTypeBadgeColor = (type: string) => {
@@ -1205,7 +1239,6 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
         open={showCreateDialog}
         onClose={() => setShowCreateDialog(false)}
         title="Add New Aircraft"
-        description="Enter the details for the new aircraft"
       >
           <form onSubmit={handleSubmitAircraft(handleCreateAircraft as any)} className="space-y-6">
             {/* ICAO Type Designator Selection */}
@@ -1370,7 +1403,6 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
         open={showFleetDialog}
         onClose={() => setShowFleetDialog(false)}
         title={`Fleet Management - ${selectedAircraft?.callSign}`}
-        description="Configure operational settings for this aircraft"
       >
           <form onSubmit={handleSubmitFleet(handleFleetManagement)} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1487,25 +1519,26 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
       {/* Aircraft Details Dialog */}
       <Modal
         open={showAircraftDialog}
-        onClose={() => setShowAircraftDialog(false)}
+        onClose={handleCloseModal}
         title={selectedAircraft?.callSign || 'Aircraft Details'}
+        headerActions={
+          selectedAircraft && canEdit ? (
+            isEditMode ? (
+              <Button 
+                onClick={handleSubmitEdit(handleEditAircraft)}
+                disabled={editLoading}
+              >
+                {editLoading ? 'Saving...' : 'Save'}
+              </Button>
+            ) : (
+              <Button onClick={enterEditMode}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+            )
+          ) : undefined
+        }
       >
-        <div className="flex items-center gap-2 mb-4">
-          {selectedAircraft && canEdit && (
-            <>
-              {!isEditMode ? (
-                <Button onClick={enterEditMode} variant="outline" size="sm">
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit
-                </Button>
-              ) : (
-                <Button onClick={exitEditMode} variant="outline" size="sm">
-                  Cancel
-                </Button>
-              )}
-            </>
-          )}
-        </div>
 
           {/* Scrollable Content */}
           <div className="flex-1 overflow-y-auto pt-4 scrollbar-hide">
@@ -1652,21 +1685,6 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
                         </div>
                       )}
                     </div>
-                  </div>
-                  <div className="flex justify-end space-x-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={exitEditMode}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={editLoading}
-                    >
-                      {editLoading ? 'Updating...' : 'Update Aircraft'}
-                    </Button>
                   </div>
                 </form>
               ) : (
@@ -2059,6 +2077,25 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
             </div>
           )}
           </div>
+      </Modal>
+
+      {/* Close Confirmation Dialog */}
+      <Modal
+        open={showCloseConfirmation}
+        onClose={cancelClose}
+        title="Unsaved Changes"
+      >
+        <div className="space-y-4">
+          <p>Are you sure you want to close? The changes will not be saved.</p>
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={cancelClose}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmClose}>
+              Close Without Saving
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
