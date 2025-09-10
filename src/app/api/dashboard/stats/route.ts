@@ -45,7 +45,9 @@ export async function GET(request: NextRequest) {
       pendingApprovalsResult,
       totalAirfieldsResult,
       activeAirfieldsResult,
-      totalAircraftResult
+      totalAircraftResult,
+      activeAircraftResult,
+      fleetStatusResult
     ] = await Promise.all([
       // Total users
       supabase.from('users').select('id', { count: 'exact', head: true }),
@@ -62,8 +64,33 @@ export async function GET(request: NextRequest) {
       // Active airfields
       supabase.from('airfields').select('id', { count: 'exact', head: true }).eq('status', 'ACTIVE'),
       
-      // Total aircraft
-      supabase.from('aircraft').select('id', { count: 'exact', head: true }).eq('hidden', false)
+      // Total aircraft (excluding retired)
+      supabase.from('aircraft').select('id', { count: 'exact', head: true }).eq('hidden', false).neq('status', 'RETIRED'),
+      
+      // Active aircraft
+      supabase.from('aircraft').select('id', { count: 'exact', head: true }).eq('hidden', false).eq('status', 'ACTIVE'),
+      
+      // Fleet status with hobbs data - exclude retired aircraft
+      supabase
+        .from('aircraft')
+        .select(`
+          id,
+          callSign,
+          status,
+          icao_reference_type (
+            typeDesignator,
+            model,
+            manufacturer
+          ),
+          aircraft_hobbs (
+            last_hobbs_reading,
+            last_hobbs_date,
+            updated_at
+          )
+        `)
+        .eq('hidden', false)
+        .neq('status', 'RETIRED')
+        .order('callSign')
     ]);
 
     // Extract counts from results
@@ -73,10 +100,46 @@ export async function GET(request: NextRequest) {
     const totalAirfields = totalAirfieldsResult.count || 0;
     const activeAirfields = activeAirfieldsResult.count || 0;
     const totalAircraft = totalAircraftResult.count || 0;
+    const activeAircraft = activeAircraftResult.count || 0;
+    const fleetStatus = fleetStatusResult.data || [];
+
+
+
 
     // Placeholder values for flight statistics (will be implemented with flight scheduling)
     const todayFlights = 0;
     const scheduledFlights = 0;
+
+    // Process fleet status data - transform icao_reference_type to icaoReferenceType like the fleet API does
+    const processedFleetStatus = fleetStatus.map(aircraft => {
+      // Supabase returns related data as arrays even for one-to-one relationships
+      const icaoReferenceType = Array.isArray(aircraft.icao_reference_type) 
+        ? aircraft.icao_reference_type[0] 
+        : aircraft.icao_reference_type;
+        
+      const transformedAircraft = {
+        ...aircraft,
+        icaoReferenceType: icaoReferenceType,
+      };
+      
+      return {
+        id: transformedAircraft.id,
+        callSign: transformedAircraft.callSign,
+        status: transformedAircraft.status,
+        type: transformedAircraft.icaoReferenceType ? 
+          `${transformedAircraft.icaoReferenceType.manufacturer} ${transformedAircraft.icaoReferenceType.model}` : 
+          'Unknown',
+        lastHobbs: Array.isArray(transformedAircraft.aircraft_hobbs) 
+          ? (transformedAircraft.aircraft_hobbs as any)[0]?.last_hobbs_reading || null
+          : (transformedAircraft.aircraft_hobbs as any)?.last_hobbs_reading || null,
+        lastHobbsDate: Array.isArray(transformedAircraft.aircraft_hobbs)
+          ? (transformedAircraft.aircraft_hobbs as any)[0]?.last_hobbs_date || null
+          : (transformedAircraft.aircraft_hobbs as any)?.last_hobbs_date || null,
+        lastUpdated: Array.isArray(transformedAircraft.aircraft_hobbs)
+          ? (transformedAircraft.aircraft_hobbs as any)[0]?.updated_at || null
+          : (transformedAircraft.aircraft_hobbs as any)?.updated_at || null
+      };
+    });
 
     const stats = {
       users: {
@@ -94,7 +157,9 @@ export async function GET(request: NextRequest) {
       },
       aircraft: {
         total: totalAircraft,
+        active: activeAircraft,
       },
+      fleetStatus: processedFleetStatus,
     };
 
     return NextResponse.json(stats);
