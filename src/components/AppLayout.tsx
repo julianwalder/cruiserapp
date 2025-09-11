@@ -30,6 +30,7 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [isHydrated, setIsHydrated] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const { count: notificationCount } = useNotificationCount();
 
   // Handle hydration state
@@ -129,6 +130,10 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
     router.push('/login');
   };
 
+  const handleSidebarStateChange = (collapsed: boolean) => {
+    setIsSidebarCollapsed(collapsed);
+  };
+
   // Get page title from pathname if not provided
   const getPageTitle = useMemo(() => {
     if (pageTitle) return pageTitle;
@@ -181,11 +186,13 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
 
   return (
     <div className="flex h-screen bg-white dark:bg-gray-900">
-      {isHydrated && <NewSidebar user={user} onLogout={handleLogout} />}
+      {isHydrated && <NewSidebar user={user} onLogout={handleLogout} onSidebarStateChange={handleSidebarStateChange} />}
       
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
         <header 
-          className="sticky-header px-4 sm:px-6 flex items-center"
+          className={`sticky-header px-4 sm:px-6 flex items-center transition-all duration-300 ${
+            isSidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
+          }`}
           data-hydrating={!isHydrated}
           data-hydrated={isHydrated}
         >

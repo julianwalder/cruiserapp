@@ -44,6 +44,7 @@ interface User {
 interface NewSidebarProps {
   user: User | null;
   onLogout: () => void;
+  onSidebarStateChange?: (collapsed: boolean) => void;
 }
 
 const navigationItems = [
@@ -128,7 +129,7 @@ const navigationItems = [
 
 ];
 
-export function NewSidebar({ user, onLogout }: NewSidebarProps) {
+export function NewSidebar({ user, onLogout, onSidebarStateChange }: NewSidebarProps) {
   // Debug log removed - user authentication is working correctly
   const router = useRouter();
   const pathname = usePathname();
@@ -343,7 +344,11 @@ export function NewSidebar({ user, onLogout }: NewSidebarProps) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setIsCollapsed(!isCollapsed)}
+            onClick={() => {
+              const newCollapsed = !isCollapsed;
+              setIsCollapsed(newCollapsed);
+              onSidebarStateChange?.(newCollapsed);
+            }}
             className="hidden lg:flex h-8 w-8 p-0 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
           >
             <ChevronLeft className={`h-4 w-4 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} />

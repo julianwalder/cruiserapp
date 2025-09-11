@@ -172,6 +172,14 @@ const CompactCombobox = ({
   );
 };
 
+// Utility function to format hours as HH:MM
+const formatHours = (hours: number): string => {
+  if (!hours || hours === 0) return '00:00';
+  const wholeHours = Math.floor(hours);
+  const minutes = Math.round((hours - wholeHours) * 60);
+  return `${wholeHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+};
+
 export default function UserManagement() {
   const { formatDate } = useDateFormatUtils();
   const [users, setUsers] = useState<ExtendedUser[]>([]);
@@ -1176,7 +1184,7 @@ export default function UserManagement() {
                             {user.identityVerified ? 'Verified' : 'Not Verified'}
                           </Badge>
                         </TableCell>
-                        <TableCell className="w-32">{user.totalFlightHours}</TableCell>
+                        <TableCell className="w-32">{formatHours(user.totalFlightHours || 0)}</TableCell>
                         <TableCell className="w-32">
                             {formatDate(user.createdAt)}
                           </TableCell>
