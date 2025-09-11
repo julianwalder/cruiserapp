@@ -45,7 +45,7 @@
   /* Fixed header positioning for consistent behavior */
   .sticky-header {
     position: fixed;
-    top: calc(env(safe-area-inset-top) + var(--announcement-height, 0px));
+    top: env(safe-area-inset-top);
     left: 0;
     right: 0;
     z-index: 30;
@@ -65,14 +65,14 @@
   /* Ensure header is always visible during hydration */
   .sticky-header[data-hydrating="true"] {
     position: fixed;
-    top: calc(env(safe-area-inset-top) + var(--announcement-height, 0px));
+    top: env(safe-area-inset-top);
     left: 0;
     right: 0;
   }
   
   /* Prevent content jump with fixed header */
   .content-with-sticky-header {
-    padding-top: calc(64px + env(safe-area-inset-top) + var(--announcement-height, 0px)); /* h-16 + safe area + announcement */
+    padding-top: calc(64px + env(safe-area-inset-top)); /* h-16 + safe area */
   }
   
   /* Smooth transition after hydration */
@@ -621,18 +621,5 @@
     --tw-ring-color: hsl(var(--sidebar-ring));
   }
 
-  /* Announcement bar helpers */
-  .announcement-offset {
-    padding-top: var(--announcement-height, 0px);
-  }
-
-  .announcement-margin-offset {
-    margin-top: var(--announcement-height, 0px);
-  }
-
-  /* Reserve default space for announcement bar */
-  html {
-    --announcement-height: 0px;
-  }
 
 } 

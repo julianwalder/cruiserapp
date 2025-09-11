@@ -25,7 +25,7 @@ import {
   ShoppingCart
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { VeriffVerification } from '@/components/ui/veriff-verification';
+import { UnifiedIdentityVerification } from '@/components/ui/unified-identity-verification';
 
 interface OnboardingFlowProps {
   onboardingType: 'STUDENT' | 'PILOT';
@@ -609,11 +609,11 @@ export function OnboardingFlow({ onboardingType, onComplete, onCancel, userId, u
               
               <h2 className="text-xl font-semibold mb-2">Identity Verification</h2>
               <p className="text-muted-foreground">
-                We need to verify your identity using Veriff. This is a secure and quick process.
+                We need to verify your identity securely. This is a quick and reliable process.
               </p>
             </div>
 
-            <VeriffVerification
+            <UnifiedIdentityVerification
               userId={userId}
               userData={{
                 firstName: userData.firstName,
@@ -621,7 +621,7 @@ export function OnboardingFlow({ onboardingType, onComplete, onCancel, userId, u
                 email: userData.email,
               }}
               onStatusChange={(status) => {
-                if (status === 'approved') {
+                if (status === 'verified') {
                   // Auto-proceed to next step when verified
                   setTimeout(() => {
                     handleNext();

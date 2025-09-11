@@ -5,7 +5,6 @@ import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { DateFormatProvider } from "@/contexts/DateFormatContext";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { ConditionalAnnouncementWrapper } from "@/components/conditional-announcement-wrapper";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -88,9 +87,6 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <DateFormatProvider>
-            {/* Conditional announcements (identity verification, etc.) */}
-            <ConditionalAnnouncementWrapper />
-            
             {/* Main content */}
             <div className="bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen">
               {children}

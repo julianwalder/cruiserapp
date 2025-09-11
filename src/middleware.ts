@@ -25,6 +25,8 @@ const ROUTE_ACCESS = {
     '/api/veriff/webhook-enhanced',
     '/api/veriff/webhook-full-auto',
     '/api/veriff/robust-webhook',
+    '/api/stripe-identity/webhook',
+    '/stripe-identity-return',
 
     '/invite',
   ],
@@ -126,6 +128,14 @@ async function getUserRoles(token: string): Promise<string[]> {
     return Array.isArray(roles) ? roles : [];
   } catch (error) {
     console.error('JWT verification failed:', error);
+    
+    // If token is expired, clear it from localStorage and cookies
+    if (error instanceof Error && error.message.includes('expired')) {
+      console.log('🔍 Middleware - Token expired, clearing from storage');
+      // Note: We can't access localStorage in middleware, but we can log it
+      // The client-side code should handle this
+    }
+    
     return [];
   }
 }

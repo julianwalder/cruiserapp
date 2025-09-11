@@ -1062,11 +1062,17 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
 
         return data.accessToken;
       } else {
-
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('userId');
-        window.location.href = '/login';
+        // Only clear token if it's a 401 (unauthorized) error
+        if (response.status === 401) {
+          console.log('🔍 FlightLogs - Token refresh failed with 401, clearing token');
+          localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('userId');
+          window.location.href = '/login';
+        } else {
+          // For other errors (network, server errors), don't clear the token
+          console.log('🔍 FlightLogs - Token refresh failed with status:', response.status, 'keeping token');
+        }
         return null;
       }
     } catch (error) {

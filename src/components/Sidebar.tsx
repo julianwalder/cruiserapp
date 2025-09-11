@@ -195,7 +195,7 @@ export default function Sidebar({ user, onLogout, onSidebarStateChange }: Sideba
   return (
     <>
       {/* Mobile menu button */}
-      <div className="lg:hidden fixed top-[calc(4px+var(--announcement-height,0px))] left-4 z-[45]">
+      <div className="lg:hidden fixed top-[4px] left-4 z-[45]">
         <Button
           variant="outline"
           size="sm"
@@ -216,7 +216,7 @@ export default function Sidebar({ user, onLogout, onSidebarStateChange }: Sideba
 
       {/* Sidebar */}
       <div className={`
-        fixed top-[calc(env(safe-area-inset-top)+var(--announcement-height,0px))] left-0 h-[calc(100vh-env(safe-area-inset-top)-var(--announcement-height,0px))] bg-white dark:bg-gray-900 shadow-lg z-30 transition-all duration-300
+        fixed top-[env(safe-area-inset-top)] left-0 h-[calc(100vh-env(safe-area-inset-top))] bg-white dark:bg-gray-900 shadow-lg z-30 transition-all duration-300
         ${isCollapsed ? 'w-16' : 'w-64'}
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>

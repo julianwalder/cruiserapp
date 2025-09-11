@@ -44,8 +44,7 @@ import { User as UserType } from '@/types/uuid-types';
 import { cn } from '@/lib/utils';
 import { OnboardingFlow } from '@/components/OnboardingFlow';
 import { AvatarUpload } from '@/components/ui/avatar-upload';
-import { VeriffVerification } from '@/components/ui/veriff-verification';
-import { EnhancedVerificationDisplay } from '@/components/ui/enhanced-verification-display';
+import { UnifiedIdentityVerification } from '@/components/ui/unified-identity-verification';
 import { useDateFormatUtils } from '@/hooks/use-date-format';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
@@ -316,7 +315,7 @@ export default function MyAccountPage() {
           setUser(userData);
 
           // Fetch verification data
-          const verificationResponse = await fetch(`/api/veriff/verification-data/${userData.id}`, {
+          const verificationResponse = await fetch(`/api/stripe-identity/verification-data/${userData.id}`, {
             headers: {
               'Authorization': `Bearer ${token}`,
             },
@@ -546,13 +545,26 @@ export default function MyAccountPage() {
       return <Shield className="h-5 w-5 text-gray-400" />;
     }
 
+    // Check if user is verified (either from Stripe Identity or legacy Veriff)
+    if (verificationData.isVerified || verificationData.status === 'verified') {
+      return <ShieldCheck className="h-5 w-5 text-green-600" />;
+    }
+
     const status = verificationData.status?.toLowerCase();
     switch (status) {
-      case 'approved':
+      case 'verified':
         return <ShieldCheck className="h-5 w-5 text-green-600" />;
-      case 'declined':
+      case 'canceled':
         return <ShieldAlert className="h-5 w-5 text-red-600" />;
-      case 'pending':
+      case 'processing':
+        return <Clock className="h-5 w-5 text-yellow-600" />;
+      case 'requires_input':
+        return <ShieldAlert className="h-5 w-5 text-blue-600" />;
+      case 'approved': // Legacy Veriff status
+        return <ShieldCheck className="h-5 w-5 text-green-600" />;
+      case 'declined': // Legacy Veriff status
+        return <ShieldAlert className="h-5 w-5 text-red-600" />;
+      case 'pending': // Legacy Veriff status
         return <Clock className="h-5 w-5 text-yellow-600" />;
       default:
         return <Shield className="h-5 w-5 text-gray-400" />;
@@ -564,13 +576,26 @@ export default function MyAccountPage() {
       return 'Identity verification not started';
     }
 
+    // Check if user is verified (either from Stripe Identity or legacy Veriff)
+    if (verificationData.isVerified || verificationData.status === 'verified') {
+      return 'Identity verified and approved';
+    }
+
     const status = verificationData.status?.toLowerCase();
     switch (status) {
-      case 'approved':
+      case 'verified':
         return 'Identity verified and approved';
-      case 'declined':
+      case 'canceled':
+        return 'Identity verification canceled';
+      case 'processing':
+        return 'Identity verification in progress';
+      case 'requires_input':
+        return 'Identity verification requires input';
+      case 'approved': // Legacy Veriff status
+        return 'Identity verified and approved';
+      case 'declined': // Legacy Veriff status
         return 'Identity verification declined';
-      case 'pending':
+      case 'pending': // Legacy Veriff status
         return 'Identity verification in progress';
       default:
         return 'Identity verification status unknown';
@@ -851,7 +876,7 @@ export default function MyAccountPage() {
                   </div>
                   <div>
                     <label className="text-sm font-medium">Postal Code</label>
-                    <p className="text-sm text-muted-foreground">{user.normalizedAddress.postalCode || 'Not provided'}</p>
+                    <p className="text-sm text-muted-foreground">{user.normalizedAddress.zipCode || 'Not provided'}</p>
                   </div>
                   <div>
                     <label className="text-sm font-medium">Country</label>
@@ -916,120 +941,172 @@ export default function MyAccountPage() {
 
         {/* Verification Tab */}
         <TabsContent value="verification" className="space-y-6">
-          {verificationData && verificationData.isVerified ? (
-            <EnhancedVerificationDisplay verificationData={verificationData} />
-          ) : (
-            <div className="space-y-6">
-              {/* Verification Status Card */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Shield className="h-5 w-5 text-gray-400" />
-                    Identity Verification Status
-                  </CardTitle>
-                  <CardDescription>
-                    Verify your identity to access all platform features
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Shield className="h-8 w-8 text-gray-400" />
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900">Not Verified</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Your identity has not been verified yet
-                        </p>
-                      </div>
-                    </div>
-                    <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                      Verification Required
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
+          <div className="space-y-6">
+            {/* Stripe Identity Verification Component */}
+            <UnifiedIdentityVerification
+              userId={user.id}
+              userData={{
+                firstName: user.firstName,
+                lastName: user.lastName,
+                email: user.email,
+              }}
+              onStatusChange={async (status) => {
+                console.log('Identity verification status changed to:', status);
+                // Refresh verification data to update the shield icon
+                try {
+                  const token = localStorage.getItem('token');
+                  if (token) {
+                    const verificationResponse = await fetch(`/api/stripe-identity/verification-data/${user.id}`, {
+                      headers: {
+                        'Authorization': `Bearer ${token}`,
+                      },
+                    });
+                    if (verificationResponse.ok) {
+                      const verificationResult = await verificationResponse.json();
+                      if (verificationResult.success && verificationResult.data) {
+                        setVerificationData(verificationResult.data);
+                      }
+                    }
+                  }
+                } catch (error) {
+                  console.error('Error refreshing verification data:', error);
+                }
+              }}
+            />
 
-              {/* Start Verification Card */}
-              <Card className="border-2 border-dashed border-blue-200 bg-blue-50/30">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-blue-800">
-                    <ShieldCheck className="h-5 w-5" />
-                    Start Identity Verification
-                  </CardTitle>
-                  <CardDescription className="text-blue-700">
-                    Complete your identity verification to unlock all platform features
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="bg-white p-4 rounded-lg border border-blue-200">
-                    <h4 className="font-medium text-gray-900 mb-2">What you'll need:</h4>
-                    <ul className="text-sm text-gray-600 space-y-1">
-                      <li>• Government-issued ID (passport or national ID card)</li>
-                      <li>• Device with camera for photo capture</li>
-                      <li>• Good lighting for clear document photos</li>
-                      <li>• Stable internet connection</li>
-                    </ul>
-                  </div>
-                  
-                  <div className="flex items-center gap-4">
-                    <VeriffVerification
-                      userId={user.id}
-                      userData={{
-                        firstName: user.firstName,
-                        lastName: user.lastName,
-                        email: user.email,
-                      }}
-                      onStatusChange={(status) => {
-                        console.log('Verification status changed to:', status);
-                      }}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+            {/* Only show explanatory cards if user is not verified */}
+            {(!verificationData?.isVerified && verificationData?.status !== 'verified') && (
+              <>
+                {/* Verification Benefits */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                      Why Verify Your Identity?
+                    </CardTitle>
+                    <CardDescription>
+                      Identity verification helps us provide you with the best possible service
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                          <ShieldCheck className="h-4 w-4 text-green-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900 mb-1">Enhanced Security</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Protect your account and personal information with verified identity
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <Zap className="h-4 w-4 text-blue-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900 mb-1">Faster Processing</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Expedited service and faster approval for all your requests
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                          <Award className="h-4 w-4 text-purple-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900 mb-1">Full Access</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Unlock all platform features and premium services
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                          <FileText className="h-4 w-4 text-orange-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900 mb-1">Compliance Ready</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Meet all regulatory requirements for aviation services
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-              {/* Benefits Card */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <CheckCircle className="h-5 w-5 text-green-600" />
-                    Benefits of Verification
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="h-4 w-4 text-green-600 mt-0.5" />
-                      <div>
-                        <h4 className="font-medium text-gray-900">Full Platform Access</h4>
-                        <p className="text-sm text-muted-foreground">Access all features and services</p>
+                {/* Verification Process Info */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Info className="h-5 w-5 text-blue-600" />
+                      How It Works
+                    </CardTitle>
+                    <CardDescription>
+                      Our secure identity verification process is quick and easy
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-4">
+                        <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-sm font-medium text-blue-600">
+                          1
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900 mb-1">Prepare Your Documents</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Have your government-issued ID (passport, driver's license, or national ID) ready
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-start gap-4">
+                        <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-sm font-medium text-blue-600">
+                          2
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900 mb-1">Take Photos</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Use your device's camera to capture clear photos of your ID and a selfie
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-start gap-4">
+                        <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-sm font-medium text-blue-600">
+                          3
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900 mb-1">Instant Verification</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Our secure system verifies your identity in real-time using advanced technology
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-start gap-4">
+                        <div className="flex-shrink-0 w-8 h-8 bg-green-100 rounded-full flex items-center justify-center text-sm font-medium text-green-600">
+                          ✓
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-gray-900 mb-1">You're All Set!</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Once verified, you'll have full access to all platform features
+                          </p>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="h-4 w-4 text-green-600 mt-0.5" />
-                      <div>
-                        <h4 className="font-medium text-gray-900">Enhanced Security</h4>
-                        <p className="text-sm text-muted-foreground">Protect your account with verified identity</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="h-4 w-4 text-green-600 mt-0.5" />
-                      <div>
-                        <h4 className="font-medium text-gray-900">Faster Processing</h4>
-                        <p className="text-sm text-muted-foreground">Expedited service for verified users</p>
-                      </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                      <CheckCircle className="h-4 w-4 text-green-600 mt-0.5" />
-                      <div>
-                        <h4 className="font-medium text-gray-900">Compliance Ready</h4>
-                        <p className="text-sm text-muted-foreground">Meet regulatory requirements</p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </div>
         </TabsContent>
 
         {/* Credentials Tab */}
