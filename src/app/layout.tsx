@@ -25,11 +25,11 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: "Cruiser Aviation Management System",
-  description: "Modern flight school management with user management, aircraft tracking, and scheduling",
+  description: "Flight school management with user management, aircraft tracking, and scheduling",
   metadataBase: new URL('https://app.cruiseraviation.com'),
   openGraph: {
     title: "Cruiser Aviation Management System",
-    description: "Modern flight school management with user management, aircraft tracking, and scheduling",
+    description: "Flight school management with user management, aircraft tracking, and scheduling",
     url: 'https://app.cruiseraviation.com',
     siteName: 'Cruiser Aviation',
     images: [
@@ -46,7 +46,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: "Cruiser Aviation Management System",
-    description: "Modern flight school management with user management, aircraft tracking, and scheduling",
+    description: "Flight school management with user management, aircraft tracking, and scheduling",
     images: [
       {
         url: '/api/og',

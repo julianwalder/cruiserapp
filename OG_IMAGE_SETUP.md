@@ -105,7 +105,7 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://app.cruiseraviation.com'),
   openGraph: {
     title: "Cruiser Aviation Management System",
-    description: "Modern flight school management...",
+    description: "Flight school management...",
     url: 'https://app.cruiseraviation.com',
     siteName: 'Cruiser Aviation',
     images: [

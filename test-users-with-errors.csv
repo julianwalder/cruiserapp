@@ -1,4 +1,0 @@
-email,firstName,lastName,personalNumber,phone,dateOfBirth,address,city,state,zipCode,country,status,totalFlightHours,licenseNumber,medicalClass,instructorRating,roles
-test1@example.com,John,Doe,1234567890123,+1234567890,1990-01-01,123 Main St,NY,NY,10001,USA,ACTIVE,150.5,PPL-123456,Class 2,CFI,PILOT,STUDENT
-invalid-email,Invalid,User,9876543210987,+1987654321,1985-05-15,456 Oak Ave,CA,CA,90210,USA,ACTIVE,200.0,CPL-789012,Class 1,CFII,INSTRUCTOR
-test7@example.com,Invalid,Role,9876543210987,+1987654321,1985-05-15,456 Oak Ave,CA,CA,90210,USA,ACTIVE,200.0,CPL-789012,Class 1,CFII,INVALID_ROLE
