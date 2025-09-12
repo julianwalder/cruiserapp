@@ -423,10 +423,14 @@ export class InvoiceImportService {
   }
 
   /**
-   * Get all imported invoices
+   * Get all imported invoices with optional filtering
    */
-  static async getImportedInvoices(): Promise<ImportedInvoice[]> {
-    const { data: invoices, error: invoicesError } = await supabase
+  static async getImportedInvoices(filters?: {
+    status?: string;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<ImportedInvoice[]> {
+    let query = supabase
       .from('invoices')
       .select(`
         *,
@@ -459,7 +463,22 @@ export class InvoiceImportService {
           total_amount,
           notes
         )
-      `)
+      `);
+
+    // Apply filters
+    if (filters?.status) {
+      query = query.eq('status', filters.status);
+    }
+    
+    if (filters?.startDate) {
+      query = query.gte('issue_date', filters.startDate.toISOString().split('T')[0]);
+    }
+    
+    if (filters?.endDate) {
+      query = query.lte('issue_date', filters.endDate.toISOString().split('T')[0]);
+    }
+
+    const { data: invoices, error: invoicesError } = await query
       .order('issue_date', { ascending: false });
 
     if (invoicesError) {

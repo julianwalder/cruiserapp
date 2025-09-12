@@ -4,7 +4,7 @@ import { getSupabaseClient } from '@/lib/supabase';
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
@@ -49,6 +49,7 @@ export async function PUT(
     }
 
     const body = await request.json();
+    const { id: invoiceId } = await params;
     
     const { 
       smartbill_id, 
@@ -63,11 +64,12 @@ export async function PUT(
       items 
     } = body;
 
-    // For status-only updates, skip validation of other fields
+    // Check if this is a status-only update or if we're updating an existing invoice
     const isStatusOnlyUpdate = Object.keys(body).length === 1 && body.hasOwnProperty('status');
+    const isUpdatingExistingInvoice = body.id && body.id === invoiceId;
     
-    if (!isStatusOnlyUpdate) {
-      // Validate required fields for full updates
+    if (!isStatusOnlyUpdate && !isUpdatingExistingInvoice) {
+      // Validate required fields for new invoice creation
       if (!smartbill_id || !issue_date || !client || !items) {
         return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
       }
@@ -84,8 +86,18 @@ export async function PUT(
     if (isStatusOnlyUpdate) {
       // For status-only updates, only update the status
       updateData.status = status;
+    } else if (isUpdatingExistingInvoice) {
+      // For existing invoice updates, only update fields that are provided
+      if (smartbill_id !== undefined) updateData.smartbill_id = smartbill_id;
+      if (series !== undefined) updateData.series = series;
+      if (issue_date !== undefined) updateData.issue_date = issue_date;
+      if (due_date !== undefined) updateData.due_date = due_date;
+      if (status !== undefined) updateData.status = status;
+      if (total_amount !== undefined) updateData.total_amount = total_amount;
+      if (vat_amount !== undefined) updateData.vat_amount = vat_amount;
+      if (currency !== undefined) updateData.currency = currency;
     } else {
-      // For full updates, update all fields
+      // For new invoice creation, update all fields
       updateData.smartbill_id = smartbill_id;
       updateData.series = series;
       updateData.issue_date = issue_date;
@@ -100,7 +112,7 @@ export async function PUT(
     const { data: updatedInvoice, error: updateError } = await supabase
       .from('invoices')
       .update(updateData)
-      .eq('id', params.id)
+      .eq('id', invoiceId)
       .select()
       .single();
 
@@ -109,14 +121,14 @@ export async function PUT(
       return NextResponse.json({ error: 'Failed to update invoice' }, { status: 500 });
     }
 
-    // Update or create client information (only for full updates)
+    // Update or create client information (only for full updates and when client data is provided)
     if (client && !isStatusOnlyUpdate) {
       
       // First, check if client record exists
       const { data: existingClient, error: checkError } = await supabase
         .from('invoice_clients')
         .select('id')
-        .eq('invoice_id', params.id)
+        .eq('invoice_id', invoiceId)
         .single();
       
       if (checkError && checkError.code !== 'PGRST116') {
@@ -139,14 +151,14 @@ export async function PUT(
             country: client.country,
             user_id: client.user_id || null
           })
-          .eq('invoice_id', params.id);
+          .eq('invoice_id', invoiceId);
         clientError = updateError;
       } else {
         // Create new client record
         const { error: createError } = await supabase
           .from('invoice_clients')
           .insert({
-            invoice_id: params.id,
+            invoice_id: invoiceId,
             name: client.name,
             email: client.email,
             phone: client.phone,
@@ -170,7 +182,7 @@ export async function PUT(
       const { error: deleteError } = await supabase
         .from('invoice_items')
         .delete()
-        .eq('invoice_id', params.id);
+        .eq('invoice_id', invoiceId);
 
       if (deleteError) {
         console.error('Error deleting existing items:', deleteError);
@@ -179,7 +191,7 @@ export async function PUT(
 
       // Then insert new items
       const itemsToInsert = items.map((item: any) => ({
-        invoice_id: params.id,
+        invoice_id: invoiceId,
         line_id: item.line_id,
         name: item.name,
         description: item.description,
@@ -213,7 +225,7 @@ export async function PUT(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
@@ -231,6 +243,8 @@ export async function GET(
     if (!supabase) {
       return NextResponse.json({ error: 'Database connection error' }, { status: 500 });
     }
+
+    const { id: invoiceId } = await params;
 
     // Get the invoice with all related data
     const { data: invoice, error } = await supabase
@@ -259,7 +273,7 @@ export async function GET(
           vat_rate
         )
       `)
-      .eq('id', params.id)
+      .eq('id', invoiceId)
       .single();
 
     if (error) {

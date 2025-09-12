@@ -83,7 +83,16 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const invoices = await InvoiceImportService.getImportedInvoices();
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get('status');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+    
+    const invoices = await InvoiceImportService.getImportedInvoices({
+      status: status && status !== 'all' ? status : undefined,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined
+    });
     
     return NextResponse.json({
       success: true,
