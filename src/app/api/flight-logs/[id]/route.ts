@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
 import { AuthService } from '@/lib/auth';
 import { ActivityLogger } from '@/lib/activity-logger';
+import { updateAircraftHobbs, recalculateAircraftHobbs } from '@/lib/aircraft-hobbs';
 import { UUID } from '@/types/uuid-types';
 
 
@@ -470,6 +471,32 @@ export async function PUT(
         hoursDifference
       }
     );
+
+    // Update aircraft hobbs data if arrival hobbs changed
+    if (arrivalHobbs && arrivalHobbs !== existingFlightLog.arrivalHobbs) {
+      try {
+        await updateAircraftHobbs(aircraftId, flightLog.id, arrivalHobbs, date);
+      } catch (hobbsError) {
+        console.error('Error updating aircraft hobbs:', hobbsError);
+        // Don't fail the entire request if hobbs update fails
+      }
+    }
+
+    // If aircraft changed, recalculate hobbs for both old and new aircraft
+    if (aircraftId !== existingFlightLog.aircraftId) {
+      try {
+        // Recalculate hobbs for the old aircraft (in case this was the latest flight)
+        await recalculateAircraftHobbs(existingFlightLog.aircraftId);
+        
+        // Update hobbs for the new aircraft if arrival hobbs is provided
+        if (arrivalHobbs) {
+          await updateAircraftHobbs(aircraftId, flightLog.id, arrivalHobbs, date);
+        }
+      } catch (hobbsError) {
+        console.error('Error updating aircraft hobbs after aircraft change:', hobbsError);
+        // Don't fail the entire request if hobbs update fails
+      }
+    }
 
     return NextResponse.json({ flightLog });
   } catch (error) {

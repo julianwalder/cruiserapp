@@ -182,9 +182,8 @@ export default function HourPackages() {
         is_active: template.is_active,
         features: [
           'Flexible scheduling',
-          `Valid for ${template.validity_days} days`,
           'No expiration fees',
-          'Aircraft rental included',
+          'Familiarization included',
           'Fuel included',
           'Basic insurance included'
         ]
@@ -476,7 +475,7 @@ export default function HourPackages() {
         <h1 className="text-3xl font-bold text-card-foreground">Hour Packages</h1>
         <p className="text-muted-foreground max-w-2xl mx-auto">
           Choose the perfect hour package for your flying needs. All packages include aircraft rental, 
-            fuel, and basic insurance. Valid for the specified duration from purchase date.
+            fuel, and basic insurance.
           </p>
         </div>
         
@@ -549,16 +548,6 @@ export default function HourPackages() {
                       className="bg-gray-50"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="validity_days">Validity (days)</Label>
-                    <Input
-                      id="validity_days"
-                      type="number"
-                      value={formData.validity_days}
-                      onChange={(e) => setFormData(prev => ({ ...prev, validity_days: Number(e.target.value) }))}
-                      placeholder="365"
-                    />
-                  </div>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Switch
@@ -593,7 +582,7 @@ export default function HourPackages() {
         {packages.map((pkg) => (
           <Card 
             key={pkg.id} 
-            className={`relative cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-105 ${
+            className={`relative cursor-pointer transition-shadow hover:shadow-lg ${
               pkg.popular ? 'ring-2 ring-primary' : ''
             }`}
           >
@@ -751,7 +740,6 @@ export default function HourPackages() {
         open={isOrderModalOpen}
         onClose={handleCloseModal}
         title="Confirm Package Order"
-        description="Review your selected hour package before placing the order."
       >
           {selectedPackage && (
             <div className="space-y-4">
@@ -768,14 +756,9 @@ export default function HourPackages() {
                   <span className="font-medium">Price per Hour:</span>
                 <span className="font-medium">{formatPricePerHour(selectedPackage.price_per_hour, selectedPackage.currency)}</span>
               </div>
-              <div className="flex items-center justify-between mt-2">
-                <span className="font-medium">Validity:</span>
-                <span className="font-medium">{selectedPackage.validity_days} days</span>
-                </div>
               </div>
               
               <div className="text-sm text-muted-foreground">
-              <p>• Valid for {selectedPackage.validity_days} days from purchase date</p>
                 <p>• Includes aircraft rental, fuel, and basic insurance</p>
                 <p>• Flexible scheduling available</p>
                 {selectedPackage.popular && (
@@ -876,17 +859,6 @@ export default function HourPackages() {
                   value={formData.total_price}
                   readOnly
                   className="bg-gray-50"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="view-validity-days">Validity (days)</Label>
-                <Input
-                  id="view-validity-days"
-                  type="number"
-                  value={formData.validity_days}
-                  onChange={(e) => setFormData(prev => ({ ...prev, validity_days: Number(e.target.value) }))}
-                  placeholder="365"
-                  readOnly={!isEditMode}
                 />
               </div>
             </div>

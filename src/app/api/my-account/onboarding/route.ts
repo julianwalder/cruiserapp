@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     const { data: existingOnboarding, error: checkError } = await supabase
       .from('user_onboarding')
       .select('*')
-      .eq('userId', payload.userId)
+      .eq('user_id', payload.userId)
       .in('status', ['PENDING', 'IN_PROGRESS'])
       .single();
 
@@ -68,16 +68,11 @@ export async function POST(request: NextRequest) {
     // Create onboarding record
     const onboardingData = {
       id: crypto.randomUUID(),
-      userId: payload.userId,
-      onboardingType,
+      user_id: payload.userId,
+      onboarding_type: onboardingType,
       status: 'PENDING',
-      currentStep: 1,
-      totalSteps: 5,
-      paymentPlanId: onboardingType === 'STUDENT' ? paymentPlanId : null,
-      hourPackageId: onboardingType === 'PILOT' ? hourPackageId : null,
-      contractSigned: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      current_step: 1,
+      total_steps: 5
     };
 
     const { data: onboarding, error: createError } = await supabase
@@ -140,8 +135,8 @@ export async function GET(request: NextRequest) {
     const { data: onboarding, error } = await supabase
       .from('user_onboarding')
       .select('*')
-      .eq('userId', payload.userId)
-      .order('createdAt', { ascending: false })
+      .eq('user_id', payload.userId)
+      .order('created_at', { ascending: false })
       .limit(1)
       .single();
 
@@ -209,10 +204,10 @@ export async function PUT(request: NextRequest) {
       .from('user_onboarding')
       .update({
         ...updates,
-        updatedAt: new Date().toISOString()
+        updated_at: new Date().toISOString()
       })
       .eq('id', onboardingId)
-      .eq('userId', payload.userId)
+      .eq('user_id', payload.userId)
       .select()
       .single();
 

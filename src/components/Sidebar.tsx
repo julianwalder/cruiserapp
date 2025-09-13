@@ -2,200 +2,354 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { Button } from '@/components/ui/button';
 import { OptimizedAvatar } from '@/components/ui/optimized-avatar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { 
   Plane, 
   Users, 
   Calendar, 
-  Settings, 
-  LogOut, 
-  BarChart3,
   FileText,
-  Menu,
-  X,
   Home,
-  User as UserIcon,
   Shield,
   MapPin,
-  ShoppingCart
+  DollarSign,
+  ChevronLeft,
+  Menu,
+  X,
+  Clock,
+  ShoppingCart,
+  MessageSquare,
+  Settings,
+  BookOpen,
+  User as UserIcon
 } from 'lucide-react';
+import { Logo } from '@/components/ui/logo';
 
-import { User } from "@/types/uuid-types";
 
-// Extended User interface for sidebar with roles
-interface SidebarUser extends User {
-  roles: string[];
+interface User {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
   avatarUrl?: string;
+  userRoles: Array<{
+    roles: {
+      id: string;
+      name: string;
+    };
+  }>;
+  status: string;
 }
 
 interface SidebarProps {
-  user: SidebarUser | null;
+  user: User | null;
   onLogout: () => void;
-  onSidebarStateChange?: (isCollapsed: boolean) => void;
+  onSidebarStateChange?: (collapsed: boolean) => void;
 }
 
-const navigationItems = [
-  {
-    name: 'Overview',
-    href: '/dashboard',
+const getNavigationItems = (userRoles: string[]) => {
+  const isProspect = userRoles.includes('PROSPECT');
+  
+  if (isProspect) {
+    return [
+      {
+        title: 'Onboarding',
+        url: '/onboarding',
+        icon: BookOpen,
+        description: 'Complete your setup'
+      },
+      {
+        title: 'Airfields',
+        url: '/airfields',
+        icon: MapPin,
+        description: 'Airfield information'
+      },
+      {
+        title: 'Bases',
+        url: '/bases',
+        icon: Shield,
+        description: 'Base locations'
+      },
+      {
+        title: 'Fleet',
+        url: '/fleet',
+        icon: Plane,
+        description: 'Aircraft fleet'
+      },
+      {
+        title: 'My Account',
+        url: '/my-account',
+        icon: UserIcon,
+        description: 'Account settings'
+      }
+    ];
+  }
+
+  return [
+    {
+      title: 'Overview',
+      url: '/dashboard',
     icon: Home,
     description: 'Dashboard overview'
   },
   {
-    name: 'Users',
-    href: '/users',
+      title: 'Users',
+      url: '/users',
     icon: Users,
     description: 'Manage users and roles'
   },
   {
-    name: 'Fleet',
-    href: '/fleet',
-    icon: Plane,
-    description: 'Aircraft management'
-  },
-  {
-    name: 'Airfields',
-    href: '/airfields',
+      title: 'Role Management',
+      url: '/role-management',
+      icon: Settings,
+      description: 'Manage roles and capabilities'
+    },
+    {
+      title: 'Airfields',
+      url: '/airfields',
     icon: MapPin,
     description: 'Airfield management'
   },
   {
-    name: 'Bases',
-    href: '/bases',
+      title: 'Bases',
+      url: '/bases',
     icon: Shield,
-    description: 'Designate and manage bases'
-  },
-  {
-    name: 'Flight Logs',
-    href: '/flight-logs',
-    icon: FileText,
-    description: 'Flight records and training'
-  },
-  {
-    name: 'Orders',
-    href: '/orders',
-    icon: ShoppingCart,
-    description: 'Hour package orders'
-  },
-  {
-    name: 'Scheduling',
-    href: '/scheduling',
+      description: 'Base operations'
+    },
+    {
+      title: 'Fleet',
+      url: '/fleet',
+      icon: Plane,
+      description: 'Aircraft fleet management'
+    },
+    {
+      title: 'Flight Logs',
+      url: '/flight-logs',
+      icon: Clock,
+      description: 'View flight logs'
+    },
+    {
+      title: 'Scheduling',
+      url: '/scheduling',
     icon: Calendar,
     description: 'Flight scheduling'
   },
   {
-    name: 'Reports',
-    href: '/reports',
-    icon: BarChart3,
-    description: 'Analytics and reports'
-  },
-  {
-    name: 'Settings',
-    href: '/settings',
-    icon: Settings,
-    description: 'System settings'
-  },
-];
+      title: 'Accounting',
+      url: '/accounting',
+      icon: DollarSign,
+      description: 'Financial management'
+    },
+    {
+      title: 'Buy Flight Hours',
+      url: '/packages',
+      icon: ShoppingCart,
+      description: 'Purchase flight hour packages'
+    },
+    {
+      title: 'Usage',
+      url: '/usage',
+      icon: Clock,
+      description: 'Hour packages and usage tracking'
+    },
+    {
+      title: 'Community Board',
+      url: '/community-board',
+      icon: MessageSquare,
+      description: 'Ask for help and offer support'
+    },
+    {
+      title: 'Reports',
+      url: '/reports',
+      icon: FileText,
+      description: 'Analytics and reports'
+    },
+  ];
+};
 
-export default function Sidebar({ user, onLogout, onSidebarStateChange }: SidebarProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
+export function Sidebar({ user, onLogout, onSidebarStateChange }: SidebarProps) {
+  // Debug log removed - user authentication is working correctly
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
 
-  // Notify parent component when sidebar state changes
-  useEffect(() => {
-    onSidebarStateChange?.(isCollapsed);
-  }, [isCollapsed, onSidebarStateChange]);
 
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'SUPER_ADMIN':
-        return 'bg-destructive-10 text-destructive border-destructive-20';
-      case 'ADMIN':
-        return 'bg-secondary-10 text-secondary-foreground border-secondary-20';
-      case 'INSTRUCTOR':
-        return 'bg-primary-10 text-primary border-primary-20';
-      case 'PILOT':
-        return 'bg-success-10 text-success border-success-20';
-      case 'STUDENT':
-        return 'bg-warning-10 text-warning border-warning-20';
-      case 'BASE_MANAGER':
-        return 'bg-primary-20 text-primary border-primary-20';
-      case 'PROSPECT':
-        return 'bg-blue-10 text-blue border-blue-20';
+
+  const hasRole = (roleName: string) => {
+    return user?.userRoles.some(userRole => userRole.roles.name === roleName) || false;
+  };
+
+  const canAccessBaseManagement = () => {
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT') || hasRole('STUDENT') || hasRole('INSTRUCTOR') || hasRole('PROSPECT');
+  };
+
+  const canAccessFleet = () => {
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT') || hasRole('STUDENT') || hasRole('INSTRUCTOR') || hasRole('PROSPECT');
+  };
+
+  const canAccessUsers = () => {
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER');
+  };
+
+  const canAccessSettings = () => {
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN');
+  };
+
+  const canAccessReports = () => {
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER');
+  };
+
+  const canAccessAccounting = () => {
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN');
+  };
+
+  const canAccessAirfields = () => {
+    return true; // Allow all users to access airfields
+  };
+
+  const canAccessUsage = () => {
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT') || hasRole('STUDENT');
+  };
+
+  const canAccessFlightLogs = () => {
+    return hasRole('SUPER_ADMIN') || hasRole('ADMIN') || hasRole('BASE_MANAGER') || hasRole('PILOT') || hasRole('STUDENT') || hasRole('INSTRUCTOR');
+  };
+
+  const canAccessRoleManagement = () => {
+    return hasRole('SUPER_ADMIN');
+  };
+
+  // Get navigation items based on user roles
+  const userRoles = user?.userRoles?.map(userRole => userRole.roles.name) || [];
+  const navigationItems = getNavigationItems(userRoles);
+
+  // Filter navigation items based on user permissions
+  const filteredNavigationItems = navigationItems.filter(item => {
+    let hasAccess = true;
+    switch (item.title) {
+      case 'Users':
+        hasAccess = canAccessUsers();
+        break;
+      case 'Role Management':
+        hasAccess = canAccessRoleManagement();
+        break;
+      case 'Airfields':
+        hasAccess = canAccessAirfields();
+        break;
+      case 'Bases':
+        hasAccess = canAccessBaseManagement();
+        break;
+      case 'Fleet':
+        hasAccess = canAccessFleet();
+        break;
+      case 'Flight Logs':
+        hasAccess = canAccessFlightLogs();
+        break;
+      case 'Settings':
+        hasAccess = canAccessSettings();
+        break;
+      case 'Reports':
+        hasAccess = canAccessReports();
+        break;
+      case 'Accounting':
+        hasAccess = canAccessAccounting();
+        break;
+      case 'Usage':
+        hasAccess = canAccessUsage();
+        break;
       default:
-        return 'bg-muted text-muted-foreground border border-gray-200 dark:border-gray-700';
+        hasAccess = true; // Show other items to all users
     }
-  };
-
-  const getRoleDisplayName = (role: string) => {
-    switch (role) {
-      case 'SUPER_ADMIN':
-        return 'Super Admin';
-      case 'ADMIN':
-        return 'Admin';
-      case 'INSTRUCTOR':
-        return 'Instructor';
-      case 'PILOT':
-        return 'Pilot';
-      case 'STUDENT':
-        return 'Student';
-      case 'BASE_MANAGER':
-        return 'Base Manager';
-      case 'PROSPECT':
-        return 'Prospect';
-      default:
-        return role;
-    }
-  };
-
-  const getInitials = (firstName: string, lastName: string) => {
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-  };
-
-  const handleNavigation = (href: string) => {
-    router.push(href);
-    setIsMobileOpen(false);
-  };
-
-  const isActive = (href: string) => {
-    console.log(`🔍 Checking active state for ${href}:`, { pathname, searchParams: searchParams.toString() });
     
-    if (href === '/dashboard') {
-      // Overview is active when we're on dashboard with no tab or tab=overview
+    return hasAccess;
+  });
+
+  // Debug logs removed - navigation filtering is working correctly
+
+  const isActive = (url: string) => {
+    if (url === '/dashboard') {
       const currentTab = searchParams.get('tab');
-      const isActive = pathname === '/dashboard' && (!currentTab || currentTab === 'overview');
-      console.log(`📊 Dashboard active:`, isActive);
-      return isActive;
+      return pathname === '/dashboard' && (!currentTab || currentTab === 'overview');
     }
     
     // For dashboard tabs, check if the tab matches
-    if (href.startsWith('/dashboard?tab=')) {
-      const expectedTab = href.split('=')[1];
+    if (url.startsWith('/dashboard?tab=')) {
+      const expectedTab = url.split('=')[1];
       const currentTab = searchParams.get('tab');
-      const isActive = pathname === '/dashboard' && currentTab === expectedTab;
-      console.log(`📋 Dashboard tab active:`, isActive);
-      return isActive;
+      return pathname === '/dashboard' && currentTab === expectedTab;
+    }
+    
+    // For onboarding page
+    if (url === '/onboarding') {
+      return pathname === '/onboarding';
     }
     
     // For other pages, check if the pathname matches
-    const isActive = pathname === href;
-    console.log(`🌐 Other page active:`, isActive, `(pathname: ${pathname}, href: ${href})`);
-    return isActive;
+    return pathname === url;
   };
 
-  const handleToggleCollapse = () => {
-    setIsCollapsed(!isCollapsed);
+  const handleNavigation = (url: string) => {
+    router.push(url);
+    setIsMobileOpen(false);
+  };
+
+  // Handle escape key to close mobile sidebar
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isMobileOpen) {
+        setIsMobileOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isMobileOpen]);
+
+  // Auto-close mobile sidebar on window resize to desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024 && isMobileOpen) {
+        setIsMobileOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isMobileOpen]);
+
+  // Swipe-to-close functionality
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > 50; // Minimum swipe distance
+    
+    if (isLeftSwipe && isMobileOpen) {
+      setIsMobileOpen(false);
+    }
+    
+    setTouchStart(null);
+    setTouchEnd(null);
   };
 
   return (
     <>
-      {/* Mobile menu button */}
-      <div className="lg:hidden fixed top-[4px] left-4 z-[45]">
+      {/* Mobile Menu Button */}
+      <div className="lg:hidden fixed top-[env(safe-area-inset-top)] left-4 z-[45] sticky-container h-16 flex items-center">
         <Button
           variant="outline"
           size="sm"
@@ -206,142 +360,93 @@ export default function Sidebar({ user, onLogout, onSidebarStateChange }: Sideba
         </Button>
       </div>
 
-      {/* Mobile overlay */}
+      {/* Mobile Overlay */}
       {isMobileOpen && (
         <div 
-          className="lg:hidden fixed inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-40"
+          className="lg:hidden fixed inset-0 bg-background/80 backdrop-blur-sm z-35"
           onClick={() => setIsMobileOpen(false)}
         />
       )}
 
       {/* Sidebar */}
-      <div className={`
-        fixed top-[env(safe-area-inset-top)] left-0 h-[calc(100vh-env(safe-area-inset-top))] bg-white dark:bg-gray-900 shadow-lg z-30 transition-all duration-300
+      <div 
+        className={`
+          fixed top-[env(safe-area-inset-top)] left-0 h-[calc(100vh-env(safe-area-inset-top))] bg-sidebar border-r border-sidebar-border shadow-xl z-40 transition-all duration-300 ease-in-out flex flex-col sticky-container
         ${isCollapsed ? 'w-16' : 'w-64'}
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-          {!isCollapsed && (
-            <div className="flex items-center space-x-2 lg:ml-0 ml-12 relative z-10">
-                      <Plane className="h-7 w-7 text-primary" />
-        <div>
-          <h1 className="font-bold text-base text-card-foreground">Cruiser Aviation</h1>
-          <p className="text-xs text-muted-foreground">Management System</p>
-        </div>
+        `}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Fixed Header */}
+        <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border flex-shrink-0">
+          <div className="flex items-center relative z-10">
+            {!isCollapsed ? (
+              <Logo width={120} height={28} className="h-8 w-auto lg:ml-0 ml-12" />
+            ) : (
+              <Logo width={28} height={28} className="h-8 w-8 lg:ml-0 ml-12" />
+            )}
             </div>
-          )}
-          {isCollapsed && (
-            <div className="flex justify-center w-full lg:ml-0 ml-12 relative z-10">
-              <Plane className="h-7 w-7 text-primary" />
-            </div>
-          )}
+          
+          {/* Collapse Toggle */}
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleToggleCollapse}
-            className="hidden lg:flex"
+            onClick={() => {
+              const newCollapsed = !isCollapsed;
+              setIsCollapsed(newCollapsed);
+              onSidebarStateChange?.(newCollapsed);
+            }}
+            className="hidden lg:flex h-8 w-8 p-0 text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent"
           >
-            {isCollapsed ? <Menu className="h-4 w-4" /> : <X className="h-4 w-4" />}
+            <ChevronLeft className={`h-4 w-4 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} />
           </Button>
         </div>
 
-        {/* User Profile */}
-        {user && (
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-center space-x-3">
-              <OptimizedAvatar
-                src={user.avatarUrl}
-                alt={`${user.firstName} ${user.lastName}`}
-                fallback={`${user.firstName} ${user.lastName}`}
-                size="md"
-              />
-              {!isCollapsed && (
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-col space-y-2">
-                    <div className="font-medium text-sm">
-                      {user.firstName} {user.lastName}
-                    </div>
-                    <div className="text-xs text-muted-foreground">{user.email}</div>
-                    <div className="flex flex-wrap gap-1">
-                      {user.roles.map((role) => (
-                        <Badge key={role} className={`text-xs ${getRoleBadgeColor(role)}`}>
-                          {getRoleDisplayName(role)}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-2">
-          {navigationItems.map((item) => {
-            const Icon = item.icon;
-            const active = isActive(item.href);
-            console.log(`🎯 Navigation item ${item.name} (${item.href}): active = ${active}`);
+
+        {/* Scrollable Navigation */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-4">
+            
+            <nav className="space-y-1">
+
+              {filteredNavigationItems.map((item) => {
+                const active = isActive(item.url);
             
             return (
               <Button
-                key={item.name}
-                variant={active ? "default" : "ghost"}
+                    key={item.title}
+                    variant="ghost"
                 className={`
-                  w-full justify-start h-12
-                  ${isCollapsed ? 'px-2' : 'px-4'}
-                `}
-                onClick={() => handleNavigation(item.href)}
-              >
-                <Icon className={`h-5 w-5 ${isCollapsed ? 'mx-auto' : 'mr-3'}`} />
-                {!isCollapsed && (
-                  <div className="text-left">
-                    <div className="font-medium">{item.name}</div>
-                    <div className="text-xs opacity-75">{item.description}</div>
-                  </div>
-                )}
+                      w-full justify-start h-11 px-3 text-sm font-medium transition-all duration-200
+                      ${active 
+                        ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-sm' 
+                        : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
+                      }
+                      ${isCollapsed ? 'justify-center px-2' : ''}
+                    `}
+                    onClick={() => handleNavigation(item.url)}
+                  >
+                    <item.icon className={`h-4 w-4 ${isCollapsed ? '' : 'mr-3'}`} />
+                    {!isCollapsed && <span>{item.title}</span>}
               </Button>
             );
           })}
-          {/* Conditionally render Role Management for superadmin */}
-          {user?.roles.includes('SUPER_ADMIN') && (
-            <Button
-              variant={isActive('/dashboard?tab=roles') ? "default" : "ghost"}
-              className={`
-                w-full justify-start h-12
-                ${isCollapsed ? 'px-2' : 'px-4'}
-              `}
-              onClick={() => handleNavigation('/dashboard?tab=roles')}
-            >
-              <Shield className={`h-5 w-5 ${isCollapsed ? 'mx-auto' : 'mr-3'}`} />
-              {!isCollapsed && <span>Role Management</span>}
-            </Button>
-          )}
+              
+
+              
+
         </nav>
-
-        {/* Footer */}
-        <div className="p-4 border-t">
-          <Button
-            variant="ghost"
-                            className={`w-full justify-start h-12 text-destructive hover:bg-destructive-10 hover:text-destructive-80 ${
-              isCollapsed ? 'px-2' : 'px-4'
-            }`}
-            onClick={onLogout}
-          >
-            <LogOut className={`h-5 w-5 ${isCollapsed ? 'mx-auto' : 'mr-3'}`} />
-            {!isCollapsed && <span>Logout</span>}
-          </Button>
+          </div>
         </div>
+
+        {/* Fixed Footer - Removed user profile section as it's now in the header */}
       </div>
 
-      {/* Mobile header */}
-              <div className="lg:hidden h-16 bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-700 flex items-center px-4 fixed top-0 left-0 right-0 z-20">
-        <div className="flex items-center space-x-2">
-                  <Plane className="h-6 w-6 text-primary" />
-        <h1 className="font-bold text-lg text-card-foreground">Cruiser Aviation</h1>
-        </div>
-      </div>
+      {/* Main Content Spacer */}
+      <div className={`hidden lg:block transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'}`} />
     </>
   );
 } 

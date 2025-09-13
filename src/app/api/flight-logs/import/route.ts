@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
+import { updateAircraftHobbs } from '@/lib/aircraft-hobbs';
 import { parse } from 'csv-parse/sync';
 
 // Global storage for import progress (in production, use Redis or similar)
@@ -383,6 +384,21 @@ export async function POST(request: NextRequest) {
 
         if (createError) {
           throw new Error(`Failed to create flight log: ${createError.message}`);
+        }
+
+        // Update aircraft hobbs data if arrival hobbs is provided
+        if (rowData.arrival_hobbs) {
+          try {
+            await updateAircraftHobbs(
+              aircraft.id, 
+              flightLog.id, 
+              parseFloat(rowData.arrival_hobbs), 
+              new Date(rowData.date).toISOString()
+            );
+          } catch (hobbsError) {
+            console.error('Error updating aircraft hobbs during import:', hobbsError);
+            // Don't fail the import if hobbs update fails
+          }
         }
 
         results.success++;

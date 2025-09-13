@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { NewSidebar } from '@/components/NewSidebar';
+import { Sidebar } from '@/components/Sidebar';
 import { UserMenu } from '@/components/UserMenu';
 import { User } from '@/types/uuid-types';
 import { useNotificationCount } from '@/hooks/use-notification-count';
 import { AuthService } from '@/lib/auth';
+import { SidebarProvider } from '@/contexts/SidebarContext';
 
 interface AuthenticatedUser extends User {
   userRoles: Array<{
@@ -142,6 +143,8 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
     switch (path) {
       case 'dashboard':
         return 'Dashboard';
+      case 'onboarding':
+        return 'Onboarding';
       case 'users':
         return 'Users';
       case 'airfields':
@@ -186,7 +189,7 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
 
   return (
     <div className="flex h-screen bg-white dark:bg-gray-900">
-      {isHydrated && <NewSidebar user={user} onLogout={handleLogout} onSidebarStateChange={handleSidebarStateChange} />}
+      {isHydrated && <Sidebar user={user} onLogout={handleLogout} onSidebarStateChange={handleSidebarStateChange} />}
       
       <div className="flex-1 flex flex-col overflow-hidden lg:ml-0">
         <header 
@@ -216,7 +219,9 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
         </header>
 
         <main className="flex-1 overflow-y-auto pb-4 px-4 sm:pb-6 sm:px-6 bg-white dark:bg-gray-900 content-with-sticky-header">
-          {children}
+          <SidebarProvider isSidebarCollapsed={isSidebarCollapsed}>
+            {children}
+          </SidebarProvider>
         </main>
       </div>
     </div>

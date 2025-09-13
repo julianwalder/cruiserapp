@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       .from('user_onboarding')
       .select('*')
       .eq('id', onboardingId)
-      .eq('userId', payload.userId)
+      .eq('user_id', payload.userId)
       .single();
 
     if (getError) {
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the target role based on onboarding type
-    const targetRoleName = onboarding.onboardingType === 'STUDENT' ? 'STUDENT' : 'PILOT';
+    const targetRoleName = onboarding.onboarding_type === 'STUDENT' ? 'STUDENT' : 'PILOT';
     
     const { data: targetRole, error: roleError } = await supabase
       .from('roles')
@@ -83,27 +83,17 @@ export async function POST(request: NextRequest) {
 
     // Start transaction-like operations
     try {
-      // 1. Update user with Veriff data and mark as verified
-      const userUpdates: any = {
-        identityVerified: true,
-        identityVerifiedAt: new Date().toISOString(),
-        onboardingCompleted: true,
-        onboardingCompletedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
+      // 1. Update user with Veriff data only (if provided)
       if (veriffData) {
-        userUpdates.veriffData = veriffData;
-      }
+        const { error: userUpdateError } = await supabase
+          .from('users')
+          .update({ veriffData })
+          .eq('id', payload.userId);
 
-      const { error: userUpdateError } = await supabase
-        .from('users')
-        .update(userUpdates)
-        .eq('id', payload.userId);
-
-      if (userUpdateError) {
-        console.error('Error updating user:', userUpdateError);
-        throw new Error('Failed to update user');
+        if (userUpdateError) {
+          console.error('Error updating user with veriff data:', userUpdateError);
+          throw new Error('Failed to update user with verification data');
+        }
       }
 
       // 2. Remove PROSPECT role and add target role
@@ -122,8 +112,8 @@ export async function POST(request: NextRequest) {
       const { error: removeProspectError } = await supabase
         .from('user_roles')
         .delete()
-        .eq('userId', payload.userId)
-        .eq('roleId', prospectRole.id);
+        .eq('"userId"', payload.userId)
+        .eq('"roleId"', prospectRole.id);
 
       if (removeProspectError) {
         console.error('Error removing PROSPECT role:', removeProspectError);
@@ -135,8 +125,8 @@ export async function POST(request: NextRequest) {
         .from('user_roles')
         .insert({
           id: crypto.randomUUID(),
-          userId: payload.userId,
-          roleId: targetRole.id
+          "userId": payload.userId,
+          "roleId": targetRole.id
         });
 
       if (addRoleError) {
@@ -144,59 +134,20 @@ export async function POST(request: NextRequest) {
         throw new Error('Failed to update user roles');
       }
 
-      // 3. Create user payment plan record
-      const paymentPlanData = {
-        id: crypto.randomUUID(),
-        userId: payload.userId,
-        paymentPlanId: onboarding.paymentPlanId,
-        hourPackageId: onboarding.hourPackageId,
-        status: 'PENDING',
-        totalAmount: 0, // Will be set based on plan/package
-        paidAmount: 0,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
+      // 3. Create user payment plan record (skip for now since columns don't exist)
+      // TODO: Implement payment plan creation when database schema is updated
 
-      // Get the amount based on plan or package
-      if (onboarding.onboardingType === 'STUDENT' && onboarding.paymentPlanId) {
-        const { data: paymentPlan, error: planError } = await supabase
-          .from('payment_plans')
-          .select('totalAmount')
-          .eq('id', onboarding.paymentPlanId)
-          .single();
+      // Skip payment plan creation for now
 
-        if (!planError && paymentPlan) {
-          paymentPlanData.totalAmount = paymentPlan.totalAmount;
-        }
-      } else if (onboarding.onboardingType === 'PILOT' && onboarding.hourPackageId) {
-        const { data: hourPackage, error: packageError } = await supabase
-          .from('hour_packages')
-          .select('price')
-          .eq('id', onboarding.hourPackageId)
-          .single();
-
-        if (!packageError && hourPackage) {
-          paymentPlanData.totalAmount = hourPackage.price;
-        }
-      }
-
-      const { error: paymentPlanError } = await supabase
-        .from('user_payment_plans')
-        .insert(paymentPlanData);
-
-      if (paymentPlanError) {
-        console.error('Error creating payment plan:', paymentPlanError);
-        // Don't fail the entire process for this
-      }
 
       // 4. Update onboarding status to completed
       const { error: onboardingUpdateError } = await supabase
         .from('user_onboarding')
         .update({
           status: 'COMPLETED',
-          contractSigned: true,
-          contractSignedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          contract_signed: true,
+          contract_signed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
         .eq('id', onboardingId);
 
@@ -211,8 +162,8 @@ export async function POST(request: NextRequest) {
         onboarding: {
           ...onboarding,
           status: 'COMPLETED',
-          contractSigned: true,
-          contractSignedAt: new Date().toISOString()
+          contract_signed: true,
+          contract_signed_at: new Date().toISOString()
         }
       });
 

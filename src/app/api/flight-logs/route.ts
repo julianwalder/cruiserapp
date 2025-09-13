@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
 import { AuthService } from '@/lib/auth';
 import { ActivityLogger } from '@/lib/activity-logger';
+import { updateAircraftHobbs } from '@/lib/aircraft-hobbs';
 import crypto from 'crypto';
 import { UUID } from '@/types/uuid-types';
 
@@ -743,6 +744,16 @@ export async function POST(request: NextRequest) {
       flightLog.id,
       aircraftId
     );
+
+    // Update aircraft hobbs data if arrival hobbs is provided
+    if (arrivalHobbs) {
+      try {
+        await updateAircraftHobbs(aircraftId, flightLog.id, arrivalHobbs, date);
+      } catch (hobbsError) {
+        console.error('Error updating aircraft hobbs:', hobbsError);
+        // Don't fail the entire request if hobbs update fails
+      }
+    }
 
     // Update pilot's total flight hours
     await supabase

@@ -1,13 +1,18 @@
 'use client';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
   Users, 
   Plane, 
   Calendar, 
   Shield,
-  MapPin
+  MapPin,
+  GraduationCap,
+  CheckCircle
 } from 'lucide-react';
 import PilotOverview from '@/components/PilotOverview';
 import FleetStatus from '@/components/FleetStatus';
@@ -25,6 +30,7 @@ interface DashboardUser extends User {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [user, setUser] = useState<DashboardUser | null>(null);
   const [stats, setStats] = useState({
     users: {
@@ -90,7 +96,7 @@ export default function DashboardPage() {
 
     fetchUser();
     fetchStats();
-  }, []);
+  }, [router]);
 
   const hasRole = (roleName: string) => {
     return user?.userRoles?.some(userRole => userRole.roles.name === roleName) || false;
@@ -191,6 +197,7 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
     </div>
   );
 } 

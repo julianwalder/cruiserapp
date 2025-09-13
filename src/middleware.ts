@@ -34,6 +34,7 @@ const ROUTE_ACCESS = {
   // Routes that require authentication but no specific role
   authenticated: [
     '/dashboard',
+    '/onboarding',
     '/my-account',
     '/api/auth/me',
     '/api/avatar',
@@ -219,6 +220,18 @@ export async function middleware(request: NextRequest) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
+  }
+  
+  // Special handling: Redirect PROSPECT users from dashboard to onboarding
+  if (pathname === '/dashboard' && userRoles.includes('PROSPECT')) {
+    console.log('🔍 Middleware - Redirecting PROSPECT from dashboard to onboarding');
+    return NextResponse.redirect(new URL('/onboarding', request.url));
+  }
+  
+  // Special handling: Redirect non-PROSPECT users from onboarding to dashboard
+  if (pathname === '/onboarding' && !userRoles.includes('PROSPECT')) {
+    console.log('🔍 Middleware - Redirecting non-PROSPECT from onboarding to dashboard');
+    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
   
   // Check role-based access for specific routes
