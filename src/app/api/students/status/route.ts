@@ -5,6 +5,11 @@ import jwt from 'jsonwebtoken';
 export async function GET(request: NextRequest) {
   try {
     console.log('🎓 Students Status API called');
+    
+    // Check for includeInactive query parameter
+    const { searchParams } = new URL(request.url);
+    const includeInactive = searchParams.get('includeInactive') === 'true';
+    console.log('📊 Include inactive students:', includeInactive);
 
     // Get authentication token
     const authHeader = request.headers.get('authorization');
@@ -50,7 +55,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch user roles' }, { status: 500 });
     }
 
-    const userRoleNames = userRoles?.map(ur => ur.roles?.name) || [];
+    const userRoleNames = userRoles?.map((ur: any) => ur.roles?.name) || [];
     const hasAccess = userRoleNames.some(role => ['ADMIN', 'SUPER_ADMIN', 'BASE_MANAGER'].includes(role));
 
     if (!hasAccess) {
@@ -58,7 +63,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get all students (users with STUDENT role only, not PILOT)
-    const { data: students, error: studentsError } = await supabase
+    let studentsQuery = supabase
       .from('users')
       .select(`
         id,
@@ -68,6 +73,7 @@ export async function GET(request: NextRequest) {
         "createdAt",
         "totalFlightHours",
         homebase_id,
+        status,
         homebase:airfields!homebase_id (
           code
         ),
@@ -76,8 +82,14 @@ export async function GET(request: NextRequest) {
             name
           )
         )
-      `)
-      .eq('status', 'ACTIVE');
+      `);
+    
+    // Only filter by ACTIVE status if includeInactive is false
+    if (!includeInactive) {
+      studentsQuery = studentsQuery.eq('status', 'ACTIVE');
+    }
+    
+    const { data: students, error: studentsError } = await studentsQuery;
 
     if (studentsError) {
       console.error('❌ Error fetching students:', studentsError);
@@ -150,7 +162,8 @@ export async function GET(request: NextRequest) {
         lastName: student.lastName,
         fullName: `${student.firstName} ${student.lastName}`,
         startDate: student.createdAt,
-        homebase: student.homebase?.code || 'Not assigned',
+        homebase: (student.homebase as any)?.code || 'Not assigned',
+        status: student.status,
         metrics: {
           totalHoursFlown,
           lastFlightDate,
@@ -175,11 +188,17 @@ export async function GET(request: NextRequest) {
 
     console.log('✅ Students status fetched successfully:', studentsWithMetrics.length);
 
+    // Calculate summary statistics
+    const activeStudents = studentsWithMetrics.filter(s => s.status === 'ACTIVE');
+    const inactiveStudents = studentsWithMetrics.filter(s => s.status === 'INACTIVE');
+    
     return NextResponse.json({
       students: studentsWithMetrics,
       summary: {
         totalStudents: studentsWithMetrics.length,
-        activeStudents: studentsWithMetrics.filter(s => s.metrics.isActive).length,
+        activeStudents: activeStudents.length,
+        inactiveStudents: inactiveStudents.length,
+        currentStudents: studentsWithMetrics.filter(s => s.metrics.isActive).length,
         totalHoursFlown: studentsWithMetrics.reduce((sum, s) => sum + s.metrics.totalHoursFlown, 0),
         totalFlights: studentsWithMetrics.reduce((sum, s) => sum + s.metrics.totalFlights, 0),
         averageHoursPerWeek: studentsWithMetrics.length > 0 ? 

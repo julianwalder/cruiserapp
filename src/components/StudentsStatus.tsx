@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Users, Clock, TrendingUp, Calendar, AlertTriangle, CheckCircle, Search, Filter, ArrowUpDown, ArrowUp, ArrowDown, X } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Users, Clock, TrendingUp, Calendar, AlertTriangle, CheckCircle, Search, Filter, ChevronsUpDown, ChevronUp, ChevronDown } from 'lucide-react';
 import { format, differenceInDays, parseISO } from 'date-fns';
 
 interface StudentMetrics {
@@ -31,6 +32,7 @@ interface Student {
   fullName: string;
   startDate: string;
   homebase: string;
+  status: string;
   metrics: StudentMetrics;
 }
 
@@ -39,14 +41,14 @@ interface StudentsStatusData {
   summary: {
     totalStudents: number;
     activeStudents: number;
+    inactiveStudents: number;
+    currentStudents: number;
     totalHoursFlown: number;
     totalFlights: number;
     averageHoursPerWeek: number;
   };
 }
 
-type SortField = 'name' | 'startDate' | 'homebase' | 'totalHoursFlown' | 'totalFlights' | 'averageHoursPerWeek' | 'lastFlightDate' | 'status';
-type SortDirection = 'asc' | 'desc';
 
 export function StudentsStatus() {
   const [data, setData] = useState<StudentsStatusData | null>(null);
@@ -57,17 +59,22 @@ export function StudentsStatus() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [homebaseFilter, setHomebaseFilter] = useState<string>('all');
+  const [includeInactive, setIncludeInactive] = useState<boolean>(false);
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
+type SortField = 'name' | 'startDate' | 'homebase' | 'totalHoursFlown' | 'totalFlights' | 'averageHoursPerWeek' | 'lastFlightDate' | 'status';
+type SortDirection = 'asc' | 'desc';
+
   useEffect(() => {
     fetchStudentsStatus();
-  }, []);
+  }, [includeInactive]);
 
   const fetchStudentsStatus = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/students/status');
+      const url = includeInactive ? '/api/students/status?includeInactive=true' : '/api/students/status';
+      const response = await fetch(url);
       const result = await response.json();
 
       if (!response.ok) {
@@ -92,14 +99,26 @@ export function StudentsStatus() {
     }
   };
 
-  const getActivityBadge = (isActive: boolean, daysSinceLastFlight: number | null) => {
-    if (isActive) {
-      return <Badge variant="default" className="bg-green-100 text-green-800">Active</Badge>;
-    } else if (daysSinceLastFlight !== null && daysSinceLastFlight > 90) {
-      return <Badge variant="destructive">Inactive</Badge>;
-    } else {
-      return <Badge variant="secondary">Needs Attention</Badge>;
+  const getActivityBadge = (student: Student) => {
+    const { isActive, daysSinceLastFlight, totalFlights, daysSinceStart } = student.metrics;
+    
+    // First check database status - if INACTIVE, show inactive
+    if (student.status === 'INACTIVE') {
+      return <Badge className="bg-red-100 text-red-800 border-red-200">Inactive</Badge>;
     }
+    
+    // New students: enrolled within last 30 days and have no flights or very few flights
+    if (daysSinceStart <= 30 && totalFlights <= 2) {
+      return <Badge className="bg-blue-100 text-blue-800 border-blue-200">New</Badge>;
+    }
+    
+    // Current students: active (flown within 30 days) or never flown
+    if (isActive) {
+      return <Badge className="bg-green-100 text-green-800 border-green-200">Current</Badge>;
+    }
+    
+    // Dormant students: haven't flown in over 30 days
+    return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">Dormant</Badge>;
   };
 
   const getCompletionColor = (percentage: number) => {
@@ -117,7 +136,7 @@ export function StudentsStatus() {
   }, [data]);
 
   // Filter and sort students
-  const filteredAndSortedStudents = useMemo(() => {
+  const filteredStudents = useMemo(() => {
     if (!data) return [];
 
     let filtered = data.students.filter(student => {
@@ -128,9 +147,10 @@ export function StudentsStatus() {
 
       // Status filter
       const matchesStatus = statusFilter === 'all' || 
-        (statusFilter === 'active' && student.metrics.isActive) ||
-        (statusFilter === 'inactive' && !student.metrics.isActive) ||
-        (statusFilter === 'needs-attention' && !student.metrics.isActive && student.metrics.daysSinceLastFlight !== null && student.metrics.daysSinceLastFlight <= 90);
+        (statusFilter === 'new' && student.metrics.daysSinceStart <= 30 && student.metrics.totalFlights <= 2) ||
+        (statusFilter === 'current' && student.metrics.isActive && student.status === 'ACTIVE') ||
+        (statusFilter === 'dormant' && !student.metrics.isActive && student.status === 'ACTIVE') ||
+        (statusFilter === 'inactive' && student.status === 'INACTIVE');
 
       // Homebase filter
       const matchesHomebase = homebaseFilter === 'all' || student.homebase === homebaseFilter;
@@ -173,8 +193,14 @@ export function StudentsStatus() {
           bValue = b.metrics.lastFlightDate ? new Date(b.metrics.lastFlightDate) : new Date(0);
           break;
         case 'status':
-          aValue = a.metrics.isActive ? 0 : (a.metrics.daysSinceLastFlight !== null && a.metrics.daysSinceLastFlight <= 90 ? 1 : 2);
-          bValue = b.metrics.isActive ? 0 : (b.metrics.daysSinceLastFlight !== null && b.metrics.daysSinceLastFlight <= 90 ? 1 : 2);
+          // Sort: New (0), Current (1), Dormant (2)
+          const getStatusValue = (student: Student) => {
+            if (student.metrics.daysSinceStart <= 30 && student.metrics.totalFlights <= 2) return 0; // New
+            if (student.metrics.isActive) return 1; // Current
+            return 2; // Dormant
+          };
+          aValue = getStatusValue(a);
+          bValue = getStatusValue(b);
           break;
         default:
           return 0;
@@ -197,17 +223,20 @@ export function StudentsStatus() {
     }
   };
 
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) {
+      return <ChevronsUpDown className="h-4 w-4" />;
+    }
+    return sortDirection === 'asc' ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />;
+  };
+
   const clearFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
     setHomebaseFilter('all');
+    setIncludeInactive(false);
     setSortField('name');
     setSortDirection('asc');
-  };
-
-  const getSortIcon = (field: SortField) => {
-    if (sortField !== field) return <ArrowUpDown className="h-4 w-4" />;
-    return sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />;
   };
 
   if (loading) {
@@ -265,7 +294,7 @@ export function StudentsStatus() {
           <CardContent>
             <div className="text-2xl font-bold">{data.summary.totalStudents}</div>
             <p className="text-xs text-muted-foreground">
-              {data.summary.activeStudents} active
+              {data.summary.activeStudents} active, {data.summary.currentStudents} current
             </p>
           </CardContent>
         </Card>
@@ -303,10 +332,10 @@ export function StudentsStatus() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {Math.round((data.summary.activeStudents / data.summary.totalStudents) * 100)}%
+              {Math.round((data.summary.currentStudents / data.summary.totalStudents) * 100)}%
             </div>
             <p className="text-xs text-muted-foreground">
-              students active
+              students current
             </p>
           </CardContent>
         </Card>
@@ -315,71 +344,37 @@ export function StudentsStatus() {
       {/* Students Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Student Details</CardTitle>
-          <CardDescription>
-            Individual student metrics and progress
-            {filteredAndSortedStudents.length !== data.students.length && (
-              <span className="text-muted-foreground">
-                {' '}({filteredAndSortedStudents.length} of {data.students.length} students)
-              </span>
-            )}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {/* Search and Filter Controls */}
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                <Input
-                  placeholder="Search by name or email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Student Details</CardTitle>
+              {filteredStudents.length !== data.students.length && (
+                <CardDescription>
+                  Showing {filteredStudents.length} of {data.students.length} students
+                </CardDescription>
+              )}
             </div>
-            <div className="flex gap-2">
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                  <SelectItem value="needs-attention">Needs Attention</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={homebaseFilter} onValueChange={setHomebaseFilter}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="Homebase" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Homebases</SelectItem>
-                  {homebases.map((homebase) => (
-                    <SelectItem key={homebase} value={homebase}>
-                      {homebase}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearFilters}
-                className="px-3"
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="include-inactive"
+                checked={includeInactive}
+                onCheckedChange={(checked) => setIncludeInactive(checked as boolean)}
+              />
+              <label
+                htmlFor="include-inactive"
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
               >
-                <X className="h-4 w-4" />
-              </Button>
+                Include inactive
+              </label>
             </div>
           </div>
+        </CardHeader>
+        <CardContent>
 
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>
+                  <TableHead className="w-64">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -390,21 +385,18 @@ export function StudentsStatus() {
                       {getSortIcon('name')}
                     </Button>
                   </TableHead>
-                  <TableHead>
+                  <TableHead className="w-32">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => handleSort('startDate')}
                       className="h-auto p-0 font-semibold hover:bg-transparent"
                     >
-                      <div className="flex flex-row items-center gap-1">
-                        <span>Start</span>
-                        <span>Date</span>
-                        {getSortIcon('startDate')}
-                      </div>
+                      Start Date
+                      {getSortIcon('startDate')}
                     </Button>
                   </TableHead>
-                  <TableHead>
+                  <TableHead className="w-48">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -415,63 +407,51 @@ export function StudentsStatus() {
                       {getSortIcon('homebase')}
                     </Button>
                   </TableHead>
-                  <TableHead>
+                  <TableHead className="w-32">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => handleSort('totalHoursFlown')}
                       className="h-auto p-0 font-semibold hover:bg-transparent"
                     >
-                      <div className="flex flex-row items-center gap-1">
-                        <span>Hours</span>
-                        <span>Flown</span>
-                        {getSortIcon('totalHoursFlown')}
-                      </div>
+                      Hours
+                      {getSortIcon('totalHoursFlown')}
                     </Button>
                   </TableHead>
-                  <TableHead>
+                  <TableHead className="w-32">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => handleSort('totalFlights')}
                       className="h-auto p-0 font-semibold hover:bg-transparent"
                     >
-                      <div className="flex flex-row items-center gap-1">
-                        <span>Total</span>
-                        <span>Flights</span>
-                        {getSortIcon('totalFlights')}
-                      </div>
+                      Flights
+                      {getSortIcon('totalFlights')}
                     </Button>
                   </TableHead>
-                  <TableHead>
+                  <TableHead className="w-32">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => handleSort('averageHoursPerWeek')}
                       className="h-auto p-0 font-semibold hover:bg-transparent"
                     >
-                      <div className="flex flex-row items-center gap-1">
-                        <span>Avg Hours</span>
-                        <span>/Week</span>
-                        {getSortIcon('averageHoursPerWeek')}
-                      </div>
+                      Avg H/Week
+                      {getSortIcon('averageHoursPerWeek')}
                     </Button>
                   </TableHead>
-                  <TableHead>
+                  <TableHead className="w-32">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => handleSort('lastFlightDate')}
                       className="h-auto p-0 font-semibold hover:bg-transparent"
                     >
-                      <div className="flex flex-row items-center gap-1">
-                        <span>Last</span>
-                        <span>Flight</span>
-                        {getSortIcon('lastFlightDate')}
-                      </div>
+                      Last Flight
+                      {getSortIcon('lastFlightDate')}
                     </Button>
                   </TableHead>
-                  <TableHead>
+                  <TableHead className="w-32">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -483,9 +463,53 @@ export function StudentsStatus() {
                     </Button>
                   </TableHead>
                 </TableRow>
+                <TableRow>
+                  <TableCell>
+                    <Input
+                      placeholder="Search name/email..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="h-8 text-xs"
+                    />
+                  </TableCell>
+                  <TableCell></TableCell>
+                  <TableCell>
+                    <Select value={homebaseFilter} onValueChange={setHomebaseFilter}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="All" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        {homebases.map((homebase) => (
+                          <SelectItem key={homebase} value={homebase}>
+                            {homebase}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell></TableCell>
+                  <TableCell></TableCell>
+                  <TableCell></TableCell>
+                  <TableCell></TableCell>
+                  <TableCell>
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="All" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="new">New</SelectItem>
+                        <SelectItem value="current">Current</SelectItem>
+                        <SelectItem value="dormant">Dormant</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredAndSortedStudents.length === 0 ? (
+                {filteredStudents.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8">
                       <div className="flex flex-col items-center justify-center">
@@ -503,7 +527,7 @@ export function StudentsStatus() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredAndSortedStudents.map((student) => (
+                  filteredStudents.map((student) => (
                     <TableRow key={student.id}>
                       <TableCell>
                         <div>
@@ -557,7 +581,7 @@ export function StudentsStatus() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {getActivityBadge(student.metrics.isActive, student.metrics.daysSinceLastFlight)}
+                        {getActivityBadge(student)}
                       </TableCell>
                     </TableRow>
                   ))

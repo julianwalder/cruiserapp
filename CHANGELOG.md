@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2025-01-13
+
+### Added
+- **Enhanced Student Status Management**
+  - New status labels: Current (green), Dormant (yellow), New (blue), Inactive (red)
+  - "Include inactive" checkbox to show students marked as inactive in database
+  - Enhanced status filtering with database-level and activity-based categorization
+  - Improved student metrics with total flights and average hours per week
+  - Better visual distinction between different student statuses
+- **Student Details Table Improvements**
+  - Search, sort, and filter functionality matching user management patterns
+  - Two-row header layout for better column organization
+  - Shortened column headers: "Hours", "Flights", "Avg H/Week"
+  - Integrated sorting icons with proper positioning
+  - Removed redundant descriptor text for cleaner UI
+  - Database-only filtering for inactive students while preserving "needs attention" concept
+
+### Fixed
+- Database column name mismatches in students status API (`flightDate` → `date`, `flightTime` → `totalHours`)
+- Removed non-existent `status` column filter from flight logs queries
+- TypeScript compilation errors in students status components
+- Server restart issues with persistent column name errors
+- Homebase display to show short codes instead of full names with "Airfield" suffix
+
+### Changed
+- Updated students status API to handle `includeInactive` query parameter
+- Enhanced status badge system with color-coded categories
+- Improved summary statistics to include active/inactive/current student counts
+- Streamlined student metrics calculation and display
+- Better integration between database status and activity-based metrics
+
 ## [0.3.4] - 2025-08-30
 
 ### Fixed
