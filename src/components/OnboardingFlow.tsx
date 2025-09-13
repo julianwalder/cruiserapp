@@ -327,7 +327,7 @@ export function OnboardingFlow({ onboardingType: propOnboardingType, onComplete,
                       <CardHeader className="text-center pb-4">
                         <div className="flex items-center justify-center mb-2">
                           <GraduationCap className="h-8 w-8 text-blue-600" />
-                        </div>
+            </div>
                         <CardTitle className="text-2xl font-bold">
                           PPL Training
                         </CardTitle>
@@ -344,8 +344,8 @@ export function OnboardingFlow({ onboardingType: propOnboardingType, onComplete,
                           </Badge>
                           <div className="text-sm text-muted-foreground">
                             Structured flight training program
-                          </div>
-                        </div>
+              </div>
+              </div>
 
                         {/* Select Button */}
                         <Button 
@@ -353,13 +353,13 @@ export function OnboardingFlow({ onboardingType: propOnboardingType, onComplete,
                           variant={onboardingType === 'STUDENT' ? "default" : "outline"}
                           onClick={() => setOnboardingType('STUDENT')}
                         >
-                          {onboardingType === 'STUDENT' ? (
-                            <>
+              {onboardingType === 'STUDENT' ? (
+                <>
                               <CheckCircle className="h-4 w-4 mr-2" />
                               Selected
-                            </>
-                          ) : (
-                            <>
+                </>
+              ) : (
+                <>
                               <GraduationCap className="h-4 w-4 mr-2" />
                               Select PPL Training
                             </>
@@ -368,8 +368,8 @@ export function OnboardingFlow({ onboardingType: propOnboardingType, onComplete,
                       </CardContent>
                     </Card>
                   </Label>
-                </div>
-
+                  </div>
+                  
                 {/* Time Building (Pilot) Option */}
                 <div className="relative">
                   <RadioGroupItem value="PILOT" id="pilot" className="sr-only" />
@@ -401,7 +401,7 @@ export function OnboardingFlow({ onboardingType: propOnboardingType, onComplete,
                           </Badge>
                           <div className="text-sm text-muted-foreground">
                             Hour packages with no expiration
-                          </div>
+                  </div>
             </div>
 
                         {/* Select Button */}
@@ -424,8 +424,8 @@ export function OnboardingFlow({ onboardingType: propOnboardingType, onComplete,
                         </Button>
                       </CardContent>
                     </Card>
-                  </Label>
-                </div>
+              </Label>
+            </div>
               </div>
             </RadioGroup>
               
@@ -849,7 +849,7 @@ export function OnboardingFlow({ onboardingType: propOnboardingType, onComplete,
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">
           </h1>
-            </div>
+        </div>
       </div>
 
       {/* Step Content */}

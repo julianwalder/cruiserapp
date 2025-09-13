@@ -1,18 +1,12 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   Users, 
-  Plane, 
-  Calendar, 
-  Shield,
   MapPin,
-  GraduationCap,
-  CheckCircle
+  Plane,
+  UserCheck
 } from 'lucide-react';
 import PilotOverview from '@/components/PilotOverview';
 import FleetStatus from '@/components/FleetStatus';
@@ -149,7 +143,7 @@ export default function DashboardPage() {
             <Card className="card-hover">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Airfields</CardTitle>
-                <Plane className="h-4 w-4 text-muted-foreground" />
+                <MapPin className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stats.airfields?.total || 0}</div>
@@ -162,7 +156,7 @@ export default function DashboardPage() {
             <Card className="card-hover">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Aircraft</CardTitle>
-                <MapPin className="h-4 w-4 text-muted-foreground" />
+                <Plane className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stats.aircraft?.total || 0}</div>
@@ -174,23 +168,23 @@ export default function DashboardPage() {
 
             <Card className="card-hover">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Flight Activity</CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Pending Approvals</CardTitle>
+                <UserCheck className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.flights?.today || 0}</div>
+                <div className="text-2xl font-bold">{stats.users?.pendingApprovals || 0}</div>
                 <p className="text-xs text-muted-foreground">
-                  {stats.flights?.scheduled || 0} scheduled
+                  users awaiting approval
                 </p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Students Status Section */}
-          <StudentsStatus />
-
           {/* Fleet Status Section */}
           <FleetStatus fleetStatus={stats.fleetStatus} />
+
+          {/* Students Status Section */}
+          <StudentsStatus />
         </div>
       )}
 
