@@ -56,6 +56,14 @@ async function getUser(request: NextRequest, currentUser: any) {
         "updatedAt",
         "lastLoginAt",
         "avatarUrl",
+        homebase_id,
+        homebase:airfields!homebase_id (
+          id,
+          name,
+          code,
+          city,
+          country
+        ),
         user_roles (
           roles (
             name
@@ -126,6 +134,12 @@ async function updateUser(request: NextRequest, currentUser: any) {
     
     console.log('Update data before processing:', updateData); // Debug log
     console.log('Personal Number in updateData:', updateData.personalNumber); // Debug log
+    
+    // Convert camelCase to snake_case for database
+    if (updateData.homebaseId !== undefined) {
+      updateData.homebase_id = updateData.homebaseId;
+      delete updateData.homebaseId;
+    }
     
     // Remove roles from update data since they're handled separately
     delete updateData.roles;
@@ -204,6 +218,14 @@ async function updateUser(request: NextRequest, currentUser: any) {
         "createdAt",
         "updatedAt",
         "lastLoginAt",
+        homebase_id,
+        homebase:airfields!homebase_id (
+          id,
+          name,
+          code,
+          city,
+          country
+        ),
         user_roles (
           roles (
             name
@@ -289,6 +311,14 @@ async function updateUser(request: NextRequest, currentUser: any) {
           "createdAt",
           "updatedAt",
           "lastLoginAt",
+          homebase_id,
+          homebase:airfields!homebase_id (
+            id,
+            name,
+            code,
+            city,
+            country
+          ),
           user_roles (
             roles (
               name

@@ -1,7 +1,8 @@
 'use client';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plane, Clock, Calendar } from 'lucide-react';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Plane, Clock, Calendar, AlertCircle } from 'lucide-react';
 import { useDateFormatUtils } from '@/hooks/use-date-format';
 
 interface FleetStatusAircraft {
@@ -57,53 +58,87 @@ export default function FleetStatus({ fleetStatus }: FleetStatusProps) {
     }
   };
 
-  if (!fleetStatus || fleetStatus.length === 0) {
-    return (
-      <div className="col-span-full">
-        <Card className="card-hover">
-          <CardContent className="pt-6">
-            <p className="text-muted-foreground text-center py-4">No aircraft found in the fleet.</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
-    <>
-      {fleetStatus.map((aircraft) => (
-        <Card key={aircraft.id} className="card-hover">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Plane className="h-4 w-4" />
-                <span className="text-lg">{aircraft.callSign}</span>
-              </div>
-              <Badge 
-                variant="outline" 
-                className={`text-xs ${getStatusColor(aircraft.status)}`}
-              >
-                {getStatusDisplay(aircraft.status)}
-              </Badge>
-            </CardTitle>
-            <CardDescription className="text-sm">{aircraft.type}</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Last Hobbs:</span>
-                <span className="font-medium">{formatHobbs(aircraft.lastHobbs)}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">Recorded:</span>
-                <span className="font-medium">{formatHobbsDate(aircraft.lastHobbsDate)}</span>
-              </div>
+    <Card className="col-span-full">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Plane className="h-5 w-5" />
+          Fleet Status
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {!fleetStatus || fleetStatus.length === 0 ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="text-center">
+              <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">No aircraft found in the fleet.</p>
             </div>
-          </CardContent>
-        </Card>
-      ))}
-    </>
+          </div>
+        ) : (
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Aircraft</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Last Hobbs</TableHead>
+                  <TableHead>Last Recorded</TableHead>
+                  <TableHead>Days Since Update</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {fleetStatus.map((aircraft) => {
+                  const daysSinceUpdate = aircraft.lastHobbsDate 
+                    ? Math.floor((Date.now() - new Date(aircraft.lastHobbsDate).getTime()) / (1000 * 60 * 60 * 24))
+                    : null;
+
+                  return (
+                    <TableRow key={aircraft.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Plane className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{aircraft.callSign}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{aircraft.type}</TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs ${getStatusColor(aircraft.status)}`}
+                        >
+                          {getStatusDisplay(aircraft.status)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-mono">{formatHobbs(aircraft.lastHobbs)}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span>{formatHobbsDate(aircraft.lastHobbsDate)}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {daysSinceUpdate !== null ? (
+                          <span className={daysSinceUpdate > 30 ? 'text-orange-600 font-medium' : 'text-muted-foreground'}>
+                            {daysSinceUpdate === 0 ? 'Today' : `${daysSinceUpdate} days`}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">Never</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

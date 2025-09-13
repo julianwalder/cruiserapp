@@ -230,6 +230,7 @@ export default function UserManagement() {
     paymentMethod: '',
     notes: '',
   });
+  const [bases, setBases] = useState<Array<{id: string, name: string, code: string}>>([]);
 
   const {
     register,
@@ -767,6 +768,7 @@ export default function UserManagement() {
         licenseNumber: selectedUser.licenseNumber || '',
         medicalClass: selectedUser.medicalClass || '',
         instructorRating: selectedUser.instructorRating || '',
+        homebaseId: (selectedUser as any).homebase_id || null,
         roles: selectedUser.roles
       });
       
@@ -780,6 +782,26 @@ export default function UserManagement() {
   useEffect(() => {
     console.log('selectedUser changed:', selectedUser);
   }, [selectedUser]);
+
+  // Fetch bases for homebase selection
+  useEffect(() => {
+    const fetchBases = async () => {
+      try {
+        const response = await fetch('/api/bases');
+        const data = await response.json();
+        
+        if (response.ok) {
+          setBases(data.bases || []);
+        } else {
+          console.error('Failed to fetch bases:', data.error);
+        }
+      } catch (error) {
+        console.error('Error fetching bases:', error);
+      }
+    };
+
+    fetchBases();
+  }, []);
 
   // Handle edit form changes
   const handleEditChange = (field: string, value: unknown) => {
@@ -869,6 +891,7 @@ export default function UserManagement() {
           licenseNumber: result.user.licenseNumber || '',
           medicalClass: result.user.medicalClass || '',
           instructorRating: result.user.instructorRating || '',
+          homebaseId: result.user.homebase_id || null,
           roles: result.user.roles
         });
       }
@@ -2034,6 +2057,31 @@ export default function UserManagement() {
                     )}
                   </div>
                 )}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-muted-foreground">Homebase</Label>
+                  {isEditing ? (
+                    <Select
+                      value={editForm.homebaseId || 'none'}
+                      onValueChange={(value) => handleEditChange('homebaseId', value === 'none' ? null : value)}
+                    >
+                      <SelectTrigger className="bg-background border-input">
+                        <SelectValue placeholder="Select homebase" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No homebase</SelectItem>
+                        {bases.map((base) => (
+                          <SelectItem key={base.id} value={base.id}>
+                            {base.name} ({base.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <p className="text-base text-card-foreground">
+                      {(selectedUser as any).homebase?.code || 'Not assigned'}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 

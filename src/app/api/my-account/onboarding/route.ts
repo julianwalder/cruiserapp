@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { onboardingType, paymentPlanId, hourPackageId } = body;
+    const { onboardingType, paymentPlanId, hourPackageId, homebaseId } = body;
 
     // Validate onboarding type
     if (!onboardingType || !['STUDENT', 'PILOT'].includes(onboardingType)) {
@@ -74,6 +74,22 @@ export async function POST(request: NextRequest) {
       current_step: 1,
       total_steps: 5
     };
+
+    // Update user's homebase if provided
+    if (homebaseId) {
+      const { error: updateHomebaseError } = await supabase
+        .from('users')
+        .update({ homebase_id: homebaseId })
+        .eq('id', payload.userId);
+
+      if (updateHomebaseError) {
+        console.error('Error updating user homebase:', updateHomebaseError);
+        return NextResponse.json(
+          { error: 'Failed to update homebase' },
+          { status: 500 }
+        );
+      }
+    }
 
     const { data: onboarding, error: createError } = await supabase
       .from('user_onboarding')

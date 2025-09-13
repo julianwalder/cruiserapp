@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import PilotOverview from '@/components/PilotOverview';
 import FleetStatus from '@/components/FleetStatus';
+import { StudentsStatus } from '@/components/StudentsStatus';
 import { User } from "@/types/uuid-types";
 import { GreetingCard } from "@/components/GreetingCard";
 
@@ -185,16 +186,11 @@ export default function DashboardPage() {
             </Card>
           </div>
 
+          {/* Students Status Section */}
+          <StudentsStatus />
+
           {/* Fleet Status Section */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Plane className="h-5 w-5" />
-              <h2 className="text-xl font-semibold">Fleet Status</h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              <FleetStatus fleetStatus={stats.fleetStatus} />
-            </div>
-          </div>
+          <FleetStatus fleetStatus={stats.fleetStatus} />
         </div>
       )}
 

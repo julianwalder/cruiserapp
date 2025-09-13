@@ -51,6 +51,7 @@ export const userUpdateSchema = z.object({
   licenseNumber: z.string().optional(),
   medicalClass: z.string().optional(),
   instructorRating: z.string().optional(),
+  homebaseId: z.string().uuid().optional().nullable(),
   roles: z.array(z.enum(['PILOT', 'STUDENT', 'INSTRUCTOR', 'BASE_MANAGER', 'ADMIN', 'SUPER_ADMIN', 'PROSPECT'])).optional(),
 });
 

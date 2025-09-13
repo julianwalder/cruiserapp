@@ -47,6 +47,7 @@ import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { PilotLicenseUpload } from '@/components/PilotLicenseUpload';
 import { MedicalCertificateUpload } from '@/components/MedicalCertificateUpload';
 import { RadioCertificateUpload } from '@/components/RadioCertificateUpload';
+import { HomebaseSelector } from '@/components/HomebaseSelector';
 
 // Extended User interface for My Account with userRoles and verification data
 interface MyAccountUser extends UserType {
@@ -189,6 +190,9 @@ export default function MyAccountPage() {
   const [pilotDocuments, setPilotDocuments] = useState<any[]>([]);
   const [loadingPilotData, setLoadingPilotData] = useState(false);
   
+  // Homebase state
+  const [currentHomebaseId, setCurrentHomebaseId] = useState<string | null>(null);
+  
   // Use the proper date formatting system
   const { formatDate } = useDateFormatUtils();
 
@@ -200,6 +204,30 @@ export default function MyAccountPage() {
     }
   }, [searchParams]);
 
+
+  const fetchHomebase = async () => {
+    try {
+      const impersonationToken = localStorage.getItem('impersonationToken');
+      const token = impersonationToken || localStorage.getItem('token');
+      if (!token) {
+        console.error('No authentication token found');
+        return;
+      }
+
+      const response = await fetch('/api/my-account/homebase', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentHomebaseId(data.homebaseId);
+      }
+    } catch (error) {
+      console.error('Failed to fetch homebase:', error);
+    }
+  };
 
   const fetchPilotData = async () => {
     try {
@@ -368,6 +396,9 @@ export default function MyAccountPage() {
 
           // Fetch pilot documents data
           await fetchPilotData();
+
+          // Fetch homebase data
+          await fetchHomebase();
         }
       } catch (error) {
         console.error('Failed to fetch user data:', error);
@@ -882,6 +913,30 @@ export default function MyAccountPage() {
             </CardContent>
           </Card>
           )}
+
+          {/* Homebase Selection */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Homebase
+              </CardTitle>
+              <CardDescription>
+                Select your primary base for statistical purposes and personalized experience
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <HomebaseSelector
+                currentHomebaseId={currentHomebaseId}
+                onHomebaseChange={(homebaseId) => {
+                  setCurrentHomebaseId(homebaseId);
+                }}
+                showCurrentHomebase={true}
+                title="Select Your Homebase"
+                description="Choose your primary base for statistical purposes and personalized experience."
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Verification Tab */}

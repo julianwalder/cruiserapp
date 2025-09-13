@@ -27,6 +27,7 @@ import {
 import { toast } from 'sonner';
 import { UnifiedIdentityVerification } from '@/components/ui/unified-identity-verification';
 import { useSidebar } from '@/contexts/SidebarContext';
+import { HomebaseSelector } from '@/components/HomebaseSelector';
 
 interface OnboardingFlowProps {
   onboardingType?: 'STUDENT' | 'PILOT';
@@ -106,8 +107,9 @@ export function OnboardingFlow({ onboardingType: propOnboardingType, onComplete,
   const [isLoading, setIsLoading] = useState(false);
   const [pilotHourPackages, setPilotHourPackages] = useState<HourPackage[]>([]);
   const [packagesLoading, setPackagesLoading] = useState(false);
+  const [selectedHomebaseId, setSelectedHomebaseId] = useState<string | null>(null);
 
-  const totalSteps = 4;
+  const totalSteps = 5;
   const progress = (currentStep / totalSteps) * 100;
 
   // Fetch hour packages from API
@@ -200,11 +202,16 @@ export function OnboardingFlow({ onboardingType: propOnboardingType, onComplete,
     },
     {
       number: 3,
+      title: 'Homebase',
+      description: 'Select your primary base'
+    },
+    {
+      number: 4,
       title: 'Identity Verification',
       description: 'Verify your identity with Veriff'
     },
     {
-      number: 4,
+      number: 5,
       title: 'Contract & Rules',
       description: 'Review rules, terms and sign contract'
     }
@@ -242,6 +249,7 @@ export function OnboardingFlow({ onboardingType: propOnboardingType, onComplete,
           onboardingType: onboardingType,
           paymentPlanId: onboardingType === 'STUDENT' ? selectedPlan : null,
           hourPackageId: onboardingType === 'PILOT' ? selectedPackage : null,
+          homebaseId: selectedHomebaseId,
         }),
       });
 
@@ -285,7 +293,9 @@ export function OnboardingFlow({ onboardingType: propOnboardingType, onComplete,
         return onboardingType !== null;
       case 2:
         return onboardingType === 'STUDENT' ? selectedPlan : selectedPackage;
-      case 4:
+      case 3:
+        return selectedHomebaseId !== null;
+      case 5:
         return acceptedRules;
       default:
         return true;
@@ -593,6 +603,26 @@ export function OnboardingFlow({ onboardingType: propOnboardingType, onComplete,
         return (
           <div className="space-y-6">
             <div className="text-center">
+              <h2 className="text-2xl font-bold mb-2">Select Your Homebase</h2>
+              <p className="text-muted-foreground">
+                Choose your primary base for statistical purposes and personalized experience.
+              </p>
+            </div>
+
+            <HomebaseSelector
+              currentHomebaseId={selectedHomebaseId}
+              onHomebaseChange={setSelectedHomebaseId}
+              showCurrentHomebase={false}
+              title=""
+              description=""
+            />
+          </div>
+        );
+
+      case 4:
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
               <div className="flex justify-center mb-4">
                 <div className="p-4 bg-blue-100 dark:bg-blue-900/20 rounded-full">
                   <Shield className="h-12 w-12 text-blue-600" />
@@ -624,7 +654,7 @@ export function OnboardingFlow({ onboardingType: propOnboardingType, onComplete,
           </div>
         );
 
-      case 4:
+      case 5:
         return (
           <div className="space-y-8">
             {/* Rules & Terms Section */}
