@@ -97,6 +97,10 @@ export interface Airfield extends BaseEntity {
   city?: string;
   state?: string;
   country?: string;
+  countryFullName?: string;
+  stateFullName?: string;
+  countryCode?: string;
+  stateCode?: string;
   latitude?: number;
   longitude?: number;
   elevation?: number;
