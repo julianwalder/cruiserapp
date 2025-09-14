@@ -462,6 +462,11 @@ export default function AirfieldsManagement() {
     fetchCurrentUser();
   }, []);
 
+  // Reset province filter when country filter changes
+  useEffect(() => {
+    setProvinceFilter('ALL_PROVINCES');
+  }, [countryFilter]);
+
   // Check if user can edit (ADMIN or SUPER_ADMIN)
   const canEdit = useMemo(() => {
     if (!currentUser?.userRoles) return false;
@@ -469,6 +474,34 @@ export default function AirfieldsManagement() {
       userRole.roles.name === 'ADMIN' || userRole.roles.name === 'SUPER_ADMIN'
     );
   }, [currentUser]);
+
+  // Helper function to get type label (defined before useMemo)
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case 'LARGE_AIRPORT':
+        return 'Large Airport';
+      case 'MEDIUM_AIRPORT':
+        return 'Medium Airport';
+      case 'SMALL_AIRPORT':
+        return 'Small Airport';
+      case 'HELIPORT':
+        return 'Heliport';
+      case 'SEAPLANE_BASE':
+        return 'Seaplane Base';
+      case 'BALLOON_PORT':
+        return 'Balloon Port';
+      case 'GLIDER_PORT':
+        return 'Glider Port';
+      case 'ULTRALIGHT_FIELD':
+        return 'Ultralight Field';
+      case 'AIRSTRIP':
+        return 'Airstrip';
+      case 'AIRPORT':
+        return 'Airport';
+      default:
+        return type.replace('_', ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+    }
+  };
 
   // Generate unique type, country, status, and province options from allAirfields
   const allTypes = useMemo(() => Array.from(new Set(allAirfields.map(a => a.type).filter(Boolean))).sort(), [allAirfields]);
@@ -478,7 +511,10 @@ export default function AirfieldsManagement() {
 
   const typeOptions = useMemo(() => [
     { value: 'ALL_TYPES', label: 'All types' },
-    ...allTypes.map(t => ({ value: t, label: t }))
+    ...allTypes.map(t => ({ 
+      value: t, 
+      label: getTypeLabel(t)
+    })).sort((a, b) => a.label.localeCompare(b.label))
   ], [allTypes]);
   const countryOptions = useMemo(() => [
     { value: 'ALL_COUNTRIES', label: 'All countries' },
@@ -491,10 +527,23 @@ export default function AirfieldsManagement() {
       label: s.replace('_', ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase()) 
     }))
   ], [allStatuses]);
-  const provinceOptions = useMemo(() => [
-    { value: 'ALL_PROVINCES', label: 'All provinces' },
-    ...allProvinces.map((p: string) => ({ value: p, label: p }))
-  ], [allProvinces]);
+  const provinceOptions = useMemo(() => {
+    // If a specific country is selected, only show provinces from that country
+    const filteredProvinces = countryFilter === 'ALL_COUNTRIES' 
+      ? allProvinces 
+      : allAirfields
+          .filter(airfield => airfield.country === countryFilter)
+          .map(airfield => airfield.state)
+          .filter((state): state is string => Boolean(state));
+    
+    // Remove duplicates and sort
+    const uniqueProvinces = [...new Set(filteredProvinces)].sort((a, b) => a.localeCompare(b));
+    
+    return [
+      { value: 'ALL_PROVINCES', label: 'All provinces' },
+      ...uniqueProvinces.map((p: string) => ({ value: p, label: p }))
+    ];
+  }, [allProvinces, allAirfields, countryFilter]);
 
   const filteredAirfields = useMemo(() => {
     return airfields.filter(airfield => {
@@ -654,43 +703,49 @@ export default function AirfieldsManagement() {
   const formatProvince = (state: string | undefined) => {
     if (!state) return '-';
     
-    // Remove country prefix (e.g., "RO-" from "RO-CT")
-    const cleanState = state.replace(/^[A-Z]{2}-/, '');
+    // Check if it's a short code (pattern like "RO-CT", "SI-001", "SK-PV", etc.)
+    const isShortCode = /^[A-Z]{2}-[A-Z0-9]{1,3}$/.test(state);
     
-    // Convert to readable format and capitalize
-    return cleanState
-      .split('-')
-      .map(word => word.toUpperCase())
-      .join(' ');
+    if (isShortCode) {
+      // For short codes, keep them in all caps
+      return state.toUpperCase();
+    }
+    
+    // For full names, apply proper title case
+    return state
+      .split(/(\s|-|\(|\))/) // Split on spaces, hyphens, and parentheses but keep delimiters
+      .map(word => {
+        // Skip empty strings and delimiters
+        if (!word || /^[\s\-\(\)]+$/.test(word)) return word;
+        
+        // Handle special cases for proper capitalization
+        const lowerWord = word.toLowerCase();
+        if (lowerWord === 'and') return 'and';
+        if (lowerWord === 'of') return 'of';
+        if (lowerWord === 'the') return 'the';
+        if (lowerWord === 'de') return 'de';
+        if (lowerWord === 'la') return 'la';
+        if (lowerWord === 'le') return 'le';
+        if (lowerWord === 'du') return 'du';
+        if (lowerWord === 'des') return 'des';
+      if (lowerWord === 'd\'') return 'd\'';
+      if (lowerWord === 'l\'') return 'l\'';
+      if (lowerWord === 'côte') return 'Côte';
+        if (lowerWord === 'city') return 'city';
+        if (lowerWord === 'capital') return 'capital';
+        if (lowerWord === 'municipality') return 'municipality';
+        if (lowerWord === 'region') return 'region';
+        if (lowerWord === 'voivodeship') return 'voivodeship';
+        if (lowerWord === 'province') return 'province';
+        
+        // Capitalize first letter, lowercase the rest
+        return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      })
+      .join('');
   };
 
   const getAirportTypeLabel = (airfield: ExtendedAirfield) => {
-    // Use the OurAirports type directly to determine the display label
-    switch (airfield.type) {
-      case 'LARGE_AIRPORT':
-        return 'Large Airport';
-      case 'MEDIUM_AIRPORT':
-        return 'Medium Airport';
-      case 'SMALL_AIRPORT':
-        return 'Small Airport';
-      case 'HELIPORT':
-        return 'Heliport';
-      case 'SEAPLANE_BASE':
-        return 'Seaplane Base';
-      case 'BALLOON_PORT':
-        return 'Balloon Port';
-      case 'GLIDER_PORT':
-        return 'Glider Port';
-      case 'ULTRALIGHT_FIELD':
-        return 'Ultralight Field';
-      case 'AIRSTRIP':
-        return 'Airstrip';
-      case 'AIRPORT':
-        return 'Airport';
-      default:
-        // Fallback for any unrecognized types
-        return airfield.type.replace('_', ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
-    }
+    return getTypeLabel(airfield.type);
   };
 
   const handleRowClick = async (airfield: ExtendedAirfield) => {
@@ -752,19 +807,19 @@ export default function AirfieldsManagement() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="w-full overflow-x-auto">
-            <Table>
+            <Table className="table-fixed w-[920px] min-w-full">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Airfield</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Country</TableHead>
-                  <TableHead>Province</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead className="w-[300px]">Airfield</TableHead>
+                  <TableHead className="w-[120px]">Type</TableHead>
+                  <TableHead className="w-[150px]">Country</TableHead>
+                  <TableHead className="w-[150px]">Province</TableHead>
+                  <TableHead className="w-[120px]">Status</TableHead>
+                  <TableHead className="w-[80px]">Actions</TableHead>
                 </TableRow>
-                <TableRow>
+                <TableRow className="h-12">
                   {/* Airfield search */}
-                  <TableCell>
+                  <TableCell className="w-[300px] h-12">
                     <Input
                       placeholder="Search airfield..."
                       value={search}
@@ -773,52 +828,52 @@ export default function AirfieldsManagement() {
                     />
                   </TableCell>
                   {/* Type combobox */}
-                  <TableCell>
+                  <TableCell className="w-[120px] h-12">
                     <CompactCombobox
                       options={typeOptions}
                       value={typeFilter}
                       onValueChange={setTypeFilter}
                       placeholder="All types"
-                      className="min-w-[110px] w-auto"
+                      className="w-full"
                     />
                   </TableCell>
                   {/* Country combobox */}
-                  <TableCell>
+                  <TableCell className="w-[150px] h-12">
                     <CompactCombobox
                       options={countryOptions}
                       value={countryFilter}
                       onValueChange={setCountryFilter}
                       placeholder="All countries"
-                      className="min-w-[110px] w-auto"
+                      className="w-full"
                     />
                   </TableCell>
                   {/* Province combobox */}
-                  <TableCell>
+                  <TableCell className="w-[150px] h-12">
                     <CompactCombobox
                       options={provinceOptions}
                       value={provinceFilter}
                       onValueChange={setProvinceFilter}
                       placeholder="All provinces"
-                      className="min-w-[110px] w-auto"
+                      className="w-full"
                     />
                   </TableCell>
                   {/* Status combobox */}
-                  <TableCell>
+                  <TableCell className="w-[120px] h-12">
                     <CompactCombobox
                       options={statusOptions}
                       value={statusFilter}
                       onValueChange={setStatusFilter}
                       placeholder="All statuses"
-                      className="min-w-[110px] w-auto"
+                      className="w-full"
                     />
                   </TableCell>
-                  <TableCell />
+                  <TableCell className="w-[80px] h-12" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12">
+                    <TableCell colSpan={6} className="text-center py-12">
                       <div className="flex flex-col items-center space-y-2">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                         <span className="text-muted-foreground">Loading airfields...</span>
@@ -827,7 +882,7 @@ export default function AirfieldsManagement() {
                   </TableRow>
                 ) : filteredAirfields.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-12">
+                    <TableCell colSpan={6} className="text-center py-12">
                       <div className="flex flex-col items-center space-y-2">
                         <Plane className="h-8 w-8 text-muted-foreground" />
                         <span className="text-muted-foreground">No airfields found</span>
@@ -839,11 +894,11 @@ export default function AirfieldsManagement() {
                   filteredAirfields.map((airfield) => (
                     <TableRow 
                       key={airfield.id} 
-                      className="hover:bg-muted/30 transition-colors cursor-pointer"
+                      className="hover:bg-muted/30 transition-colors cursor-pointer h-12"
                       onClick={() => handleRowClick(airfield)}
                     >
-                      <TableCell>
-                        <div className="flex items-center space-x-3">
+                      <TableCell className="w-[300px] h-12">
+                        <div className="flex items-center space-x-3 h-full">
                           <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
                             airfield.isBase ? 'bg-accent text-accent-foreground' : 'bg-primary-10 text-primary'
                           }`}>
@@ -860,13 +915,15 @@ export default function AirfieldsManagement() {
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <Badge className={`${getTypeBadgeColor(airfield.type)} text-xs`}>
-                          {getAirportTypeLabel(airfield)}
-                        </Badge>
+                      <TableCell className="w-[120px] h-12">
+                        <div className="flex items-center h-full">
+                          <Badge className={`${getTypeBadgeColor(airfield.type)} text-xs`}>
+                            {getAirportTypeLabel(airfield)}
+                          </Badge>
+                        </div>
                       </TableCell>
-                      <TableCell>
-                        <div className="min-w-0">
+                      <TableCell className="w-[150px] h-12">
+                        <div className="min-w-0 h-full flex flex-col justify-center">
                           <div className="font-medium truncate">{airfield.city}</div>
                           <div className="text-sm text-muted-foreground">{airfield.country}</div>
                           {airfield.latitude && airfield.longitude && (
@@ -876,18 +933,35 @@ export default function AirfieldsManagement() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <div className="text-sm text-muted-foreground">
-                          {formatProvince(airfield.state)}
+                      <TableCell className="w-[150px] h-12">
+                        <div className="text-sm text-muted-foreground h-full flex items-center">
+                          <div 
+                            className="break-words leading-tight"
+                            style={{
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                              wordBreak: 'break-word',
+                              hyphens: 'auto',
+                              maxHeight: '2.5rem',
+                              lineHeight: '1.25rem'
+                            }}
+                            title={formatProvince(airfield.state)}
+                          >
+                            {formatProvince(airfield.state)}
+                          </div>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <Badge className={`${getStatusBadgeColor(airfield.status)} text-xs`}>
-                          {airfield.status.replace('_', ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
-                        </Badge>
+                      <TableCell className="w-[120px] h-12">
+                        <div className="flex items-center h-full">
+                          <Badge className={`${getStatusBadgeColor(airfield.status)} text-xs`}>
+                            {airfield.status.replace('_', ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
+                          </Badge>
+                        </div>
                       </TableCell>
 
-                      <TableCell onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="w-[80px] h-12" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
