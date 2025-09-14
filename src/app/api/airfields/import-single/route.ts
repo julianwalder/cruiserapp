@@ -98,9 +98,9 @@ export async function POST(request: NextRequest) {
       city: airport.municipality || '',
       state: airport.iso_region || '',
       country: airport.iso_country || '',
-      latitude: airport.latitude_deg?.toString() || '',
-      longitude: airport.longitude_deg?.toString() || '',
-      elevation: airport.elevation_ft?.toString() || '',
+      latitude: airport.latitude_deg || null,
+      longitude: airport.longitude_deg || null,
+      elevation: airport.elevation_ft || null,
       status: 'ACTIVE' as const,
       isBase: false,
       updatedAt: new Date().toISOString()
