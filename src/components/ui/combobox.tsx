@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/popover"
 
 interface ComboboxProps {
-  options: { value: string; label: string; searchText?: string; status?: string }[]
+  options: { value: string; label: string; searchText?: string; status?: string; displayLabel?: string }[]
   value?: string
   onValueChange: (value: string) => void
   placeholder?: string
@@ -28,7 +28,7 @@ interface ComboboxProps {
   emptyText?: string
   disabled?: boolean
   className?: string
-  searchFunction?: (option: { value: string; label: string; searchText?: string; status?: string }, searchValue: string) => boolean
+  searchFunction?: (option: { value: string; label: string; searchText?: string; status?: string; displayLabel?: string }, searchValue: string) => boolean
 }
 
 export function Combobox({
@@ -91,7 +91,7 @@ export function Combobox({
           disabled={disabled}
         >
           {value
-            ? options.find((option) => option.value === value)?.label
+            ? options.find((option) => option.value === value)?.displayLabel || options.find((option) => option.value === value)?.label
             : placeholder}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>

@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Modal } from "@/components/ui/Modal";
-import { FlightLogForm } from "@/components/FlightLogForm";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { 
   Plane, 
-  User, 
+  User as UserIcon, 
   Calendar as CalendarIcon, 
   Clock, 
   MapPin, 
@@ -44,14 +43,17 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { toast } from "sonner";
 import { useFormattedDate } from "@/lib/date-utils";
-import { cn } from "@/lib/utils";
+import { cn, intelligentSearch } from "@/lib/utils";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import { AuthService } from "@/lib/auth";
 import { DateRange } from "react-day-picker";
+import { createFlightLogSchema, defaultFlightLogValues, CreateFlightLogForm } from "@/lib/schemas/flight-log";
+import { FlightLogsProps, FlightLog, User, Aircraft, Airfield, Pagination, ExtendedFlightLog, UserRole } from "@/lib/types/flight-log";
+import { formatHours, flightLogToFormData, getFlightTypeLabel, getFlightTypeBadgeColor, getFlightTypeBorderColor, calculateFlightHours } from "@/lib/utils/flight-log-form";
+import { TimeInput, HobbsInput } from "@/components/ui/form-inputs";
 
 // Move nested components outside to prevent hook order violations
 
@@ -61,374 +63,22 @@ function FormattedDate({ date }: { date: string | Date | null | undefined }) {
   return <span>{formattedDate}</span>;
 }
 
-// Utility function to format hours as HH:MM
-const formatHours = (hours: number): string => {
-  const wholeHours = Math.floor(hours);
-  const minutes = Math.round((hours - wholeHours) * 60);
-  return `${wholeHours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-};
+// Utility function to format hours as HH:MM - now imported from shared utils
 
-// Flight log creation schema - Jeppesen format
-const createFlightLogSchema = z.object({
-  // Basic flight information
-  date: z.string().min(1, "Date is required"),
-  aircraftId: z.string().min(1, "Aircraft is required"),
-  userId: z.string().min(1, "Pilot is required"),
-  instructorId: z.string().optional().or(z.undefined()),
-  payerId: z.string().optional().or(z.undefined()), // User ID of the person who pays for the flight (used for charter flights)
-  
-  // Departure information
-  departureAirfieldId: z.string().min(1, "Departure airfield is required"),
-  departureTime: z.string()
-    .regex(/^\d{2}:\d{2}$/, "Time must be in HH:MM format")
-    .refine((time) => {
-      const [hh, mm] = time.split(":").map(Number);
-      return (
-        !isNaN(hh) && !isNaN(mm) &&
-        hh >= 0 && hh <= 23 &&
-        mm >= 0 && mm <= 59
-      );
-    }, "Hour must be 00-23 and minute must be 00-59"),
-  departureHobbs: z.number().min(0.1, "Departure Hobbs must be greater than 0"),
-  
-  // Arrival information
-  arrivalAirfieldId: z.string().min(1, "Arrival airfield is required"),
-  arrivalTime: z.string()
-    .regex(/^\d{2}:\d{2}$/, "Time must be in HH:MM format")
-    .refine((time) => {
-      const [hh, mm] = time.split(":").map(Number);
-      return (
-        !isNaN(hh) && !isNaN(mm) &&
-        hh >= 0 && hh <= 23 &&
-        mm >= 0 && mm <= 59
-      );
-    }, "Hour must be 00-23 and minute must be 00-59"),
-  arrivalHobbs: z.number().min(0.1, "Arrival Hobbs must be greater than 0"),
-  
-  // Flight hours
-  pilotInCommand: z.number().min(0, "PIC hours must be 0 or greater"),
-  secondInCommand: z.number().min(0, "SIC hours must be 0 or greater"),
-  dualReceived: z.number().min(0, "Dual received hours must be 0 or greater"),
-  dualGiven: z.number().min(0, "Dual given hours must be 0 or greater"),
-  solo: z.number().min(0, "Solo hours must be 0 or greater"),
-  crossCountry: z.number().min(0, "Cross country hours must be 0 or greater"),
-  night: z.number().min(0, "Night hours must be 0 or greater"),
-  instrument: z.number().min(0, "Instrument hours must be 0 or greater"),
-  actualInstrument: z.number().min(0, "Actual instrument hours must be 0 or greater"),
-  simulatedInstrument: z.number().min(0, "Simulated instrument hours must be 0 or greater"),
-  
-  // Landings
-  dayLandings: z.number().min(0, "Day landings must be 0 or greater"),
-  nightLandings: z.number().min(0, "Night landings must be 0 or greater"),
-  
-  // Additional information
-  oilAdded: z.number().min(0, "Oil added must be 0 or greater").optional(),
-  fuelAdded: z.number().min(0, "Fuel added must be 0 or greater").optional(),
-  purpose: z.string().optional().or(z.undefined()).nullable(),
-  remarks: z.string().optional().or(z.undefined()).nullable(),
-  route: z.string().optional().or(z.undefined()).nullable(),
-  conditions: z.string().optional().or(z.undefined()).nullable(),
-  flightType: z.enum(["INVOICED", "SCHOOL", "FERRY", "CHARTER", "DEMO", "PROMO"]),
-  totalHours: z.number().min(0, "Total hours must be 0 or greater").optional(),
-});
+// TimeInput and HobbsInput components are now imported from shared UI components
 
-type CreateFlightLogForm = z.infer<typeof createFlightLogSchema>;
-
-// Move TimeInput component outside
-interface TimeInputProps {
-  value?: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  name?: string;
-  className?: string;
-  [key: string]: any;
-}
-
-function TimeInput({ value, onChange, name, className, ...props }: TimeInputProps) {
-  const inputRef = React.useRef<HTMLInputElement>(null);
-
-  // Handle input change with basic validation
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let inputValue = e.target.value;
-    
-    // Remove any non-digit characters except colon
-    inputValue = inputValue.replace(/[^\d:]/g, '');
-    
-    // Auto-add colon after 2 digits
-    if (inputValue.length === 2 && !inputValue.includes(':')) {
-      inputValue = inputValue + ':';
-    }
-    
-    // Limit to HH:MM format
-    if (inputValue.length > 5) {
-      inputValue = inputValue.substring(0, 5);
-    }
-    
-    // Validate hours (00-23)
-    if (inputValue.length >= 2) {
-      const hours = parseInt(inputValue.substring(0, 2));
-      if (hours > 23) {
-        inputValue = '23' + inputValue.substring(2);
-      }
-    }
-    
-    // Validate minutes (00-59)
-    if (inputValue.length >= 5) {
-      const minutes = parseInt(inputValue.substring(3, 5));
-      if (minutes > 59) {
-        inputValue = inputValue.substring(0, 3) + '59';
-      }
-    }
-    
-    // Update the input value
-    e.target.value = inputValue;
-    
-    // Call the original onChange
-    onChange(e);
-  };
-
-  // Handle focus to position cursor at beginning
-  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    // Position cursor at the beginning of the input
-    e.target.setSelectionRange(0, 0);
-    
-    // Call the original onFocus if provided
-    if (props.onFocus) {
-      props.onFocus(e);
-    }
-  };
-
-  return (
-    <input
-      ref={inputRef}
-      type="text"
-      name={name}
-      value={value || ''}
-      placeholder="HH:MM (UTC)"
-      className={cn(
-        "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 text-center",
-        className
-      )}
-      style={{
-        textAlign: 'center',
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        letterSpacing: '1px'
-      }}
-      onChange={handleChange}
-      onFocus={handleFocus}
-      maxLength={5}
-      {...props}
-    />
-  );
-}
-
-// Move HobbsInput component outside
-interface HobbsInputProps {
-  value?: string | number;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  name?: string;
-  className?: string;
-  [key: string]: any;
-}
-
-function HobbsInput({ value, onChange, name, className, ...props }: HobbsInputProps) {
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let inputValue = e.target.value;
-    
-    // Allow normal number input but limit to one decimal place
-    if (inputValue.includes('.')) {
-      const parts = inputValue.split('.');
-      if (parts[1] && parts[1].length > 1) {
-        // Limit to one decimal place
-        inputValue = parts[0] + '.' + parts[1].substring(0, 1);
-      }
-    }
-    
-    // Update the input value
-    e.target.value = inputValue;
-    
-    // Call the original onChange
-    onChange(e);
-  };
-
-  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    let inputValue = e.target.value;
-    
-    // Format to one decimal place on blur
-    if (inputValue && !isNaN(parseFloat(inputValue))) {
-      const numValue = parseFloat(inputValue);
-      if (numValue >= 0) {
-        const formattedValue = numValue.toFixed(1);
-        e.target.value = formattedValue;
-        
-        // Create a new event with the formatted value
-        const newEvent = {
-          ...e,
-          target: { ...e.target, value: formattedValue }
-        } as React.ChangeEvent<HTMLInputElement>;
-        
-        onChange(newEvent);
-      }
-    }
-  };
-
-  return (
-    <input
-      type="number"
-      name={name}
-      value={value || ''}
-      step="0.1"
-      min="0"
-      placeholder="0.0"
-      className={cn(
-        "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 text-center",
-        className
-      )}
-      style={{
-        textAlign: 'center',
-        fontFamily: 'monospace',
-        fontSize: '14px'
-      }}
-      onChange={handleChange}
-      onBlur={handleBlur}
-      {...props}
-    />
-  );
-}
-
-interface Aircraft {
-  id: string;
-  callSign: string;
-  icaoReferenceType: {
-    model: string;
-    manufacturer: string;
-    typeDesignator: string;
-  };
-  icao_reference_type?: {
-    model: string;
-    manufacturer: string;
-    type_designator: string;
-  };
-  status: string;
-}
-
-interface UserRole {
-  role?: {
-    name: string;
-  };
-  roles?: {
-    name: string;
-  };
-}
-
-interface User {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  status?: string;
-  userRoles: Array<UserRole>;
-}
-
-interface Airfield {
-  id: string;
-  name: string;
-  code: string;
-  city: string;
-  country: string;
-}
-
-interface FlightLog {
-  id: string;
-  aircraftId: string;
-  userId: string;
-  instructorId?: string;
-  payerId?: string; // User ID of the person who pays for the flight (used for charter flights)
-  date: string;
-  departureTime: string;
-  arrivalTime: string;
-  departureAirfieldId: string;
-  arrivalAirfieldId: string;
-  departureHobbs?: number;
-  arrivalHobbs?: number;
-  flightType: string;
-  purpose: string;
-  remarks?: string;
-  totalHours: number;
-  
-  // Jeppesen standard pilot time breakdown
-  pilotInCommand: number;
-  secondInCommand: number;
-  dualReceived: number;
-  dualGiven: number;
-  solo: number;
-  crossCountry: number;
-  night: number;
-  instrument: number;
-  actualInstrument: number;
-  simulatedInstrument: number;
-  
-  // Landings
-  dayLandings: number;
-  nightLandings: number;
-  
-  // Fuel and oil information
-  oilAdded?: number;
-  fuelAdded?: number;
-  
-  // Additional information
-  route?: string;
-  conditions?: string;
-  
-  createdAt: string;
-  updatedAt: string;
-  createdById: string;
-  updatedBy?: string;
-  
-  // Related data
-  aircraft: Aircraft;
-  pilot: User;
-  instructor?: User;
-  payer?: User; // User who pays for the flight (for charter flights)
-  departureAirfield: Airfield;
-  arrivalAirfield: Airfield;
-  createdBy: User;
-  updatedByUser?: User;
-  
-  // Handle both camelCase and snake_case relationship names
-  departure_airfield?: Airfield;
-  arrival_airfield?: Airfield;
-  created_by?: User;
-}
-
-interface Pagination {
-  page: number;
-  limit: number;
-  total: number;
-  pages: number;
-}
-
-// Extended FlightLog type that includes all the related data
-interface ExtendedFlightLog extends FlightLog {
-  // Additional fields that might be added by the API
-  [key: string]: any;
-}
-
-
-
-interface FlightLogsProps {
-  openCreateModal?: boolean;
-}
+// All interfaces are now imported from shared types
 
 export default function FlightLogs({ openCreateModal = false }: FlightLogsProps) {
   const [flightLogs, setFlightLogs] = useState<FlightLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [showCreateDialog, setShowCreateDialog] = useState(openCreateModal);
-  const [showEditDialog, setShowEditDialog] = useState(false);
-  const [flightLogToEdit, setFlightLogToEdit] = useState<FlightLog | null>(null);
-  const [isEditMode, setIsEditMode] = useState(false);
+  // Unified modal state
+  const [showModal, setShowModal] = useState(openCreateModal);
+  const [modalMode, setModalMode] = useState<'create' | 'view' | 'edit'>('create');
+  const [selectedFlightLog, setSelectedFlightLog] = useState<FlightLog | null>(null);
+  
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [flightLogToDelete, setFlightLogToDelete] = useState<FlightLog | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -445,14 +95,11 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
   const [pilots, setPilots] = useState<User[]>([]);
   const [airfields, setAirfields] = useState<Airfield[]>([]);
   const [instructors, setInstructors] = useState<User[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [showViewDialog, setShowViewDialog] = useState(false);
-  const [selectedFlightLog, setSelectedFlightLog] = useState<FlightLog | null>(null);
-  const [viewModalMode, setViewModalMode] = useState<'view' | 'edit'>('view');
   const [showPPLView, setShowPPLView] = useState(true);
   const [exportLoading, setExportLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"personal" | "company">("personal");
-  const [isCharterFlight, setIsCharterFlight] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -486,71 +133,58 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
   // Form management
   const form = useForm<CreateFlightLogForm>({
     resolver: zodResolver(createFlightLogSchema),
-    defaultValues: {
-      flightType: "SCHOOL",
-      departureHobbs: undefined,
-      arrivalHobbs: undefined,
-      oilAdded: undefined,
-      fuelAdded: undefined,
-      dayLandings: 1,
-      nightLandings: 0,
-      pilotInCommand: 0,
-      secondInCommand: 0,
-      dualReceived: 0,
-      dualGiven: 0,
-      solo: 0,
-      crossCountry: 0,
-      night: 0,
-      instrument: 0,
-      actualInstrument: 0,
-      simulatedInstrument: 0,
-      totalHours: 0,
-    },
+    defaultValues: defaultFlightLogValues,
   });
 
   // Populate form with flight log data when editing
   useEffect(() => {
-    if (flightLogToEdit && isEditMode) {
-      // Get payer_id from the database field
-      const payerId = (flightLogToEdit as any).payer_id;
+    if (selectedFlightLog && modalMode === 'edit') {
+      const formData = flightLogToFormData(selectedFlightLog);
       
-      const formData = {
-        flightType: flightLogToEdit.flightType as "INVOICED" | "SCHOOL" | "FERRY" | "CHARTER" | "DEMO" | "PROMO",
-        departureHobbs: flightLogToEdit.departureHobbs,
-        arrivalHobbs: flightLogToEdit.arrivalHobbs,
-        oilAdded: flightLogToEdit.oilAdded || 0,
-        fuelAdded: flightLogToEdit.fuelAdded || 0,
-        dayLandings: flightLogToEdit.dayLandings,
-        nightLandings: flightLogToEdit.nightLandings,
-        pilotInCommand: flightLogToEdit.pilotInCommand,
-        secondInCommand: flightLogToEdit.secondInCommand,
-        dualReceived: flightLogToEdit.dualReceived,
-        dualGiven: flightLogToEdit.dualGiven,
-        solo: flightLogToEdit.solo,
-        crossCountry: flightLogToEdit.crossCountry,
-        night: flightLogToEdit.night,
-        instrument: flightLogToEdit.instrument,
-        actualInstrument: flightLogToEdit.actualInstrument,
-        simulatedInstrument: flightLogToEdit.simulatedInstrument,
-        userId: flightLogToEdit.userId,
-        aircraftId: flightLogToEdit.aircraftId,
-        instructorId: flightLogToEdit.instructorId ?? undefined,
-        payerId: payerId ?? undefined,
-        date: flightLogToEdit.date,
-        departureTime: flightLogToEdit.departureTime,
-        arrivalTime: flightLogToEdit.arrivalTime,
-        departureAirfieldId: flightLogToEdit.departureAirfieldId,
-        arrivalAirfieldId: flightLogToEdit.arrivalAirfieldId,
-        purpose: flightLogToEdit.purpose,
-        remarks: flightLogToEdit.remarks,
-      };
+      // Check if current user is a student (and only a student, no other roles)
+      const isStudentOnly = currentUser && currentUser.userRoles?.some((ur: UserRole) => 
+        (ur.role?.name || ur.roles?.name) === 'STUDENT'
+      ) && !currentUser.userRoles?.some((ur: UserRole) => 
+        (ur.role?.name || ur.roles?.name) === 'INSTRUCTOR' || 
+        (ur.role?.name || ur.roles?.name) === 'ADMIN' || 
+        (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN' ||
+        (ur.role?.name || ur.roles?.name) === 'BASE_MANAGER'
+      );
       
-      // Set charter flight state if flight type is CHARTER
-      setIsCharterFlight(flightLogToEdit.flightType === 'CHARTER');
+      // For students, always set flight type to SCHOOL
+      if (isStudentOnly) {
+        formData.flightType = 'SCHOOL';
+      }
       
+      console.log('🔍 Populating form with flight log data:', {
+        selectedFlightLog: selectedFlightLog.flightType,
+        formData: formData.flightType,
+        modalMode,
+        isStudentOnly
+      });
       form.reset(formData);
+    } else if (modalMode === 'create') {
+      const defaultValues = { ...defaultFlightLogValues };
+      
+      // Check if current user is a student (and only a student, no other roles)
+      const isStudentOnly = currentUser && currentUser.userRoles?.some((ur: UserRole) => 
+        (ur.role?.name || ur.roles?.name) === 'STUDENT'
+      ) && !currentUser.userRoles?.some((ur: UserRole) => 
+        (ur.role?.name || ur.roles?.name) === 'INSTRUCTOR' || 
+        (ur.role?.name || ur.roles?.name) === 'ADMIN' || 
+        (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN' ||
+        (ur.role?.name || ur.roles?.name) === 'BASE_MANAGER'
+      );
+      
+      // For students, always set flight type to SCHOOL
+      if (isStudentOnly) {
+        defaultValues.flightType = 'SCHOOL';
+      }
+      // For pilots and other users, default is already INVOICED from the schema
+      
+      form.reset(defaultValues);
     }
-  }, [flightLogToEdit, isEditMode, form]);
+  }, [selectedFlightLog, modalMode, form, currentUser]);
 
   // Client-side authentication check - moved to proper location
   useEffect(() => {
@@ -695,7 +329,9 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
   // Auto-open create modal if prop is true
   useEffect(() => {
     if (openCreateModal && !loading) {
-      setShowCreateDialog(true);
+      setModalMode('create');
+      setSelectedFlightLog(null);
+      setShowModal(true);
     }
   }, [openCreateModal, loading]);
 
@@ -713,6 +349,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
           fetchPilots(),
           fetchInstructors(),
           fetchAirfields(),
+          fetchAllUsers(),
         ]);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -1190,6 +827,65 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
     }
   };
 
+  const fetchAllUsers = async () => {
+    try {
+      // Check if current user is a prospect - if so, don't make API calls
+      if (currentUser) {
+        const userRoles = currentUser.userRoles?.map((ur: UserRole) => ur.role?.name || ur.roles?.name) || [];
+        const isProspect = userRoles.includes('PROSPECT');
+        if (isProspect) {
+          return;
+        }
+      }
+
+      let token = localStorage.getItem('token');
+      if (!token) {
+        console.error('No authentication token found');
+        setAllUsers([]);
+        return;
+      }
+
+      // Fetch all users (without role filter) for charter flight payer selection
+      let response = await fetch('/api/users?limit=1000', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      // If we get a 401, try to refresh the token
+      if (response.status === 401) {
+        const newToken = await refreshTokenIfNeeded();
+        if (newToken) {
+          // Retry the request with the new token
+          response = await fetch('/api/users?limit=1000', {
+            headers: {
+              'Authorization': `Bearer ${newToken}`,
+            },
+          });
+        } else {
+          // Refresh failed, user will be redirected to login
+          return;
+        }
+      }
+      
+      if (response.ok) {
+        const data = await response.json();
+        setAllUsers(data.users || []);
+      } else if (response.status === 403) {
+        // User doesn't have permission to access all users - fallback to pilots + instructors
+        console.log('No permission to fetch all users, using pilots + instructors');
+        setAllUsers([]);
+      } else {
+        const errorText = await response.text();
+        console.error('Error fetching all users:', response.status, errorText);
+        setAllUsers([]);
+      }
+    } catch (error) {
+      console.error('Error fetching all users:', error);
+      setAllUsers([]);
+    }
+  };
+
   const handleCreateFlightLog = async (data: CreateFlightLogForm) => {
     try {
       
@@ -1200,11 +896,11 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       }
 
       // Validate charter flight requirements
-      if (isCharterFlight && !data.payerId) {
+      if (data.flightType === 'CHARTER' && !data.payerId) {
         toast.error('Payer is required for charter flights');
         return;
       }
-      if (!isCharterFlight && data.payerId) {
+      if (data.flightType !== 'CHARTER' && data.payerId) {
         toast.error('Payer can only be set for charter flights');
         return;
       }
@@ -1214,13 +910,12 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         ...data,
         instructorId: data.instructorId || undefined,
         payerId: data.payerId || undefined,
-        flightType: isCharterFlight ? "CHARTER" : data.flightType,
       };
 
-      if (isEditMode && flightLogToEdit) {
+      if (modalMode === 'edit' && selectedFlightLog) {
         
         // Update existing flight log
-        const response = await fetch(`/api/flight-logs/${flightLogToEdit.id}`, {
+        const response = await fetch(`/api/flight-logs/${selectedFlightLog.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -1231,10 +926,9 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
 
         if (response.ok) {
           toast.success('Flight log updated successfully');
-          setShowCreateDialog(false);
-          setIsEditMode(false);
-          setFlightLogToEdit(null);
-          setIsCharterFlight(false);
+          setShowModal(false);
+          setModalMode('create');
+          setSelectedFlightLog(null);
           form.reset();
           fetchFlightLogs();
         } else {
@@ -1254,8 +948,9 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
 
         if (response.ok) {
           toast.success('Flight log created successfully');
-          setShowCreateDialog(false);
-          setIsCharterFlight(false);
+          setShowModal(false);
+          setModalMode('create');
+          setSelectedFlightLog(null);
           form.reset();
           fetchFlightLogs();
         } else {
@@ -1329,32 +1024,37 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
 
       if (response.ok) {
         const freshFlightLog = await response.json();
+        console.log('🔍 Fresh flight log data from API:', {
+          id: freshFlightLog.id,
+          flightType: freshFlightLog.flightType,
+          pilot: freshFlightLog.pilot?.firstName + ' ' + freshFlightLog.pilot?.lastName
+        });
 
-        setFlightLogToEdit(freshFlightLog);
-        setIsEditMode(true);
-        setShowCreateDialog(true);
+        setSelectedFlightLog(freshFlightLog);
+        setModalMode('edit');
+        setShowModal(true);
       } else {
         console.error('❌ Failed to fetch fresh flight log data');
         // Fallback to using existing data
-        setFlightLogToEdit(flightLog);
-        setIsEditMode(true);
-        setShowCreateDialog(true);
+        setSelectedFlightLog(flightLog);
+        setModalMode('edit');
+        setShowModal(true);
       }
     } catch (error) {
       console.error('❌ Error fetching fresh flight log data:', error);
       // Fallback to using existing data
-      setFlightLogToEdit(flightLog);
-      setIsEditMode(true);
-      setShowCreateDialog(true);
+      setSelectedFlightLog(flightLog);
+      setModalMode('edit');
+      setShowModal(true);
     }
   };
 
   const handleEditFromView = () => {
-    setViewModalMode('edit');
+    setModalMode('edit');
   };
 
   const handleCancelEdit = () => {
-    setViewModalMode('view');
+    setModalMode('view');
   };
 
   const handleUpdateFlightLog = async (data: CreateFlightLogForm) => {
@@ -1386,8 +1086,8 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       await fetchFlightLogs();
       
       // Close the modal completely
-      setShowViewDialog(false);
-      setViewModalMode('view');
+      setShowModal(false);
+      setModalMode('create');
       setSelectedFlightLog(null);
       
       toast.success('Flight log updated successfully');
@@ -1398,69 +1098,13 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
   };
 
   const handleCloseModal = () => {
-    setShowCreateDialog(false);
-    setIsEditMode(false);
-    setFlightLogToEdit(null);
-    setIsCharterFlight(false);
+    setShowModal(false);
+    setModalMode('create');
+    setSelectedFlightLog(null);
     form.reset();
   };
 
-  const getFlightTypeLabel = (type: string) => {
-    const labels = {
-      INVOICED: 'Invoiced',
-      SCHOOL: 'School',
-      FERRY: 'Ferry',
-      CHARTER: 'Charter',
-      DEMO: 'Demo',
-      PROMO: 'Promo',
-    };
-    return labels[type as keyof typeof labels] || type;
-  };
-
-  const getFlightTypeBadgeColor = (type: string) => {
-    const colors = {
-      INVOICED: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
-      SCHOOL: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
-      FERRY: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300',
-      CHARTER: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
-      DEMO: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
-      PROMO: 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-300',
-    };
-    return colors[type as keyof typeof colors] || 'bg-gray-100 text-gray-800';
-  };
-
-  const getFlightTypeBorderColor = (type: string) => {
-    const colors = {
-      INVOICED: 'border-l-green-500',
-      SCHOOL: 'border-l-blue-500',
-      FERRY: 'border-l-orange-500',
-      CHARTER: 'border-l-purple-500',
-      DEMO: 'border-l-yellow-500',
-      PROMO: 'border-l-pink-500',
-    };
-    return colors[type as keyof typeof colors] || 'border-l-gray-500';
-  };
-
-  const calculateFlightHours = (departureTime: string, arrivalTime: string) => {
-    try {
-      // Ensure times are in HH:MM format
-      const departure = new Date(`2000-01-01T${departureTime}:00`);
-      const arrival = new Date(`2000-01-01T${arrivalTime}:00`);
-      
-      // Check if dates are valid
-      if (isNaN(departure.getTime()) || isNaN(arrival.getTime())) {
-        console.error('Invalid time format:', { departureTime, arrivalTime });
-        return 0;
-      }
-      
-      const diffMs = arrival.getTime() - departure.getTime();
-      const diffHours = diffMs / (1000 * 60 * 60);
-      return Math.max(0, diffHours);
-    } catch (error) {
-      console.error('Error calculating flight hours:', error);
-      return 0;
-    }
-  };
+  // Utility functions are now imported from shared utils
 
   const filteredFlightLogs = flightLogs; // Remove local filtering since we're using server-side pagination
 
@@ -1849,7 +1493,11 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                 Import
               </Button>
             )}
-            <Button onClick={() => setShowCreateDialog(true)}>
+            <Button onClick={() => {
+              setModalMode('create');
+              setSelectedFlightLog(null);
+              setShowModal(true);
+            }}>
               <Plus className="h-4 w-4 mr-2" />
               Log Flight
             </Button>
@@ -1985,7 +1633,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                         return false;
                       })()}
                       searchFunction={(option, searchValue) => {
-                        return option.searchText?.toLowerCase().includes(searchValue.toLowerCase()) || false;
+                        return intelligentSearch(option.searchText || option.label, searchValue);
                       }}
                     />
 
@@ -2007,7 +1655,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                       searchPlaceholder="Search by name..."
                       emptyText="No instructors found."
                       searchFunction={(option, searchValue) => {
-                        return option.searchText?.toLowerCase().includes(searchValue.toLowerCase()) || false;
+                        return intelligentSearch(option.searchText || option.label, searchValue);
                       }}
                     />
                   </div>
@@ -2018,13 +1666,18 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                     <Combobox
                       options={airfields.map((airfield) => ({
                         value: airfield.id,
-                        label: `${airfield.name} (${airfield.code})`
+                        label: `${airfield.name} (${airfield.code})`,
+                        displayLabel: airfield.code,
+                        searchText: `${airfield.name} ${airfield.code} ${airfield.city} ${airfield.country}`
                       }))}
                       value={filters.departureAirfieldId}
                       onValueChange={(value) => setFilters(prev => ({ ...prev, departureAirfieldId: value }))}
                       placeholder="All Departure Airfields"
                       searchPlaceholder="Search by name or code..."
                       emptyText="No airfields found."
+                      searchFunction={(option, searchValue) => {
+                        return intelligentSearch(option.searchText || option.label, searchValue);
+                      }}
                     />
                   </div>
 
@@ -2034,13 +1687,18 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                     <Combobox
                       options={airfields.map((airfield) => ({
                         value: airfield.id,
-                        label: `${airfield.name} (${airfield.code})`
+                        label: `${airfield.name} (${airfield.code})`,
+                        displayLabel: airfield.code,
+                        searchText: `${airfield.name} ${airfield.code} ${airfield.city} ${airfield.country}`
                       }))}
                       value={filters.arrivalAirfieldId}
                       onValueChange={(value) => setFilters(prev => ({ ...prev, arrivalAirfieldId: value }))}
                       placeholder="All Arrival Airfields"
                       searchPlaceholder="Search by name or code..."
                       emptyText="No airfields found."
+                      searchFunction={(option, searchValue) => {
+                        return intelligentSearch(option.searchText || option.label, searchValue);
+                      }}
                     />
                   </div>
 
@@ -2340,8 +1998,8 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                                 className="hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                                 onClick={() => {
                                   setSelectedFlightLog(log);
-                                  setViewModalMode('view');
-                                  setShowViewDialog(true);
+                                  setModalMode('view');
+                                  setShowModal(true);
                                 }}
                               >
                                 {/* Column 1: Date */}
@@ -2514,8 +2172,8 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                                       <DropdownMenuItem
                                         onClick={() => {
                                           setSelectedFlightLog(log);
-                                          setViewModalMode('view');
-                                          setShowViewDialog(true);
+                                          setModalMode('view');
+                                          setShowModal(true);
                                         }}
                                       >
                                         <Eye className="h-4 w-4 mr-2" />
@@ -2646,23 +2304,242 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
           </>
         )}
 
-        {/* Create Flight Log Modal */}
+        {/* Unified Flight Log Modal */}
         <Modal
-          open={showCreateDialog}
-          onClose={() => setShowCreateDialog(false)}
-          title={isEditMode ? 'Edit Flight Log' : 'Log New Flight'}
+          open={showModal}
+          onClose={handleCloseModal}
+          title={
+            modalMode === 'create' ? 'Log New Flight' :
+            modalMode === 'edit' ? 'Edit Flight Log' :
+            'Flight Log Details'
+          }
           headerActions={
+            modalMode === 'view' ? (
+              <Button onClick={handleEditFromView}>
+                Edit Flight Log
+              </Button>
+            ) : (
             <Button 
               disabled={form.formState.isSubmitting}
               onClick={() => form.handleSubmit(handleCreateFlightLog)()}
             >
               {form.formState.isSubmitting 
-                ? (isEditMode ? "Updating..." : "Creating...") 
-                : (isEditMode ? "Update Flight Log" : "Submit Flight Log")
+                  ? (modalMode === 'edit' ? "Updating..." : "Creating...") 
+                  : (modalMode === 'edit' ? "Update Flight Log" : "Submit Flight Log")
               }
             </Button>
+            )
           }
         >
+          {modalMode === 'view' ? (
+            // View Mode - Same form layout but read-only
+            <div className="space-y-4">
+              <div className="space-y-6">
+                {/* Flight Details */}
+                <div className="space-y-4">
+                  {/* Row 1: Pilot - Date - Aircraft - Instructor */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Pilot/Student</Label>
+                      <div className="bg-muted rounded-md px-3 py-2 text-sm">
+                        {selectedFlightLog?.pilot ? `${selectedFlightLog.pilot.firstName} ${selectedFlightLog.pilot.lastName}` : 'N/A'}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Date</Label>
+                      <div className="bg-muted rounded-md px-3 py-2 text-sm">
+                        <FormattedDate date={selectedFlightLog?.date} />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Aircraft</Label>
+                      <div className="bg-muted rounded-md px-3 py-2 text-sm">
+                        {selectedFlightLog?.aircraft?.callSign || 'N/A'}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-muted-foreground">Instructor</Label>
+                      <div className="bg-muted rounded-md px-3 py-2 text-sm">
+                        {selectedFlightLog?.instructor ? `${selectedFlightLog.instructor.firstName} ${selectedFlightLog.instructor.lastName}` : 'N/A'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Departure and Arrival Cards */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Departure Card */}
+                  <div className="bg-muted rounded-lg p-6 space-y-4 h-fit">
+                    <h3 className="text-lg font-medium">Departure</h3>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="space-y-2 col-span-2">
+                        <Label className="text-sm font-medium text-muted-foreground">Departure Airfield</Label>
+                        <div className="bg-background rounded-md px-3 py-2 text-sm border border-gray-200 dark:border-gray-700">
+                          {selectedFlightLog?.departureAirfield?.code || 'N/A'}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 col-span-1">
+                        <Label className="text-sm font-medium text-muted-foreground">Time</Label>
+                        <div className="bg-background rounded-md px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 text-center font-mono">
+                          {selectedFlightLog?.departureTime || 'N/A'}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 text-left">HH:MM All times UTC</p>
+                      </div>
+
+                      <div className="space-y-2 col-span-1">
+                        <Label className="text-sm font-medium text-muted-foreground">Hobbs</Label>
+                        <div className="bg-background rounded-md px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 text-center font-mono">
+                          {selectedFlightLog?.departureHobbs?.toFixed(1) || 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Fuel & Oil Section */}
+                    <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-muted-foreground">Oil Added (ml)</Label>
+                          <div className="bg-background rounded-md px-3 py-2 text-sm border border-gray-200 dark:border-gray-700">
+                            {selectedFlightLog?.oilAdded || 0}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-muted-foreground">Fuel Added (L)</Label>
+                          <div className="bg-background rounded-md px-3 py-2 text-sm border border-gray-200 dark:border-gray-700">
+                            {selectedFlightLog?.fuelAdded || 0}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Arrival Card */}
+                  <div className="bg-muted rounded-lg p-6 space-y-4 h-fit">
+                    <h3 className="text-lg font-medium">Arrival</h3>
+                    
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="space-y-2 col-span-2">
+                        <Label className="text-sm font-medium text-muted-foreground">Arrival Airfield</Label>
+                        <div className="bg-background rounded-md px-3 py-2 text-sm border border-gray-200 dark:border-gray-700">
+                          {selectedFlightLog?.arrivalAirfield?.code || 'N/A'}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 col-span-1">
+                        <Label className="text-sm font-medium text-muted-foreground">Time</Label>
+                        <div className="bg-background rounded-md px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 text-center font-mono">
+                          {selectedFlightLog?.arrivalTime || 'N/A'}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 text-left">HH:MM All times UTC</p>
+                      </div>
+
+                      <div className="space-y-2 col-span-1">
+                        <Label className="text-sm font-medium text-muted-foreground">Hobbs</Label>
+                        <div className="bg-background rounded-md px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 text-center font-mono">
+                          {selectedFlightLog?.arrivalHobbs?.toFixed(1) || 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Landings Section */}
+                    <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-muted-foreground">Day Landings</Label>
+                          <div className="bg-background rounded-md px-3 py-2 text-sm border border-gray-200 dark:border-gray-700">
+                            {selectedFlightLog?.dayLandings || 0}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-muted-foreground">Night Landings</Label>
+                          <div className="bg-background rounded-md px-3 py-2 text-sm border border-gray-200 dark:border-gray-700">
+                            {selectedFlightLog?.nightLandings || 0}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Flight Time and Remarks Cards */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                  {/* Flight Time Card */}
+                  <div className="bg-muted rounded-lg p-6 h-full flex flex-col">
+                    <h3 className="text-lg font-medium mb-4">Flight Time</h3>
+                    <div className="flex-1 flex flex-col justify-between">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-muted-foreground">Calculated Time</Label>
+                          <div className="bg-background rounded-md px-3 py-2 text-center text-sm font-mono border border-gray-200 dark:border-gray-700">
+                            {selectedFlightLog?.totalHours ? formatHours(selectedFlightLog.totalHours) : 'N/A'}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-muted-foreground">Hobbs Time</Label>
+                          <div className="bg-background rounded-md px-3 py-2 text-center text-sm font-mono border border-gray-200 dark:border-gray-700">
+                            {selectedFlightLog?.departureHobbs && selectedFlightLog?.arrivalHobbs 
+                              ? (selectedFlightLog.arrivalHobbs - selectedFlightLog.departureHobbs).toFixed(1)
+                              : 'N/A'
+                            }
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Remarks Card */}
+                  <div className="bg-muted rounded-lg p-6 h-full flex flex-col">
+                    <h3 className="text-lg font-medium mb-4">Remarks</h3>
+                    <div className="flex-1 flex flex-col">
+                      <div className="bg-background rounded-md px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 flex-1 min-h-[100px]">
+                        {selectedFlightLog?.remarks || 'No remarks'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Additional Information */}
+                <div className="bg-muted rounded-lg p-6 space-y-4">
+                  <h3 className="text-lg font-medium">Additional Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium text-muted-foreground">Flight Type</Label>
+                      <div className="mt-1">
+                        <Badge className={getFlightTypeBadgeColor(selectedFlightLog?.flightType || '')}>
+                          {getFlightTypeLabel(selectedFlightLog?.flightType || '')}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-muted-foreground">Total Hours</Label>
+                      <div className="bg-background rounded-md px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 mt-1">
+                        {selectedFlightLog?.totalHours ? formatHours(selectedFlightLog.totalHours) : 'N/A'}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-muted-foreground">
+                        {selectedFlightLog?.flightType === "CHARTER" ? "Payer" : "Purpose"}
+                      </Label>
+                      <div className="bg-background rounded-md px-3 py-2 text-sm border border-gray-200 dark:border-gray-700 mt-1">
+                        {selectedFlightLog?.flightType === "CHARTER" 
+                          ? (selectedFlightLog.payer ? `${selectedFlightLog.payer.firstName} ${selectedFlightLog.payer.lastName}` : 'N/A')
+                          : (selectedFlightLog?.purpose || 'N/A')
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            // Create/Edit Mode - Show form
             <form onSubmit={(e) => form.handleSubmit(handleCreateFlightLog)(e)} className="space-y-4">
               <div className="space-y-6">
                 {/* Flight Details */}
@@ -2784,60 +2661,6 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                     </div>
                   </div>
 
-                  {/* Row 2: Charter Flight Toggle and Payer Selection */}
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="space-y-2">
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          id="isCharterFlight"
-                          checked={isCharterFlight}
-                          onChange={(e) => {
-                            setIsCharterFlight(e.target.checked);
-                            if (!e.target.checked) {
-                              form.setValue("payerId", undefined);
-                            }
-                          }}
-                          className="rounded border-gray-300"
-                        />
-                        <label htmlFor="isCharterFlight" className="text-sm font-medium">
-                          Charter Flight
-                        </label>
-                      </div>
-                      <p className="text-xs text-muted-foreground">Check if this is a charter flight with a different payer</p>
-                    </div>
-
-                    {isCharterFlight && (
-                      <div className="space-y-2 col-span-3">
-                        <Combobox
-                          options={pilots
-                            .filter((pilot) => !pilot.status || pilot.status === 'ACTIVE')
-                            .map((pilot) => ({
-                              value: pilot.id,
-                              label: `${pilot.firstName} ${pilot.lastName}`,
-                              searchText: `${pilot.firstName} ${pilot.lastName}`
-                            }))}
-                          value={form.watch("payerId")}
-                          onValueChange={(value) => form.setValue("payerId", value)}
-                          placeholder="Payer (required for charter flights)"
-                          searchPlaceholder="Search by name..."
-                          emptyText="No active users found."
-                          searchFunction={(option, searchValue) => {
-                            return option.searchText?.toLowerCase().includes(searchValue.toLowerCase()) || false;
-                          }}
-                          className={cn(
-                            "border-gray-200 dark:border-gray-700",
-                            form.formState.errors.payerId ? "border-red-500 focus-visible:ring-red-500" : ""
-                          )}
-                        />
-                        <p className="text-xs text-muted-foreground">Select who will pay for this charter flight</p>
-                        {form.formState.errors.payerId &&
-                          form.formState.errors.payerId.message !== "Invalid input: expected string, received undefined" && (
-                          <p className="text-sm text-destructive">{form.formState.errors.payerId.message}</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
                 </div>
 
                 {/* Departure and Arrival Cards */}
@@ -2851,13 +2674,18 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                         <Combobox
                           options={airfields.map((airfield) => ({
                             value: airfield.id,
-                            label: `${airfield.name} (${airfield.code})`
+                            label: `${airfield.name} (${airfield.code})`,
+                            displayLabel: airfield.code,
+                            searchText: `${airfield.name} ${airfield.code} ${airfield.city} ${airfield.country}`
                           }))}
                           value={form.watch("departureAirfieldId")}
                           onValueChange={(value) => form.setValue("departureAirfieldId", value)}
                           placeholder="Departure Airfield *"
                           searchPlaceholder="Search by name or code..."
                           emptyText="No airfields found."
+                          searchFunction={(option, searchValue) => {
+                            return intelligentSearch(option.searchText || option.label, searchValue);
+                          }}
                           className={cn(
                             "border-gray-200 dark:border-gray-700 w-full",
                             form.formState.errors.departureAirfieldId ? "border-red-500 focus-visible:ring-red-500" : ""
@@ -2927,7 +2755,13 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                               ].includes(e.key)) return;
                               if (!/^[0-9]$/.test(e.key)) e.preventDefault();
                             }}
-                            {...form.register("oilAdded", { valueAsNumber: true })}
+                            {...form.register("oilAdded", { 
+                              valueAsNumber: true,
+                              setValueAs: (value) => {
+                                const num = parseFloat(value);
+                                return isNaN(num) ? undefined : num;
+                              }
+                            })}
                             className="border-gray-200 dark:border-gray-700 bg-background"
                           />
                           {form.formState.errors.oilAdded && (
@@ -2950,7 +2784,13 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                               ].includes(e.key)) return;
                               if (!/^[0-9]$/.test(e.key)) e.preventDefault();
                             }}
-                            {...form.register("fuelAdded", { valueAsNumber: true })}
+                            {...form.register("fuelAdded", { 
+                              valueAsNumber: true,
+                              setValueAs: (value) => {
+                                const num = parseFloat(value);
+                                return isNaN(num) ? undefined : num;
+                              }
+                            })}
                             className="border-gray-200 dark:border-gray-700 bg-background"
                           />
                           {form.formState.errors.fuelAdded && (
@@ -2970,13 +2810,18 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                         <Combobox
                           options={airfields.map((airfield) => ({
                             value: airfield.id,
-                            label: `${airfield.name} (${airfield.code})`
+                            label: `${airfield.name} (${airfield.code})`,
+                            displayLabel: airfield.code,
+                            searchText: `${airfield.name} ${airfield.code} ${airfield.city} ${airfield.country}`
                           }))}
                           value={form.watch("arrivalAirfieldId")}
                           onValueChange={(value) => form.setValue("arrivalAirfieldId", value)}
                           placeholder="Arrival Airfield *"
                           searchPlaceholder="Search by name or code..."
                           emptyText="No airfields found."
+                          searchFunction={(option, searchValue) => {
+                            return intelligentSearch(option.searchText || option.label, searchValue);
+                          }}
                           className={cn(
                             "border-gray-200 dark:border-gray-700 w-full",
                             form.formState.errors.arrivalAirfieldId ? "border-red-500 focus-visible:ring-red-500" : ""
@@ -3174,22 +3019,68 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <Label htmlFor="flightType">Flight Type</Label>
-                      <Select
-                        value={form.watch("flightType")}
-                        onValueChange={(value) => form.setValue("flightType", value as "INVOICED" | "SCHOOL" | "FERRY" | "CHARTER" | "DEMO" | "PROMO")}
-                      >
-                        <SelectTrigger className="border-gray-200 dark:border-gray-700">
-                          <SelectValue placeholder="Select flight type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="SCHOOL">School</SelectItem>
-                          <SelectItem value="INVOICED">Invoiced</SelectItem>
-                          <SelectItem value="FERRY">Ferry</SelectItem>
-                          <SelectItem value="CHARTER">Charter</SelectItem>
-                          <SelectItem value="DEMO">Demo</SelectItem>
-                          <SelectItem value="PROMO">Promo</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      {(() => {
+                        // Check if current user is a student (and only a student, no other roles)
+                        const isStudentOnly = currentUser && currentUser.userRoles?.some((ur: UserRole) => 
+                          (ur.role?.name || ur.roles?.name) === 'STUDENT'
+                        ) && !currentUser.userRoles?.some((ur: UserRole) => 
+                          (ur.role?.name || ur.roles?.name) === 'INSTRUCTOR' || 
+                          (ur.role?.name || ur.roles?.name) === 'ADMIN' || 
+                          (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN' ||
+                          (ur.role?.name || ur.roles?.name) === 'BASE_MANAGER'
+                        );
+
+                        if (isStudentOnly) {
+                          // For students, show a disabled input with "School" value
+                          return (
+                            <>
+                              <Input
+                                value="School"
+                                disabled
+                                className="bg-muted border-gray-200 dark:border-gray-700"
+                              />
+                              {/* Hidden input to register the flightType with the form */}
+                              <input
+                                type="hidden"
+                                {...form.register("flightType")}
+                                value="SCHOOL"
+                              />
+                            </>
+                          );
+                        }
+
+                        // For all other users, show the select dropdown
+                        return (
+                          <Select
+                            value={form.watch("flightType")}
+                            onValueChange={(value) => {
+                              console.log('🔍 Flight type changed to:', value);
+                              // Only set the value if it's not empty (prevents overriding during form population)
+                              if (value && value.trim() !== '') {
+                                form.setValue("flightType", value as "INVOICED" | "SCHOOL" | "FERRY" | "CHARTER" | "DEMO" | "PROMO");
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="border-gray-200 dark:border-gray-700">
+                              <SelectValue placeholder="Select flight type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="SCHOOL">School</SelectItem>
+                              <SelectItem value="INVOICED">Invoiced</SelectItem>
+                              <SelectItem value="FERRY">Ferry</SelectItem>
+                              <SelectItem value="CHARTER">Charter</SelectItem>
+                              <SelectItem value="DEMO">Demo</SelectItem>
+                              <SelectItem value="PROMO">Promo</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        );
+                      })()}
+                      {/* Debug info */}
+                      {modalMode === 'edit' && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Debug: Current value: {form.watch("flightType") || 'undefined'}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <Label className="text-sm font-medium text-muted-foreground">Total Hours</Label>
@@ -3203,13 +3094,27 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                         <>
                           <Label htmlFor="payerId">Payer</Label>
                           <Combobox
-                            options={pilots
-                              .filter((pilot) => !pilot.status || pilot.status === 'ACTIVE')
-                              .map((pilot) => ({
-                                value: pilot.id,
-                                label: `${pilot.firstName} ${pilot.lastName}`,
-                                searchText: `${pilot.firstName} ${pilot.lastName}`
-                              }))}
+                            options={(() => {
+                              // For charter flights, we need to show all users, not just pilots
+                              let usersToShow = allUsers;
+                              
+                              // If we don't have all users (due to permissions), fallback to pilots + instructors
+                              if (allUsers.length === 0) {
+                                usersToShow = [...pilots, ...instructors];
+                                // Remove duplicates by ID
+                                usersToShow = usersToShow.filter((user, index, self) => 
+                                  index === self.findIndex(u => u.id === user.id)
+                                );
+                              }
+                              
+                              return usersToShow
+                                .filter((user) => !user.status || user.status === 'ACTIVE')
+                                .map((user) => ({
+                                  value: user.id,
+                                  label: `${user.firstName} ${user.lastName}`,
+                                  searchText: `${user.firstName} ${user.lastName}`
+                                }));
+                            })()}
                             value={form.watch("payerId")}
                             onValueChange={(value) => form.setValue("payerId", value)}
                             placeholder="Select payer for charter flight"
@@ -3237,47 +3142,10 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                   </div>
                 </div>
               </div>
-
             </form>
-        </Modal>
-
-        {/* View Flight Log Modal */}
-        <Modal
-          open={showViewDialog}
-          onClose={() => {
-            setShowViewDialog(false);
-            setViewModalMode('view');
-          }}
-          title={viewModalMode === 'edit' ? 'Edit Flight Log' : 'Flight Log Details'}
-          headerActions={
-            viewModalMode === 'view' ? (
-              <Button onClick={handleEditFromView}>
-                Edit Flight Log
-              </Button>
-            ) : (
-              <Button onClick={() => document.querySelector('form')?.requestSubmit()}>
-                Update Flight Log
-              </Button>
-            )
-          }
-        >
-          {selectedFlightLog && (
-            <FlightLogForm
-              mode={viewModalMode}
-              data={selectedFlightLog}
-              pilots={pilots}
-              instructors={instructors}
-              aircraft={aircraft}
-              airfields={airfields}
-              currentUser={currentUser}
-              onSubmit={viewModalMode === 'edit' ? handleUpdateFlightLog : undefined}
-              onCancel={viewModalMode === 'edit' ? handleCancelEdit : () => {
-                setShowViewDialog(false);
-                setViewModalMode('view');
-              }}
-            />
           )}
         </Modal>
+
 
         {/* Import Dialog */}
         <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>

@@ -320,57 +320,16 @@ export async function PUT(
       }
     }
 
-    // Automatic flight type logic based on pilot's roles
-    const getDefaultFlightType = (pilotData: any): "SCHOOL" | "INVOICED" | "FERRY" => {
-      if (!pilotData) return "SCHOOL";
-      
-      const userRoles = pilotData.user_roles || [];
-      const roleNames = userRoles.map((ur: any) => ur.roles?.name || '').filter(Boolean);
-      
-      // Check if user has PILOT role (graduates from school)
-      const hasPilotRole = roleNames.includes('PILOT');
-      const hasStudentRole = roleNames.includes('STUDENT');
-      const hasBaseManagerRole = roleNames.includes('BASE_MANAGER');
-      const hasAdminRole = roleNames.includes('ADMIN') || roleNames.includes('SUPER_ADMIN');
-      
-      // If user has PILOT role (even if they also have STUDENT), all flights are INVOICED
-      if (hasPilotRole) {
-        return "INVOICED";
-      }
-      
-      // If user is only STUDENT (no PILOT role), flights are SCHOOL
-      if (hasStudentRole && !hasPilotRole) {
-        return "SCHOOL";
-      }
-      
-      // If user is BASE_MANAGER or ADMIN logging their own flights, it's FERRY
-      if ((hasBaseManagerRole || hasAdminRole) && !hasPilotRole && !hasStudentRole) {
-        return "FERRY";
-      }
-      
-      // Default fallback
-      return "SCHOOL";
-    };
-
-    // Determine the correct flight type automatically
-    const automaticFlightType = getDefaultFlightType(pilot);
+    // For editing, always use the provided flight type from the frontend (which comes from the database)
+    const finalFlightType = flightType;
     
-    // For editing, allow manual flight type selection but log suggestions
-    const finalFlightType = flightType || automaticFlightType;
-    
-    // Log the automatic flight type determination
+    // Log the flight type being used for editing
     const pilotRoles = pilot.user_roles?.map((ur: any) => ur.roles?.name || '').filter(Boolean) || [];
     console.log(`🔍 Flight type for pilot ${userId} (EDIT mode):`, {
       pilotRoles,
       providedFlightType: flightType,
-      automaticFlightType,
       finalFlightType
     });
-    
-    // Log suggestions but allow override
-    if (flightType && flightType !== automaticFlightType) {
-      console.log(`💡 Suggestion: For pilot ${userId}, automatic logic suggests "${automaticFlightType}" but using provided "${flightType}"`);
-    }
 
     // Validate instructor if provided
     if (instructorId) {
@@ -653,7 +612,7 @@ export async function DELETE(
     const { data: pilot, error: pilotError } = await supabase
       .from('users')
       .select('totalFlightHours')
-      .eq('id', existingFlightLog.pilotId)
+      .eq('id', existingFlightLog.userId) // Use userId instead of pilotId
       .single();
 
     if (!pilotError && pilot) {
@@ -663,7 +622,60 @@ export async function DELETE(
         .update({
           totalFlightHours: pilot.totalFlightHours - existingFlightLog.totalHours,
         })
-        .eq('id', existingFlightLog.pilotId);
+        .eq('id', existingFlightLog.userId);
+    }
+
+    // Handle aircraft_hobbs foreign key constraint
+    // First, check if this flight log is referenced as last_flight_log_id in aircraft_hobbs
+    const { data: hobbsRecords, error: hobbsError } = await supabase
+      .from('aircraft_hobbs')
+      .select('id, aircraft_id')
+      .eq('last_flight_log_id', id);
+
+    if (hobbsError) {
+      console.error('Error checking aircraft_hobbs references:', hobbsError);
+      return NextResponse.json(
+        { error: 'Error checking aircraft references' },
+        { status: 500 }
+      );
+    }
+
+    // If this flight log is referenced in aircraft_hobbs, we need to find a replacement
+    if (hobbsRecords && hobbsRecords.length > 0) {
+      console.log('🔧 Flight log is referenced in aircraft_hobbs, finding replacement...');
+      
+      for (const hobbsRecord of hobbsRecords) {
+        // Find the most recent flight log for this aircraft (excluding the one being deleted)
+        const { data: replacementFlightLog, error: replacementError } = await supabase
+          .from('flight_logs')
+          .select('id, arrival_hobbs, date')
+          .eq('aircraft_id', hobbsRecord.aircraft_id)
+          .neq('id', id) // Exclude the flight log being deleted
+          .order('date', { ascending: false })
+          .order('arrival_hobbs', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (replacementError || !replacementFlightLog) {
+          // No replacement found, set last_flight_log_id to null
+          console.log('⚠️ No replacement flight log found, setting last_flight_log_id to null');
+          await supabase
+            .from('aircraft_hobbs')
+            .update({ last_flight_log_id: null })
+            .eq('id', hobbsRecord.id);
+        } else {
+          // Update with the replacement flight log
+          console.log('✅ Found replacement flight log:', replacementFlightLog.id);
+          await supabase
+            .from('aircraft_hobbs')
+            .update({ 
+              last_flight_log_id: replacementFlightLog.id,
+              last_hobbs: replacementFlightLog.arrival_hobbs,
+              last_flight_date: replacementFlightLog.date
+            })
+            .eq('id', hobbsRecord.id);
+        }
+      }
     }
 
     // Delete flight log
@@ -680,6 +692,13 @@ export async function DELETE(
       );
     }
 
+    // Log flight log deletion activity
+    await ActivityLogger.logFlightDeleted(
+      decoded.userId,
+      existingFlightLog.id
+    );
+
+    console.log('✅ Flight log deleted successfully:', id);
     return NextResponse.json({ message: 'Flight log deleted successfully' });
   } catch (error) {
     console.error('Error deleting flight log:', error);
