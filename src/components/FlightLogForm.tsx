@@ -55,6 +55,7 @@ const createFlightLogSchema = z.object({
   // Flight details
   flightType: z.enum(["INVOICED", "SCHOOL", "FERRY", "CHARTER", "DEMO", "PROMO"]),
   purpose: z.string().optional().or(z.null()),
+  payerId: z.string().optional().or(z.undefined()), // User ID of the person who pays for the flight (used for charter flights)
   
   // Pilot time breakdown (Jeppesen standard)
   pilotInCommand: z.number().min(0, "PIC time must be 0 or greater"),
@@ -132,6 +133,7 @@ interface FlightLog {
   aircraftId: string;
   userId: string;
   instructorId?: string;
+  payerId?: string; // User ID of the person who pays for the flight (used for charter flights)
   date: string;
   departureTime: string;
   arrivalTime: string;
@@ -394,6 +396,7 @@ export function FlightLogForm({
       instrument: 0,
       actualInstrument: 0,
       simulatedInstrument: 0,
+      payerId: undefined,
     },
   });
 
@@ -428,6 +431,7 @@ export function FlightLogForm({
         arrivalAirfieldId: data.arrivalAirfieldId,
         purpose: data.purpose,
         remarks: data.remarks,
+        payerId: (data as any).payer_id ?? undefined,
       };
       
       form.reset(formData);
@@ -1136,18 +1140,59 @@ export function FlightLogForm({
             <div>
               {!isViewMode ? (
                 <>
-                  <Label htmlFor="purpose">Purpose</Label>
-                  <Input
-                    id="purpose"
-                    {...form.register("purpose")}
-                    placeholder="Flight purpose"
-                    className="border-gray-200 dark:border-gray-700 bg-background"
-                  />
+                  {form.watch("flightType") === "CHARTER" ? (
+                    <>
+                      <Label htmlFor="payerId">Payer</Label>
+                      <Combobox
+                        options={pilots
+                          .filter((pilot) => !pilot.status || pilot.status === 'ACTIVE')
+                          .map((pilot) => ({
+                            value: pilot.id,
+                            label: `${pilot.firstName} ${pilot.lastName}`,
+                            searchText: `${pilot.firstName} ${pilot.lastName}`
+                          }))}
+                        value={form.watch("payerId")}
+                        onValueChange={(value) => form.setValue("payerId", value)}
+                        placeholder="Select payer for charter flight"
+                        searchPlaceholder="Search by name..."
+                        emptyText="No active users found."
+                        searchFunction={(option, searchValue) => {
+                          return option.searchText?.toLowerCase().includes(searchValue.toLowerCase()) || false;
+                        }}
+                        className="border-gray-200 dark:border-gray-700"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">Who will pay for this charter flight?</p>
+                    </>
+                  ) : (
+                    <>
+                      <Label htmlFor="purpose">Purpose</Label>
+                      <Input
+                        id="purpose"
+                        {...form.register("purpose")}
+                        placeholder="Flight purpose"
+                        className="border-gray-200 dark:border-gray-700 bg-background"
+                      />
+                    </>
+                  )}
                 </>
               ) : (
                 <>
-                  <Label className="text-sm font-medium text-muted-foreground">Purpose</Label>
-                  <p className="text-sm">{data?.purpose || 'N/A'}</p>
+                  {data?.flightType === "CHARTER" ? (
+                    <>
+                      <Label className="text-sm font-medium text-muted-foreground">Payer</Label>
+                      <p className="text-sm">
+                        {(data as any)?.payer_id ? 
+                          pilots.find(p => p.id === (data as any)?.payer_id)?.firstName + ' ' + pilots.find(p => p.id === (data as any)?.payer_id)?.lastName || 'Unknown' 
+                          : 'Not specified'
+                        }
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <Label className="text-sm font-medium text-muted-foreground">Purpose</Label>
+                      <p className="text-sm">{data?.purpose || 'N/A'}</p>
+                    </>
+                  )}
                 </>
               )}
             </div>

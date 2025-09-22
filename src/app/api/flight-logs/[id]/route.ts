@@ -45,7 +45,7 @@ export async function GET(
     const isPilot = userRoles.includes('PILOT');
     const isStudent = userRoles.includes('STUDENT');
 
-    // Fetch the flight log with basic data (avoid complex joins)
+    // Fetch the flight log with basic data and enrich with payer information
     const { data: flightLog, error: flightLogError } = await supabase
       .from('flight_logs')
       .select('*')
@@ -79,8 +79,30 @@ export async function GET(
       );
     }
 
+    // Enrich with payer information if payer_id exists
+    let enrichedFlightLog = { ...flightLog };
+    if (flightLog.payer_id) {
+      try {
+        const { data: payerData, error: payerError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', flightLog.payer_id)
+          .single();
+        
+        if (!payerError && payerData) {
+          enrichedFlightLog = {
+            ...flightLog,
+            payer: payerData
+          };
+        }
+      } catch (error) {
+        console.log('⚠️ Error fetching payer data:', error);
+        // Continue without payer data
+      }
+    }
+
     console.log('✅ Flight log fetched successfully');
-    return NextResponse.json(flightLog);
+    return NextResponse.json(enrichedFlightLog);
 
   } catch (error) {
     console.error('❌ Error fetching flight log:', error);
@@ -189,6 +211,7 @@ export async function PUT(
       aircraftId,
       userId,
       instructorId,
+      payerId, // User ID of the person who pays for the flight (used for charter flights)
       date,
       departureTime,
       arrivalTime,
@@ -263,6 +286,38 @@ export async function PUT(
         { error: 'Pilot not found' },
         { status: 404 }
       );
+    }
+
+    // Validate payerId for charter flights
+    if (flightType === 'CHARTER' && !payerId) {
+      return NextResponse.json(
+        { error: 'Payer ID is required for charter flights' },
+        { status: 400 }
+      );
+    }
+
+    // Validate that payerId is not set for non-charter flights
+    if (flightType !== 'CHARTER' && payerId) {
+      return NextResponse.json(
+        { error: 'Payer ID can only be set for charter flights' },
+        { status: 400 }
+      );
+    }
+
+    // Validate payer exists if provided
+    if (payerId) {
+      const { data: payer, error: payerError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', payerId)
+        .single();
+
+      if (payerError || !payer) {
+        return NextResponse.json(
+          { error: 'Payer not found' },
+          { status: 404 }
+        );
+      }
     }
 
     // Automatic flight type logic based on pilot's roles
@@ -383,6 +438,7 @@ export async function PUT(
         aircraftId,
         userId,
         instructorId,
+        payer_id: payerId || null, // User ID of the person who pays for the flight (used for charter flights)
         date: date, // Keep the date as a string to avoid timezone conversion
         departureTime,
         arrivalTime,

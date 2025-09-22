@@ -135,6 +135,7 @@ export async function GET(request: NextRequest) {
           id,
           userId,
           instructorId,
+          payer_id,
           totalHours,
           date,
           flightType
@@ -368,6 +369,8 @@ export async function GET(request: NextRequest) {
     const ferryHoursPreviousYear = new Map<string, number>();
     const charterHoursCurrentYear = new Map<string, number>();
     const charterHoursPreviousYear = new Map<string, number>();
+    const charteredHoursCurrentYear = new Map<string, number>();
+    const charteredHoursPreviousYear = new Map<string, number>();
     const demoHoursCurrentYear = new Map<string, number>();
     const demoHoursPreviousYear = new Map<string, number>();
     
@@ -380,6 +383,7 @@ export async function GET(request: NextRequest) {
     // Calculate total FERRY hours from ALL years (not just current + previous)
     const ferryHoursTotal = new Map<string, number>();
     const charterHoursTotal = new Map<string, number>();
+    const charteredHoursTotal = new Map<string, number>();
     const demoHoursTotal = new Map<string, number>();
 
     flightLogs?.forEach((log: any) => {
@@ -427,6 +431,26 @@ export async function GET(request: NextRequest) {
           }
         }
         
+        // Handle chartered flights (charter flights with payer_id) - these should be deducted from payer's hours
+        if (isCharterFlight && log.payer_id) {
+          // Find the payer in the user map
+          const payer = userMap.get(log.payer_id) as any;
+          if (payer?.id) {
+            // Add to payer's used hours (this flight is paid for by the payer)
+            const currentPayerHours = clientFlightHours.get(payer.id) || 0;
+            clientFlightHours.set(payer.id, currentPayerHours + log.totalHours);
+            
+            // Calculate year-specific hours for payer
+            if (flightYear === currentYear) {
+              const currentYearHours = clientFlightHoursCurrentYear.get(payer.id) || 0;
+              clientFlightHoursCurrentYear.set(payer.id, currentYearHours + log.totalHours);
+            } else if (flightYear === previousYear) {
+              const previousYearHours = clientFlightHoursPreviousYear.get(payer.id) || 0;
+              clientFlightHoursPreviousYear.set(payer.id, previousYearHours + log.totalHours);
+            }
+          }
+        }
+        
         // Calculate year-specific hours for special flight types
         if (isFerryFlight) {
           // Calculate total FERRY hours from ALL years
@@ -453,6 +477,25 @@ export async function GET(request: NextRequest) {
           } else if (flightYear === previousYear) {
             const previousYearHours = charterHoursPreviousYear.get(pilot.id) || 0;
             charterHoursPreviousYear.set(pilot.id, previousYearHours + log.totalHours);
+          }
+        }
+        
+        // Calculate chartered hours (charter flights with a payer_id)
+        if (isCharterFlight && log.payer_id) {
+          // Find the payer in the user map
+          const payer = userMap.get(log.payer_id) as any;
+          if (payer?.id) {
+            // Calculate total Chartered hours from ALL years
+            const totalCharteredHours = charteredHoursTotal.get(payer.id) || 0;
+            charteredHoursTotal.set(payer.id, totalCharteredHours + log.totalHours);
+            
+            if (flightYear === currentYear) {
+              const currentYearHours = charteredHoursCurrentYear.get(payer.id) || 0;
+              charteredHoursCurrentYear.set(payer.id, currentYearHours + log.totalHours);
+            } else if (flightYear === previousYear) {
+              const previousYearHours = charteredHoursPreviousYear.get(payer.id) || 0;
+              charteredHoursPreviousYear.set(payer.id, previousYearHours + log.totalHours);
+            }
           }
         }
         
@@ -485,6 +528,28 @@ export async function GET(request: NextRequest) {
           isDemoFlight: isDemoFlight,
           isCharterFlight: isCharterFlight
         });
+        
+        // If this is a chartered flight (charter with payer_id), also add it to the payer's recent flights
+        if (isCharterFlight && log.payer_id) {
+          const payer = userMap.get(log.payer_id) as any;
+          if (payer?.id) {
+            if (!clientFlightLogs.has(payer.id)) {
+              clientFlightLogs.set(payer.id, []);
+            }
+            clientFlightLogs.get(payer.id)!.push({
+              id: log.id,
+              userId: log.userId,
+              totalHours: log.totalHours,
+              date: log.date,
+              flightType: log.flightType,
+              role: 'Chartered',
+              isFerryFlight: false,
+              isDemoFlight: false,
+              isCharterFlight: false, // This is not a charter flight for the payer, it's a chartered flight
+              isCharteredFlight: true // New flag to identify chartered flights
+            });
+          }
+        }
       }
       
       // If there's an instructor and it's dual training, count hours for the student/pilot
@@ -646,6 +711,9 @@ export async function GET(request: NextRequest) {
           const clientCharterHoursCurrentYear = charterHoursCurrentYear.get(client.user_id) || 0;
           const clientCharterHoursPreviousYear = charterHoursPreviousYear.get(client.user_id) || 0;
           const clientCharterHoursTotal = charterHoursTotal.get(client.user_id) || 0;
+          const clientCharteredHoursCurrentYear = charteredHoursCurrentYear.get(client.user_id) || 0;
+          const clientCharteredHoursPreviousYear = charteredHoursPreviousYear.get(client.user_id) || 0;
+          const clientCharteredHoursTotal = charteredHoursTotal.get(client.user_id) || 0;
           const clientDemoHoursCurrentYear = demoHoursCurrentYear.get(client.user_id) || 0;
           const clientDemoHoursPreviousYear = demoHoursPreviousYear.get(client.user_id) || 0;
           const clientDemoHoursTotal = demoHoursTotal.get(client.user_id) || 0;
@@ -668,6 +736,9 @@ export async function GET(request: NextRequest) {
             charterHoursCurrentYear: clientCharterHoursCurrentYear,
             charterHoursPreviousYear: clientCharterHoursPreviousYear,
             charterHoursTotal: clientCharterHoursTotal,
+            charteredHoursCurrentYear: clientCharteredHoursCurrentYear,
+            charteredHoursPreviousYear: clientCharteredHoursPreviousYear,
+            charteredHoursTotal: clientCharteredHoursTotal,
             demoHoursCurrentYear: clientDemoHoursCurrentYear,
             demoHoursPreviousYear: clientDemoHoursPreviousYear,
             demoHoursTotal: clientDemoHoursTotal,
@@ -687,6 +758,9 @@ export async function GET(request: NextRequest) {
     const totalCharterHoursCurrentYear = clientsData.reduce((sum, c) => sum + (c.charterHoursCurrentYear || 0), 0);
     const totalCharterHoursPreviousYear = clientsData.reduce((sum, c) => sum + (c.charterHoursPreviousYear || 0), 0);
     const totalCharterHoursTotal = clientsData.reduce((sum, c) => sum + (c.charterHoursTotal || 0), 0);
+    const totalCharteredHoursCurrentYear = clientsData.reduce((sum, c) => sum + (c.charteredHoursCurrentYear || 0), 0);
+    const totalCharteredHoursPreviousYear = clientsData.reduce((sum, c) => sum + (c.charteredHoursPreviousYear || 0), 0);
+    const totalCharteredHoursTotal = clientsData.reduce((sum, c) => sum + (c.charteredHoursTotal || 0), 0);
     const totalDemoHoursCurrentYear = clientsData.reduce((sum, c) => sum + (c.demoHoursCurrentYear || 0), 0);
     const totalDemoHoursPreviousYear = clientsData.reduce((sum, c) => sum + (c.demoHoursPreviousYear || 0), 0);
     const totalDemoHoursTotal = clientsData.reduce((sum, c) => sum + (c.demoHoursTotal || 0), 0);
@@ -705,6 +779,9 @@ export async function GET(request: NextRequest) {
       totalCharterHoursCurrentYear,
       totalCharterHoursPreviousYear,
       totalCharterHoursTotal,
+      totalCharteredHoursCurrentYear,
+      totalCharteredHoursPreviousYear,
+      totalCharteredHoursTotal,
       totalDemoHoursCurrentYear,
       totalDemoHoursPreviousYear,
       totalDemoHoursTotal

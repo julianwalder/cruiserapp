@@ -75,6 +75,7 @@ const createFlightLogSchema = z.object({
   aircraftId: z.string().min(1, "Aircraft is required"),
   userId: z.string().min(1, "Pilot is required"),
   instructorId: z.string().optional().or(z.undefined()),
+  payerId: z.string().optional().or(z.undefined()), // User ID of the person who pays for the flight (used for charter flights)
   
   // Departure information
   departureAirfieldId: z.string().min(1, "Departure airfield is required"),
@@ -128,6 +129,7 @@ const createFlightLogSchema = z.object({
   route: z.string().optional().or(z.undefined()).nullable(),
   conditions: z.string().optional().or(z.undefined()).nullable(),
   flightType: z.enum(["INVOICED", "SCHOOL", "FERRY", "CHARTER", "DEMO", "PROMO"]),
+  totalHours: z.number().min(0, "Total hours must be 0 or greater").optional(),
 });
 
 type CreateFlightLogForm = z.infer<typeof createFlightLogSchema>;
@@ -341,6 +343,7 @@ interface FlightLog {
   aircraftId: string;
   userId: string;
   instructorId?: string;
+  payerId?: string; // User ID of the person who pays for the flight (used for charter flights)
   date: string;
   departureTime: string;
   arrivalTime: string;
@@ -386,6 +389,7 @@ interface FlightLog {
   aircraft: Aircraft;
   pilot: User;
   instructor?: User;
+  payer?: User; // User who pays for the flight (for charter flights)
   departureAirfield: Airfield;
   arrivalAirfield: Airfield;
   createdBy: User;
@@ -448,6 +452,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
   const [showPPLView, setShowPPLView] = useState(true);
   const [exportLoading, setExportLoading] = useState(false);
   const [viewMode, setViewMode] = useState<"personal" | "company">("personal");
+  const [isCharterFlight, setIsCharterFlight] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -499,8 +504,53 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       instrument: 0,
       actualInstrument: 0,
       simulatedInstrument: 0,
+      totalHours: 0,
     },
   });
+
+  // Populate form with flight log data when editing
+  useEffect(() => {
+    if (flightLogToEdit && isEditMode) {
+      // Get payer_id from the database field
+      const payerId = (flightLogToEdit as any).payer_id;
+      
+      const formData = {
+        flightType: flightLogToEdit.flightType as "INVOICED" | "SCHOOL" | "FERRY" | "CHARTER" | "DEMO" | "PROMO",
+        departureHobbs: flightLogToEdit.departureHobbs,
+        arrivalHobbs: flightLogToEdit.arrivalHobbs,
+        oilAdded: flightLogToEdit.oilAdded || 0,
+        fuelAdded: flightLogToEdit.fuelAdded || 0,
+        dayLandings: flightLogToEdit.dayLandings,
+        nightLandings: flightLogToEdit.nightLandings,
+        pilotInCommand: flightLogToEdit.pilotInCommand,
+        secondInCommand: flightLogToEdit.secondInCommand,
+        dualReceived: flightLogToEdit.dualReceived,
+        dualGiven: flightLogToEdit.dualGiven,
+        solo: flightLogToEdit.solo,
+        crossCountry: flightLogToEdit.crossCountry,
+        night: flightLogToEdit.night,
+        instrument: flightLogToEdit.instrument,
+        actualInstrument: flightLogToEdit.actualInstrument,
+        simulatedInstrument: flightLogToEdit.simulatedInstrument,
+        userId: flightLogToEdit.userId,
+        aircraftId: flightLogToEdit.aircraftId,
+        instructorId: flightLogToEdit.instructorId ?? undefined,
+        payerId: payerId ?? undefined,
+        date: flightLogToEdit.date,
+        departureTime: flightLogToEdit.departureTime,
+        arrivalTime: flightLogToEdit.arrivalTime,
+        departureAirfieldId: flightLogToEdit.departureAirfieldId,
+        arrivalAirfieldId: flightLogToEdit.arrivalAirfieldId,
+        purpose: flightLogToEdit.purpose,
+        remarks: flightLogToEdit.remarks,
+      };
+      
+      // Set charter flight state if flight type is CHARTER
+      setIsCharterFlight(flightLogToEdit.flightType === 'CHARTER');
+      
+      form.reset(formData);
+    }
+  }, [flightLogToEdit, isEditMode, form]);
 
   // Client-side authentication check - moved to proper location
   useEffect(() => {
@@ -1149,10 +1199,22 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         return;
       }
 
-      // Clean up the data - remove undefined instructorId
+      // Validate charter flight requirements
+      if (isCharterFlight && !data.payerId) {
+        toast.error('Payer is required for charter flights');
+        return;
+      }
+      if (!isCharterFlight && data.payerId) {
+        toast.error('Payer can only be set for charter flights');
+        return;
+      }
+
+      // Clean up the data - remove undefined instructorId and payerId
       const cleanData = {
         ...data,
         instructorId: data.instructorId || undefined,
+        payerId: data.payerId || undefined,
+        flightType: isCharterFlight ? "CHARTER" : data.flightType,
       };
 
       if (isEditMode && flightLogToEdit) {
@@ -1172,6 +1234,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
           setShowCreateDialog(false);
           setIsEditMode(false);
           setFlightLogToEdit(null);
+          setIsCharterFlight(false);
           form.reset();
           fetchFlightLogs();
         } else {
@@ -1192,6 +1255,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         if (response.ok) {
           toast.success('Flight log created successfully');
           setShowCreateDialog(false);
+          setIsCharterFlight(false);
           form.reset();
           fetchFlightLogs();
         } else {
@@ -1337,6 +1401,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
     setShowCreateDialog(false);
     setIsEditMode(false);
     setFlightLogToEdit(null);
+    setIsCharterFlight(false);
     form.reset();
   };
 
@@ -2425,6 +2490,15 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                                           log.userId || 'Unknown'}
                                       </span></div>
                                     )}
+                                    {log.flightType === 'CHARTER' && (log as any).payer_id && (
+                                      <div>Paid by: <span className={cn(
+                                        log.payer?.status && log.payer.status !== 'ACTIVE' ? "text-gray-400" : ""
+                                      )}>
+                                        {log.payer?.firstName && log.payer?.lastName ? 
+                                          `${log.payer.firstName} ${log.payer.lastName}` : 
+                                          (log as any).payer_id || 'Unknown'}
+                                      </span></div>
+                                    )}
                                   </div>
                                 </TableCell>
                                 
@@ -2708,6 +2782,61 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                         )}
                       />
                     </div>
+                  </div>
+
+                  {/* Row 2: Charter Flight Toggle and Payer Selection */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="isCharterFlight"
+                          checked={isCharterFlight}
+                          onChange={(e) => {
+                            setIsCharterFlight(e.target.checked);
+                            if (!e.target.checked) {
+                              form.setValue("payerId", undefined);
+                            }
+                          }}
+                          className="rounded border-gray-300"
+                        />
+                        <label htmlFor="isCharterFlight" className="text-sm font-medium">
+                          Charter Flight
+                        </label>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Check if this is a charter flight with a different payer</p>
+                    </div>
+
+                    {isCharterFlight && (
+                      <div className="space-y-2 col-span-3">
+                        <Combobox
+                          options={pilots
+                            .filter((pilot) => !pilot.status || pilot.status === 'ACTIVE')
+                            .map((pilot) => ({
+                              value: pilot.id,
+                              label: `${pilot.firstName} ${pilot.lastName}`,
+                              searchText: `${pilot.firstName} ${pilot.lastName}`
+                            }))}
+                          value={form.watch("payerId")}
+                          onValueChange={(value) => form.setValue("payerId", value)}
+                          placeholder="Payer (required for charter flights)"
+                          searchPlaceholder="Search by name..."
+                          emptyText="No active users found."
+                          searchFunction={(option, searchValue) => {
+                            return option.searchText?.toLowerCase().includes(searchValue.toLowerCase()) || false;
+                          }}
+                          className={cn(
+                            "border-gray-200 dark:border-gray-700",
+                            form.formState.errors.payerId ? "border-red-500 focus-visible:ring-red-500" : ""
+                          )}
+                        />
+                        <p className="text-xs text-muted-foreground">Select who will pay for this charter flight</p>
+                        {form.formState.errors.payerId &&
+                          form.formState.errors.payerId.message !== "Invalid input: expected string, received undefined" && (
+                          <p className="text-sm text-destructive">{form.formState.errors.payerId.message}</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -3040,7 +3169,73 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
 
 
                 {/* Additional Information */}
-                {/* REMOVE THIS BLOCK */}
+                <div className="bg-muted rounded-lg p-6 space-y-4">
+                  <h3 className="text-lg font-medium">Additional Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="flightType">Flight Type</Label>
+                      <Select
+                        value={form.watch("flightType")}
+                        onValueChange={(value) => form.setValue("flightType", value as "INVOICED" | "SCHOOL" | "FERRY" | "CHARTER" | "DEMO" | "PROMO")}
+                      >
+                        <SelectTrigger className="border-gray-200 dark:border-gray-700">
+                          <SelectValue placeholder="Select flight type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="SCHOOL">School</SelectItem>
+                          <SelectItem value="INVOICED">Invoiced</SelectItem>
+                          <SelectItem value="FERRY">Ferry</SelectItem>
+                          <SelectItem value="CHARTER">Charter</SelectItem>
+                          <SelectItem value="DEMO">Demo</SelectItem>
+                          <SelectItem value="PROMO">Promo</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-muted-foreground">Total Hours</Label>
+                      <p className="text-sm">{(() => {
+                        const totalHours = form.watch("totalHours");
+                        return totalHours ? formatHours(totalHours) : 'N/A';
+                      })()}</p>
+                    </div>
+                    <div>
+                      {form.watch("flightType") === "CHARTER" ? (
+                        <>
+                          <Label htmlFor="payerId">Payer</Label>
+                          <Combobox
+                            options={pilots
+                              .filter((pilot) => !pilot.status || pilot.status === 'ACTIVE')
+                              .map((pilot) => ({
+                                value: pilot.id,
+                                label: `${pilot.firstName} ${pilot.lastName}`,
+                                searchText: `${pilot.firstName} ${pilot.lastName}`
+                              }))}
+                            value={form.watch("payerId")}
+                            onValueChange={(value) => form.setValue("payerId", value)}
+                            placeholder="Select payer for charter flight"
+                            searchPlaceholder="Search by name..."
+                            emptyText="No active users found."
+                            searchFunction={(option, searchValue) => {
+                              return option.searchText?.toLowerCase().includes(searchValue.toLowerCase()) || false;
+                            }}
+                            className="border-gray-200 dark:border-gray-700"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">Who will pay for this charter flight?</p>
+                        </>
+                      ) : (
+                        <>
+                          <Label htmlFor="purpose">Purpose</Label>
+                          <Input
+                            id="purpose"
+                            {...form.register("purpose")}
+                            placeholder="Flight purpose"
+                            className="border-gray-200 dark:border-gray-700 bg-background"
+                          />
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
 
             </form>

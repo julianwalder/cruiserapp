@@ -320,6 +320,7 @@ export async function GET(request: NextRequest) {
       const aircraftIds = [...new Set(flightLogsData?.map(log => log.aircraftId) || [])];
       const userIds = [...new Set(flightLogsData?.map(log => log.userId) || [])];
       const instructorIds = [...new Set(flightLogsData?.map(log => log.instructorId).filter(Boolean) || [])];
+      const payerIds = [...new Set(flightLogsData?.map(log => log.payer_id).filter(Boolean) || [])];
       const airfieldIds = [...new Set([
         ...(flightLogsData?.map(log => log.departureAirfieldId) || []),
         ...(flightLogsData?.map(log => log.arrivalAirfieldId) || [])
@@ -331,13 +332,14 @@ export async function GET(request: NextRequest) {
         aircraftIds: aircraftIds.length,
         userIds: userIds.length,
         instructorIds: instructorIds.length,
+        payerIds: payerIds.length,
         airfieldIds: airfieldIds.length,
         createdByIds: createdByIds.length,
         updatedByIds: updatedByIds.length
       });
 
       // Fetch all related data
-      const [aircraftData, pilotsData, instructorsData, airfieldsData, createdByData, updatedByData] = await Promise.all([
+      const [aircraftData, pilotsData, instructorsData, payersData, airfieldsData, createdByData, updatedByData] = await Promise.all([
         aircraftIds.length > 0 ? supabase.from('aircraft').select(`
           *,
           icao_reference_type (
@@ -346,6 +348,7 @@ export async function GET(request: NextRequest) {
         `).in('id', aircraftIds) : { data: [], error: null },
         userIds.length > 0 ? supabase.from('users').select('*').in('id', userIds) : { data: [], error: null },
         instructorIds.length > 0 ? supabase.from('users').select('*').in('id', instructorIds) : { data: [], error: null },
+        payerIds.length > 0 ? supabase.from('users').select('*').in('id', payerIds) : { data: [], error: null },
         airfieldIds.length > 0 ? supabase.from('airfields').select('*').in('id', airfieldIds) : { data: [], error: null },
         createdByIds.length > 0 ? supabase.from('users').select('*').in('id', createdByIds) : { data: [], error: null },
         updatedByIds.length > 0 ? supabase.from('users').select('*').in('id', updatedByIds) : { data: [], error: null }
@@ -355,6 +358,7 @@ export async function GET(request: NextRequest) {
       const aircraftMap = new Map(aircraftData.data?.map(ac => [ac.id, ac]) || []);
       const pilotsMap = new Map(pilotsData.data?.map(p => [p.id, p]) || []);
       const instructorsMap = new Map(instructorsData.data?.map(i => [i.id, i]) || []);
+      const payersMap = new Map(payersData.data?.map(p => [p.id, p]) || []);
       const airfieldsMap = new Map(airfieldsData.data?.map(af => [af.id, af]) || []);
       const createdByMap = new Map(createdByData.data?.map(cb => [cb.id, cb]) || []);
       const updatedByMap = new Map(updatedByData.data?.map(ub => [ub.id, ub]) || []);
@@ -363,6 +367,7 @@ export async function GET(request: NextRequest) {
         aircraft: aircraftMap.size,
         pilots: pilotsMap.size,
         instructors: instructorsMap.size,
+        payers: payersMap.size,
         airfields: airfieldsMap.size,
         createdBy: createdByMap.size,
         updatedBy: updatedByMap.size
@@ -385,6 +390,7 @@ export async function GET(request: NextRequest) {
           } : null,
           pilot: pilotsMap.get(log.userId) || null,
           instructor: log.instructorId ? instructorsMap.get(log.instructorId) || null : null,
+          payer: log.payer_id ? payersMap.get(log.payer_id) || null : null,
           departureAirfield: airfieldsMap.get(log.departureAirfieldId) || null,
           arrivalAirfield: airfieldsMap.get(log.arrivalAirfieldId) || null,
           createdBy: createdByMap.get(log.createdById) || null,
@@ -499,6 +505,7 @@ export async function POST(request: NextRequest) {
       aircraftId,
       userId,
       instructorId,
+      payerId, // User ID of the person who pays for the flight (used for charter flights)
       date,
       departureTime,
       arrivalTime,
@@ -539,6 +546,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate payerId for charter flights
+    if (flightType === 'CHARTER' && !payerId) {
+      return NextResponse.json(
+        { error: 'Payer ID is required for charter flights' },
+        { status: 400 }
+      );
+    }
+
+    // Validate that payerId is not set for non-charter flights
+    if (flightType !== 'CHARTER' && payerId) {
+      return NextResponse.json(
+        { error: 'Payer ID can only be set for charter flights' },
+        { status: 400 }
+      );
+    }
+
     // Validate aircraft exists
     const { data: aircraft, error: aircraftError } = await supabase
       .from('aircraft')
@@ -573,6 +596,22 @@ export async function POST(request: NextRequest) {
         { error: 'Pilot not found' },
         { status: 404 }
       );
+    }
+
+    // Validate payer exists if provided
+    if (payerId) {
+      const { data: payer, error: payerError } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', payerId)
+        .single();
+
+      if (payerError || !payer) {
+        return NextResponse.json(
+          { error: 'Payer not found' },
+          { status: 404 }
+        );
+      }
     }
 
     // Automatic flight type logic based on pilot's roles
@@ -690,6 +729,7 @@ export async function POST(request: NextRequest) {
         aircraftId,
         userId,
         instructorId,
+        payer_id: payerId || null, // User ID of the person who pays for the flight (used for charter flights)
         date: date, // Keep the date as a string to avoid timezone conversion
         departureTime,
         arrivalTime,

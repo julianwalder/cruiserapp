@@ -350,6 +350,7 @@ export async function POST(request: NextRequest) {
             date: new Date(rowData.date).toISOString(),
             pilotId: pilot.id,
             instructorId: instructor?.id,
+            payer_id: null, // Import doesn't support payer_id yet - can be added later if needed
             aircraftId: aircraft.id,
             departureAirfieldId: departureAirfield.id,
             arrivalAirfieldId: arrivalAirfield.id,

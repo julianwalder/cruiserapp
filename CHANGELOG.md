@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2025-01-22
+
+### Added
+- **Charter Flight Payer Assignment System**
+  - New `payer_id` column in `flight_logs` table for charter flights
+  - Payer selection in flight log creation and editing forms
+  - "Charter Flight" toggle with conditional payer field display
+  - Payer information display in flight log remarks section
+  - Database constraints to ensure payer_id is only used for charter flights
+  - Enhanced flight log API endpoints to handle payer data
+  - Payer data enrichment in flight log queries with user information
+- **Chartered Flights Usage Tracking**
+  - New "Chartered Flights" card in Usage page showing paid charter flights
+  - Chartered flights deducted from payer's purchased hours
+  - Chartered flights included in payer's total used hours
+  - "Chartered" label and purple styling for chartered flights in Recent Flights
+  - Usage Details modal properly handles chartered flight calculations
+- **Enhanced Usage Page Layout**
+  - Reorganized 7 cards into two logical sections
+  - Section 1: Main Business Metrics (Total Purchased, Used by Clients, Chartered Flights, Remaining Hours)
+  - Section 2: Special Flight Types (Ferry Flights, Charter Flights, Demo Flights)
+  - Consistent 4-column responsive grid layout for both sections
+
+### Fixed
+- Database constraint issues with payer_id column validation
+- API response structure for enriched flight log data with payer information
+- Form validation for charter flight payer requirements
+- Usage calculations to properly account for chartered flights
+- TypeScript interface definitions for payer-related fields
+
+### Changed
+- Flight log forms now conditionally show payer selection for charter flights
+- Usage page cards reorganized for better visual hierarchy and logical grouping
+- Enhanced flight log display to show "Paid by" information for charter flights
+- Improved data consistency between frontend and backend for payer information
+
 ## [0.4.1] - 2025-01-13
 
 ### Added

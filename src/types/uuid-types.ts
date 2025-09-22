@@ -129,6 +129,7 @@ export interface FlightLog extends BaseEntity {
   aircraftId: UUID;
   pilotId: UUID;
   instructorId?: UUID;
+  payerId?: UUID; // User ID of the person who pays for the flight (used for charter flights)
   date: string;
   departureTime: string;
   arrivalTime: string;

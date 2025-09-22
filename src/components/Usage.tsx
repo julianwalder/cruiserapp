@@ -139,6 +139,7 @@ interface FlightLog {
   isFerryFlight?: boolean;
   isDemoFlight?: boolean;
   isCharterFlight?: boolean;
+  isCharteredFlight?: boolean;
 }
 
 interface PPLCourseTranche {
@@ -190,6 +191,9 @@ interface ClientHoursData {
   charterHoursCurrentYear: number;
   charterHoursPreviousYear: number;
   charterHoursTotal: number;
+  charteredHoursCurrentYear: number;
+  charteredHoursPreviousYear: number;
+  charteredHoursTotal: number;
   demoHoursCurrentYear: number;
   demoHoursPreviousYear: number;
   demoHoursTotal: number;
@@ -222,6 +226,8 @@ export default function Usage() {
   const [totalFerryHoursPreviousYear, setTotalFerryHoursPreviousYear] = useState(0);
   const [totalCharterHoursCurrentYear, setTotalCharterHoursCurrentYear] = useState(0);
   const [totalCharterHoursPreviousYear, setTotalCharterHoursPreviousYear] = useState(0);
+  const [totalCharteredHoursCurrentYear, setTotalCharteredHoursCurrentYear] = useState(0);
+  const [totalCharteredHoursPreviousYear, setTotalCharteredHoursPreviousYear] = useState(0);
   const [totalDemoHoursCurrentYear, setTotalDemoHoursCurrentYear] = useState(0);
   const [totalDemoHoursPreviousYear, setTotalDemoHoursPreviousYear] = useState(0);
   
@@ -283,6 +289,8 @@ export default function Usage() {
       setTotalFerryHoursPreviousYear(data.totalFerryHoursPreviousYear || 0);
       setTotalCharterHoursCurrentYear(data.totalCharterHoursCurrentYear || 0);
       setTotalCharterHoursPreviousYear(data.totalCharterHoursPreviousYear || 0);
+      setTotalCharteredHoursCurrentYear(data.totalCharteredHoursCurrentYear || 0);
+      setTotalCharteredHoursPreviousYear(data.totalCharteredHoursPreviousYear || 0);
       setTotalDemoHoursCurrentYear(data.totalDemoHoursCurrentYear || 0);
       setTotalDemoHoursPreviousYear(data.totalDemoHoursPreviousYear || 0);
     } catch (err) {
@@ -627,8 +635,8 @@ export default function Usage() {
             {/* Flight Hours Summary Cards */}
             {filteredClients.length > 0 && (
               <div className="space-y-6 mb-6">
-                {/* Cards in Logical Groups - Main Business Metrics (1-3) and Special Flight Types (4-6) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+                {/* Main Business Metrics - 4 cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                      <Card>
                      <CardContent className="p-2">
                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Purchased</CardTitle>
@@ -695,6 +703,49 @@ export default function Usage() {
                    
                    <Card>
                      <CardContent className="p-2">
+                       <CardTitle className="text-sm font-medium text-muted-foreground">Chartered Flights</CardTitle>
+                       <div className="mt-0.5">
+                         <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => 
+                           sum + client.charteredHoursTotal, 0
+                         ))}</p>
+                         <p className="text-xs text-muted-foreground">Charter flights with assigned payer</p>
+                       </div>
+                     </CardContent>
+                     <CardFooter className="px-2 py-1.5">
+                       <div className="w-full border-t pt-1.5">
+                         <div className="flex items-center justify-between">
+                           <div className="flex items-center space-x-1">
+                             <span className="text-xs text-muted-foreground">{formatHours(totalCharteredHoursPreviousYear)}</span>
+                             {(() => {
+                               const currentChartered = filteredClients.reduce((sum, client) => 
+                                 sum + client.charteredHoursCurrentYear, 0
+                               );
+                               const previousChartered = totalCharteredHoursPreviousYear;
+                               const trend = currentChartered > previousChartered ? 'up' : currentChartered < previousChartered ? 'down' : 'same';
+                               return trend === 'up' ? (
+                                 <ArrowUp className="h-3 w-3 text-green-600" />
+                               ) : trend === 'down' ? (
+                                 <ArrowDown className="h-3 w-3 text-red-600" />
+                               ) : null;
+                             })()}
+                           </div>
+                           <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                             {(() => {
+                               const totalBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
+                               const charteredHours = filteredClients.reduce((sum, client) => 
+                                 sum + client.charteredHoursTotal, 0
+                               );
+                               const percentage = totalBought > 0 ? (charteredHours / totalBought) * 100 : 0;
+                               return `${percentage.toFixed(1)}%`;
+                             })()}
+                           </p>
+                         </div>
+                       </div>
+                     </CardFooter>
+                   </Card>
+                   
+                   <Card>
+                     <CardContent className="p-2">
                        <CardTitle className="text-sm font-medium text-muted-foreground">Remaining Hours</CardTitle>
                        <div className="mt-0.5">
                          <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => sum + client.totalRemainingHours, 0))}</p>
@@ -729,7 +780,10 @@ export default function Usage() {
                        </div>
                      </CardFooter>
                    </Card>
-                   
+                </div>
+
+                {/* Special Flight Types - 3 cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                    <Card>
                      <CardContent className="p-2">
                        <CardTitle className="text-sm font-medium text-muted-foreground">Ferry Flights</CardTitle>
@@ -1645,10 +1699,10 @@ export default function Usage() {
                     <TrendingUp className="h-4 w-4 mr-2" />
                     Recent Flights ({clientData.recentFlights.length})
                   </h4>
-                  {clientData.recentFlights.some(flight => flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && (
+                  {clientData.recentFlights.some(flight => flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight || flight.isCharteredFlight) && (
                     <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
                       <p className="text-sm text-blue-800 dark:text-blue-200">
-                        <strong>Note:</strong> FERRY, DEMO, and CHARTER flights are excluded from hour calculations and are marked with badges and strikethrough hours.
+                        <strong>Note:</strong> FERRY, DEMO, and CHARTER flights are excluded from hour calculations. CHARTERED flights are deducted from your purchased hours and are marked with badges.
                       </p>
                     </div>
                   )}
@@ -1659,13 +1713,20 @@ export default function Usage() {
                                             {clientData.recentFlights.slice(0, 10).map((flight) => (
                         <div key={flight.id} className={cn(
                           "flex items-center justify-between p-3 border rounded-lg",
-                          (flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && "bg-gray-50 dark:bg-gray-900/20 opacity-75"
+                          (flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && "bg-gray-50 dark:bg-gray-900/20 opacity-75",
+                          flight.isCharteredFlight && "bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800"
                         )}>
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <p className="text-sm font-medium">{formatDate(flight.date)}</p>
                               {flight.role && (
-                                <Badge variant="outline" className="text-xs">
+                                <Badge 
+                                  variant={flight.isCharteredFlight ? "default" : "outline"} 
+                                  className={cn(
+                                    "text-xs",
+                                    flight.isCharteredFlight && "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                                  )}
+                                >
                                   {flight.role}
                                 </Badge>
                               )}
@@ -1695,7 +1756,8 @@ export default function Usage() {
                           <div className="text-right">
                             <span className={cn(
                               "text-sm font-medium",
-                              (flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && "text-gray-500 line-through"
+                              (flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && "text-gray-500 line-through",
+                              flight.isCharteredFlight && "text-purple-700 dark:text-purple-300"
                             )}>
                               {formatHours(flight.totalHours)}
                             </span>
@@ -2022,10 +2084,10 @@ export default function Usage() {
                       <TrendingUp className="h-5 w-5 mr-2" />
                       Recent Flights ({selectedClient.recentFlights.length})
                     </h3>
-                    {selectedClient.recentFlights.some(flight => flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && (
+                    {selectedClient.recentFlights.some(flight => flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight || flight.isCharteredFlight) && (
                       <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
                         <p className="text-sm text-blue-800 dark:text-blue-200">
-                          <strong>Note:</strong> FERRY, DEMO, and CHARTER flights are excluded from hour calculations and are marked with badges and strikethrough hours.
+                          <strong>Note:</strong> FERRY, DEMO, and CHARTER flights are excluded from hour calculations. CHARTERED flights are deducted from your purchased hours and are marked with badges.
                         </p>
                       </div>
                     )}
@@ -2036,13 +2098,20 @@ export default function Usage() {
                         {selectedClient.recentFlights.slice(0, 10).map((flight) => (
                           <div key={flight.id} className={cn(
                             "flex items-center justify-between p-3 border rounded-lg bg-background",
-                            (flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && "bg-gray-50 dark:bg-gray-900/20 opacity-75"
+                            (flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && "bg-gray-50 dark:bg-gray-900/20 opacity-75",
+                            flight.isCharteredFlight && "bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800"
                           )}>
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
                                 <p className="text-sm font-medium">{formatDate(flight.date)}</p>
                                 {flight.role && (
-                                  <Badge variant="outline" className="text-xs">
+                                  <Badge 
+                                    variant={flight.isCharteredFlight ? "default" : "outline"} 
+                                    className={cn(
+                                      "text-xs",
+                                      flight.isCharteredFlight && "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                                    )}
+                                  >
                                     {flight.role}
                                   </Badge>
                                 )}
@@ -2072,7 +2141,8 @@ export default function Usage() {
                             <div className="text-right">
                               <span className={cn(
                                 "text-sm font-medium",
-                                (flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && "text-gray-500 line-through"
+                                (flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && "text-gray-500 line-through",
+                                flight.isCharteredFlight && "text-purple-700 dark:text-purple-300"
                               )}>
                                 {formatHours(flight.totalHours)}
                               </span>
@@ -2098,7 +2168,6 @@ export default function Usage() {
           open={isOrderModalOpen}
           onClose={() => setIsOrderModalOpen(false)}
           title="Order Hour Package"
-          description={`Select a new hour package for ${selectedClient?.client.name}`}
         >
             
             <div className="space-y-4">
