@@ -3075,12 +3075,6 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                           </Select>
                         );
                       })()}
-                      {/* Debug info */}
-                      {modalMode === 'edit' && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Debug: Current value: {form.watch("flightType") || 'undefined'}
-                        </p>
-                      )}
                     </div>
                     <div>
                       <Label className="text-sm font-medium text-muted-foreground">Total Hours</Label>
