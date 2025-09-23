@@ -142,9 +142,11 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       const formData = flightLogToFormData(selectedFlightLog);
       
       // Check if current user is a student (and only a student, no other roles)
+      // Users with both STUDENT and PILOT roles should be treated as pilots (higher grade)
       const isStudentOnly = currentUser && currentUser.userRoles?.some((ur: UserRole) => 
         (ur.role?.name || ur.roles?.name) === 'STUDENT'
       ) && !currentUser.userRoles?.some((ur: UserRole) => 
+        (ur.role?.name || ur.roles?.name) === 'PILOT' ||
         (ur.role?.name || ur.roles?.name) === 'INSTRUCTOR' || 
         (ur.role?.name || ur.roles?.name) === 'ADMIN' || 
         (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN' ||
@@ -167,9 +169,11 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       const defaultValues = { ...defaultFlightLogValues };
       
       // Check if current user is a student (and only a student, no other roles)
+      // Users with both STUDENT and PILOT roles should be treated as pilots (higher grade)
       const isStudentOnly = currentUser && currentUser.userRoles?.some((ur: UserRole) => 
         (ur.role?.name || ur.roles?.name) === 'STUDENT'
       ) && !currentUser.userRoles?.some((ur: UserRole) => 
+        (ur.role?.name || ur.roles?.name) === 'PILOT' ||
         (ur.role?.name || ur.roles?.name) === 'INSTRUCTOR' || 
         (ur.role?.name || ur.roles?.name) === 'ADMIN' || 
         (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN' ||
@@ -3021,9 +3025,11 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                       <Label htmlFor="flightType">Flight Type</Label>
                       {(() => {
                         // Check if current user is a student (and only a student, no other roles)
+                        // Users with both STUDENT and PILOT roles should be treated as pilots (higher grade)
                         const isStudentOnly = currentUser && currentUser.userRoles?.some((ur: UserRole) => 
                           (ur.role?.name || ur.roles?.name) === 'STUDENT'
                         ) && !currentUser.userRoles?.some((ur: UserRole) => 
+                          (ur.role?.name || ur.roles?.name) === 'PILOT' ||
                           (ur.role?.name || ur.roles?.name) === 'INSTRUCTOR' || 
                           (ur.role?.name || ur.roles?.name) === 'ADMIN' || 
                           (ur.role?.name || ur.roles?.name) === 'SUPER_ADMIN' ||
