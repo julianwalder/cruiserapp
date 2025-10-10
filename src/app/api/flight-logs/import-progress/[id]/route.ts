@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
 
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json(progress);
 
   } catch (error) {
-    console.error('Error fetching import progress:', error);
+    logger.error('Error fetching import progress:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 } 

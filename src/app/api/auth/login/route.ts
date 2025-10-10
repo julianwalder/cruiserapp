@@ -3,6 +3,7 @@ import { userLoginSchema } from '@/lib/validations';
 import { AuthService } from '@/lib/auth';
 import { UUID } from '@/types/uuid-types';
 import { ActivityLogger } from '@/lib/activity-logger';
+import { logger } from '@/lib/logger';
 
 // Extended User interface for auth with user_roles
 interface AuthUser {
@@ -100,7 +101,7 @@ export async function POST(request: NextRequest) {
         request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown'
       );
     } catch (error) {
-      console.log('Refresh token generation failed (Phase 2 not applied yet):', error);
+      logger.debug('Refresh token generation failed (Phase 2 not applied yet):', error);
       // Continue without refresh token for now
     }
 
@@ -144,8 +145,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error: any) {
-    console.error('Login error:', error);
-    
+    logger.error('Login error:', error);
+
     if (error.name === 'ZodError') {
       return NextResponse.json(
         { error: 'Invalid request data' },

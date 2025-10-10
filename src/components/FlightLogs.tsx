@@ -158,12 +158,6 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         formData.flightType = 'SCHOOL';
       }
       
-      console.log('🔍 Populating form with flight log data:', {
-        selectedFlightLog: selectedFlightLog.flightType,
-        formData: formData.flightType,
-        modalMode,
-        isStudentOnly
-      });
       form.reset(formData);
     } else if (modalMode === 'create') {
       const defaultValues = { ...defaultFlightLogValues };
@@ -196,7 +190,6 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       try {
         const token = AuthService.getToken();
         if (!token) {
-          console.log('🔍 FlightLogs - No token found, redirecting to login');
           setIsAuthenticated(false);
           router.push('/login?redirect=/flight-logs&error=auth_required');
           return;
@@ -212,9 +205,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
           const userData = await response.json();
           setCurrentUser(userData);
           setIsAuthenticated(true);
-          console.log('🔍 FlightLogs - Client-side authentication successful');
         } else {
-          console.log('🔍 FlightLogs - Client-side authentication failed, redirecting to login');
           setIsAuthenticated(false);
           router.push('/login?redirect=/flight-logs&error=auth_required');
         }
@@ -755,14 +746,10 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       } else {
         // Only clear token if it's a 401 (unauthorized) error
         if (response.status === 401) {
-          console.log('🔍 FlightLogs - Token refresh failed with 401, clearing token');
           localStorage.removeItem('token');
           localStorage.removeItem('refreshToken');
           localStorage.removeItem('userId');
           window.location.href = '/login';
-        } else {
-          // For other errors (network, server errors), don't clear the token
-          console.log('🔍 FlightLogs - Token refresh failed with status:', response.status, 'keeping token');
         }
         return null;
       }
@@ -877,7 +864,6 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         setAllUsers(data.users || []);
       } else if (response.status === 403) {
         // User doesn't have permission to access all users - fallback to pilots + instructors
-        console.log('No permission to fetch all users, using pilots + instructors');
         setAllUsers([]);
       } else {
         const errorText = await response.text();
@@ -1028,11 +1014,6 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
 
       if (response.ok) {
         const freshFlightLog = await response.json();
-        console.log('🔍 Fresh flight log data from API:', {
-          id: freshFlightLog.id,
-          flightType: freshFlightLog.flightType,
-          pilot: freshFlightLog.pilot?.firstName + ' ' + freshFlightLog.pilot?.lastName
-        });
 
         setSelectedFlightLog(freshFlightLog);
         setModalMode('edit');
@@ -3060,7 +3041,6 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
                           <Select
                             value={form.watch("flightType")}
                             onValueChange={(value) => {
-                              console.log('🔍 Flight type changed to:', value);
                               // Only set the value if it's not empty (prevents overriding during form population)
                               if (value && value.trim() !== '') {
                                 form.setValue("flightType", value as "INVOICED" | "SCHOOL" | "FERRY" | "CHARTER" | "DEMO" | "PROMO");

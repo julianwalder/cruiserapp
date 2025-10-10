@@ -1,23 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { getSupabaseClient } from '@/lib/supabase';
 import { AuthService } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔍 Flight logs export API called');
+    logger.debug('🔍 Flight logs export API called');
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     if (!token) {
-      console.log('❌ No token provided');
+      logger.debug('❌ No token provided');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const decoded = await AuthService.verifyToken(token);
     if (!decoded) {
-      console.log('❌ Invalid token');
+      logger.debug('❌ Invalid token');
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    console.log('🔍 User authenticated:', decoded.userId);
+    logger.debug('🔍 User authenticated:', decoded.userId);
 
     const supabase = getSupabaseClient();
     if (!supabase) {
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     // Block prospects from accessing flight logs
     if (isProspect) {
-      console.log('❌ Prospect user attempted to export flight logs:', decoded.userId);
+      logger.debug('❌ Prospect user attempted to export flight logs:', decoded.userId);
       return NextResponse.json({ 
         error: 'Access denied. Flight logs are not available for prospect users.' 
       }, { status: 403 });
@@ -94,13 +95,13 @@ export async function GET(request: NextRequest) {
     // In company view, all users can see all logs (for fleet management purposes)
     else if (viewMode === 'company') {
       // All users can see all logs in company view for fleet management
-      console.log('✅ Company view - allowing access to all flight logs');
+      logger.debug('✅ Company view - allowing access to all flight logs');
       // No additional filtering needed - they can see everything
     }
     
     // TEMPORARY: For debugging, let's bypass all filtering for SUPER_ADMIN
     if (userRoles.includes('SUPER_ADMIN')) {
-      console.log('🔧 TEMPORARY: Bypassing all filtering for SUPER_ADMIN');
+      logger.debug('🔧 TEMPORARY: Bypassing all filtering for SUPER_ADMIN');
       // Reset the query to show all records (simple query to avoid relationship conflicts)
       query = supabase
         .from('flight_logs')
@@ -142,18 +143,18 @@ export async function GET(request: NextRequest) {
       .order('departureTime', { ascending: false });
 
     if (flightLogsErrorData) {
-      console.log('❌ Filtered query failed:', flightLogsErrorData);
+      logger.debug('❌ Filtered query failed:', flightLogsErrorData);
       return NextResponse.json(
         { error: 'Internal server error' },
         { status: 500 }
       );
     }
 
-    console.log('✅ Filtered query succeeded, got', flightLogsData?.length, 'records for export');
+    logger.debug('✅ Filtered query succeeded, got', flightLogsData?.length, 'records for export');
       
     // Now apply manual joins to get related data
     try {
-      console.log('🔍 Enriching data with manual joins for export...');
+      logger.debug('🔍 Enriching data with manual joins for export...');
       
       // Get all the IDs we need for relationships
       const aircraftIds = [...new Set(flightLogsData?.map(log => log.aircraftId) || [])];
@@ -209,7 +210,7 @@ export async function GET(request: NextRequest) {
         };
       }) || [];
 
-      console.log('✅ Manual joins succeeded for export, generating CSV...');
+      logger.debug('✅ Manual joins succeeded for export, generating CSV...');
 
       // Generate CSV content
       const csvHeaders = [
@@ -270,7 +271,7 @@ export async function GET(request: NextRequest) {
         csvContent += row + '\n';
       });
 
-      console.log('✅ CSV generated successfully');
+      logger.debug('✅ CSV generated successfully');
 
       // Return CSV file
       return new NextResponse(csvContent, {
@@ -282,7 +283,7 @@ export async function GET(request: NextRequest) {
       });
       
     } catch (enrichError) {
-      console.log('❌ Manual joins failed for export, returning simple data:', enrichError);
+      logger.debug('❌ Manual joins failed for export, returning simple data:', enrichError);
       
       // Fallback to simple CSV without enriched data
       const csvHeaders = [
@@ -330,7 +331,7 @@ export async function GET(request: NextRequest) {
       });
     }
   } catch (error) {
-    console.error('Error exporting flight logs:', error);
+    logger.error('Error exporting flight logs:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

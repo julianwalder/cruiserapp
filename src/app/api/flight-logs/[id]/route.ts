@@ -4,6 +4,7 @@ import { AuthService } from '@/lib/auth';
 import { ActivityLogger } from '@/lib/activity-logger';
 import { updateAircraftHobbs, recalculateAircraftHobbs } from '@/lib/aircraft-hobbs';
 import { UUID } from '@/types/uuid-types';
+import { logger } from '@/lib/logger';
 
 
 export async function GET(
@@ -11,32 +12,32 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    console.log('🔧 GET request received for flight log');
+    logger.debug('🔧 GET request received for flight log');
     
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     if (!token) {
-      console.log('❌ No token provided');
+      logger.debug('❌ No token provided');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const user = await AuthService.validateSession(token);
     if (!user) {
-      console.log('❌ Invalid token or user not found');
+      logger.debug('❌ Invalid token or user not found');
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    console.log('✅ Token verified, user ID:', user.id);
+    logger.debug('✅ Token verified, user ID:', user.id);
 
     const { id } = await params;
-    console.log('📝 Flight log ID to fetch:', id);
+    logger.debug('📝 Flight log ID to fetch:', id);
 
     const supabase = getSupabaseClient();
     if (!supabase) {
       return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
     }
 
-    console.log('👤 User found:', user.email);
-    console.log('🔑 User roles:', (user as any).user_roles?.map((ur: any) => ur.roles.name) || []);
+    logger.debug('👤 User found:', user.email);
+    logger.debug('🔑 User roles:', (user as any).user_roles?.map((ur: any) => ur.roles.name) || []);
 
     const userRoles = (user as any).user_roles?.map((ur: any) => ur.roles.name) || [];
     const isAdmin = userRoles.includes('SUPER_ADMIN') || userRoles.includes('ADMIN');
@@ -53,7 +54,7 @@ export async function GET(
       .single();
 
     if (flightLogError || !flightLog) {
-      console.log('❌ Flight log not found:', flightLogError);
+      logger.debug('❌ Flight log not found:', flightLogError);
       return NextResponse.json(
         { error: 'Flight log not found' },
         { status: 404 }
@@ -72,7 +73,7 @@ export async function GET(
     }
 
     if (!hasAccess) {
-      console.log('❌ Insufficient permissions to view this flight log');
+      logger.debug('❌ Insufficient permissions to view this flight log');
       return NextResponse.json(
         { error: 'Insufficient permissions' },
         { status: 403 }
@@ -96,16 +97,16 @@ export async function GET(
           };
         }
       } catch (error) {
-        console.log('⚠️ Error fetching payer data:', error);
+        logger.debug('⚠️ Error fetching payer data:', error);
         // Continue without payer data
       }
     }
 
-    console.log('✅ Flight log fetched successfully');
+    logger.debug('✅ Flight log fetched successfully');
     return NextResponse.json(enrichedFlightLog);
 
   } catch (error) {
-    console.error('❌ Error fetching flight log:', error);
+    logger.error('❌ Error fetching flight log:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -118,32 +119,32 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    console.log('🔧 PUT request received for flight log update');
+    logger.debug('🔧 PUT request received for flight log update');
     
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     if (!token) {
-      console.log('❌ No token provided');
+      logger.debug('❌ No token provided');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const user = await AuthService.validateSession(token);
     if (!user) {
-      console.log('❌ Invalid token or user not found');
+      logger.debug('❌ Invalid token or user not found');
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    console.log('✅ Token verified, user ID:', user.id);
+    logger.debug('✅ Token verified, user ID:', user.id);
 
     const { id } = await params;
-    console.log('📝 Flight log ID to update:', id);
+    logger.debug('📝 Flight log ID to update:', id);
 
     const supabase = getSupabaseClient();
     if (!supabase) {
       return NextResponse.json({ error: 'Database connection failed' }, { status: 500 });
     }
 
-    console.log('👤 User found:', user.email);
-    console.log('🔑 User roles:', (user as any).user_roles?.map((ur: any) => ur.roles.name) || []);
+    logger.debug('👤 User found:', user.email);
+    logger.debug('🔑 User roles:', (user as any).user_roles?.map((ur: any) => ur.roles.name) || []);
 
     const hasPermission = (user as any).user_roles?.some(
       (userRole: any) =>
@@ -155,10 +156,10 @@ export async function PUT(
         userRole.roles.name === 'STUDENT'
     ) || false;
 
-    console.log('🔐 Has permission:', hasPermission);
+    logger.debug('🔐 Has permission:', hasPermission);
 
     if (!hasPermission) {
-      console.log('❌ Insufficient permissions');
+      logger.debug('❌ Insufficient permissions');
       return NextResponse.json(
         { error: 'Insufficient permissions' },
         { status: 403 }
@@ -166,24 +167,24 @@ export async function PUT(
     }
 
     // Check if flight log exists
-    console.log('🔍 Looking for flight log with ID:', id);
+    logger.debug('🔍 Looking for flight log with ID:', id);
     const { data: existingFlightLog, error: existingError } = await supabase
       .from('flight_logs')
       .select('*')
       .eq('id', id)
       .single();
 
-    console.log('🔍 Flight log lookup result:', { existingFlightLog, existingError });
+    logger.debug('🔍 Flight log lookup result:', { existingFlightLog, existingError });
 
     if (existingError || !existingFlightLog) {
-      console.log('❌ Flight log not found or error:', existingError);
+      logger.debug('❌ Flight log not found or error:', existingError);
       return NextResponse.json(
         { error: 'Flight log not found' },
         { status: 404 }
       );
     }
 
-    console.log('✅ Flight log found:', existingFlightLog.id);
+    logger.debug('✅ Flight log found:', existingFlightLog.id);
 
     // Additional validation for students and pilots - they can only edit their own flight logs
     const userRoles = (user as any).user_roles?.map((ur: any) => ur.roles.name) || [];
@@ -196,7 +197,7 @@ export async function PUT(
     if ((isStudent || isPilot) && !isAdmin && !isBaseManager && !isInstructor) {
       // Students and pilots can only edit their own flight logs
       if (existingFlightLog.userId !== user.id) {
-        console.log('❌ Student/Pilot attempted to edit another user\'s flight log');
+        logger.debug('❌ Student/Pilot attempted to edit another user\'s flight log');
         return NextResponse.json(
           { error: 'You can only edit your own flight logs' },
           { status: 403 }
@@ -205,7 +206,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    console.log('📦 Request body received:', body);
+    logger.debug('📦 Request body received:', body);
     
     const {
       aircraftId,
@@ -247,24 +248,24 @@ export async function PUT(
     }
 
     // Validate aircraft exists
-    console.log('🔍 Validating aircraft with ID:', aircraftId);
+    logger.debug('🔍 Validating aircraft with ID:', aircraftId);
     const { data: aircraft, error: aircraftError } = await supabase
       .from('aircraft')
       .select('id')
       .eq('id', aircraftId)
       .single();
 
-    console.log('🔍 Aircraft validation result:', { aircraft, aircraftError });
+    logger.debug('🔍 Aircraft validation result:', { aircraft, aircraftError });
 
     if (aircraftError || !aircraft) {
-      console.log('❌ Aircraft not found:', aircraftError);
+      logger.debug('❌ Aircraft not found:', aircraftError);
       return NextResponse.json(
         { error: 'Aircraft not found' },
         { status: 404 }
       );
     }
 
-    console.log('✅ Aircraft validation passed');
+    logger.debug('✅ Aircraft validation passed');
 
     // Validate pilot exists and get their roles for automatic flight type
     const { data: pilot, error: pilotError } = await supabase
@@ -325,7 +326,7 @@ export async function PUT(
     
     // Log the flight type being used for editing
     const pilotRoles = pilot.user_roles?.map((ur: any) => ur.roles?.name || '').filter(Boolean) || [];
-    console.log(`🔍 Flight type for pilot ${userId} (EDIT mode):`, {
+    logger.debug(`🔍 Flight type for pilot ${userId} (EDIT mode):`, {
       pilotRoles,
       providedFlightType: flightType,
       finalFlightType
@@ -390,7 +391,7 @@ export async function PUT(
     const updatedRemarks = remarks === '' ? null : remarks;
 
     // Update flight log
-    console.log('🔄 Updating flight log with ID:', id);
+    logger.debug('🔄 Updating flight log with ID:', id);
     const { data: flightLog, error: updateError } = await supabase
       .from('flight_logs')
       .update({
@@ -431,7 +432,7 @@ export async function PUT(
       .single();
 
     if (updateError) {
-      console.error('Error updating flight log:', updateError);
+      logger.error('Error updating flight log:', updateError);
       return NextResponse.json(
         { error: 'Internal server error' },
         { status: 500 }
@@ -492,7 +493,7 @@ export async function PUT(
       try {
         await updateAircraftHobbs(aircraftId, flightLog.id, arrivalHobbs, date);
       } catch (hobbsError) {
-        console.error('Error updating aircraft hobbs:', hobbsError);
+        logger.error('Error updating aircraft hobbs:', hobbsError);
         // Don't fail the entire request if hobbs update fails
       }
     }
@@ -508,14 +509,14 @@ export async function PUT(
           await updateAircraftHobbs(aircraftId, flightLog.id, arrivalHobbs, date);
         }
       } catch (hobbsError) {
-        console.error('Error updating aircraft hobbs after aircraft change:', hobbsError);
+        logger.error('Error updating aircraft hobbs after aircraft change:', hobbsError);
         // Don't fail the entire request if hobbs update fails
       }
     }
 
     return NextResponse.json({ flightLog });
   } catch (error) {
-    console.error('Error updating flight log:', error);
+    logger.error('Error updating flight log:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -528,22 +529,22 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    console.log('🗑️ DELETE request received for flight log');
+    logger.debug('🗑️ DELETE request received for flight log');
     
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     if (!token) {
-      console.log('❌ No token provided');
+      logger.debug('❌ No token provided');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const decoded = await AuthService.verifyToken(token);
     if (!decoded) {
-      console.log('❌ Invalid token');
+      logger.debug('❌ Invalid token');
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
     const { id } = await params;
-    console.log('🗑️ Flight log ID to delete:', id);
+    logger.debug('🗑️ Flight log ID to delete:', id);
 
     const supabase = getSupabaseClient();
     if (!supabase) {
@@ -583,7 +584,7 @@ export async function DELETE(
     }
 
     // Check if flight log exists
-    console.log('🔍 Looking for flight log with ID:', id);
+    logger.debug('🔍 Looking for flight log with ID:', id);
     const { data: existingFlightLog, error: existingError } = await supabase
       .from('flight_logs')
       .select('*')
@@ -591,7 +592,7 @@ export async function DELETE(
       .single();
 
     if (existingError) {
-      console.log('❌ Error finding flight log:', existingError);
+      logger.debug('❌ Error finding flight log:', existingError);
       return NextResponse.json(
         { error: 'Flight log not found' },
         { status: 404 }
@@ -599,14 +600,14 @@ export async function DELETE(
     }
 
     if (!existingFlightLog) {
-      console.log('❌ Flight log not found with ID:', id);
+      logger.debug('❌ Flight log not found with ID:', id);
       return NextResponse.json(
         { error: 'Flight log not found' },
         { status: 404 }
       );
     }
 
-    console.log('✅ Flight log found:', existingFlightLog.id);
+    logger.debug('✅ Flight log found:', existingFlightLog.id);
 
     // Get pilot's current total flight hours
     const { data: pilot, error: pilotError } = await supabase
@@ -633,7 +634,7 @@ export async function DELETE(
       .eq('last_flight_log_id', id);
 
     if (hobbsError) {
-      console.error('Error checking aircraft_hobbs references:', hobbsError);
+      logger.error('Error checking aircraft_hobbs references:', hobbsError);
       return NextResponse.json(
         { error: 'Error checking aircraft references' },
         { status: 500 }
@@ -642,7 +643,7 @@ export async function DELETE(
 
     // If this flight log is referenced in aircraft_hobbs, we need to find a replacement
     if (hobbsRecords && hobbsRecords.length > 0) {
-      console.log('🔧 Flight log is referenced in aircraft_hobbs, finding replacement...');
+      logger.debug('🔧 Flight log is referenced in aircraft_hobbs, finding replacement...');
       
       for (const hobbsRecord of hobbsRecords) {
         // Find the most recent flight log for this aircraft (excluding the one being deleted)
@@ -658,14 +659,14 @@ export async function DELETE(
 
         if (replacementError || !replacementFlightLog) {
           // No replacement found, set last_flight_log_id to null
-          console.log('⚠️ No replacement flight log found, setting last_flight_log_id to null');
+          logger.debug('⚠️ No replacement flight log found, setting last_flight_log_id to null');
           await supabase
             .from('aircraft_hobbs')
             .update({ last_flight_log_id: null })
             .eq('id', hobbsRecord.id);
         } else {
           // Update with the replacement flight log
-          console.log('✅ Found replacement flight log:', replacementFlightLog.id);
+          logger.debug('✅ Found replacement flight log:', replacementFlightLog.id);
           await supabase
             .from('aircraft_hobbs')
             .update({ 
@@ -685,7 +686,7 @@ export async function DELETE(
       .eq('id', id);
 
     if (deleteError) {
-      console.error('Error deleting flight log:', deleteError);
+      logger.error('Error deleting flight log:', deleteError);
       return NextResponse.json(
         { error: 'Internal server error' },
         { status: 500 }
@@ -698,10 +699,10 @@ export async function DELETE(
       existingFlightLog.id
     );
 
-    console.log('✅ Flight log deleted successfully:', id);
+    logger.debug('✅ Flight log deleted successfully:', id);
     return NextResponse.json({ message: 'Flight log deleted successfully' });
   } catch (error) {
-    console.error('Error deleting flight log:', error);
+    logger.error('Error deleting flight log:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

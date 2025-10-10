@@ -30,13 +30,10 @@ function LoginForm() {
   // Check for error parameter from redirect
   useEffect(() => {
     const errorParam = searchParams.get('error');
-    const redirectParam = searchParams.get('redirect');
-    
+
     if (errorParam === 'auth_required') {
       setError('Please log in again to access this page. Your session may have expired.');
     }
-    
-    console.log('🔍 Login - URL parameters:', { errorParam, redirectParam });
   }, [searchParams]);
 
   const {
@@ -69,36 +66,23 @@ function LoginForm() {
       // Store token in localStorage and cookie
       localStorage.setItem('token', result.token);
       localStorage.setItem('user', JSON.stringify(result.user));
-      
+
       // Set cookie for middleware - conditionally add Secure flag for production
       const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
       const secureFlag = isLocalhost ? '' : '; Secure';
       const cookieValue = `token=${result.token}; path=/; max-age=${24 * 60 * 60}; SameSite=Strict${secureFlag}`;
       document.cookie = cookieValue;
-      
-      // Verify cookie was set (for debugging)
-      console.log('🔍 Login - Token stored:', {
-        localStorage: !!localStorage.getItem('token'),
-        cookieSet: document.cookie.includes('token='),
-        cookieValue: document.cookie.includes(result.token.substring(0, 10)),
-        isLocalhost,
-        cookieString: cookieValue
-      });
 
       // Dispatch auth-change event to notify other components
       window.dispatchEvent(new Event('auth-change'));
 
-      // Small delay to ensure cookie propagation before redirect
-      await new Promise(resolve => setTimeout(resolve, 100));
-
       // Check for redirect parameter
       const redirectParam = searchParams.get('redirect');
       const redirectPath = redirectParam || '/dashboard';
-      
-      console.log('🔍 Login - Redirecting to:', redirectPath);
-      
-      // Redirect to the intended page or dashboard
-      router.push(redirectPath);
+
+      // Use window.location.href for full page reload to ensure cookie is properly set
+      // This prevents the middleware from not seeing the cookie during client-side navigation
+      window.location.href = redirectPath;
     } catch (error) {
       console.error('Login error:', error);
       setError(error instanceof Error ? error.message : 'Login failed');

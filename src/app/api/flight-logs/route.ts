@@ -5,24 +5,25 @@ import { ActivityLogger } from '@/lib/activity-logger';
 import { updateAircraftHobbs } from '@/lib/aircraft-hobbs';
 import crypto from 'crypto';
 import { UUID } from '@/types/uuid-types';
+import { logger } from '@/lib/logger';
 
 
 export async function GET(request: NextRequest) {
   try {
-    console.log('🔍 Flight logs API called');
+    logger.debug('🔍 Flight logs API called');
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
     if (!token) {
-      console.log('❌ No token provided');
+      logger.security('No token provided in flight logs request');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const decoded = await AuthService.verifyToken(token);
     if (!decoded) {
-      console.log('❌ Invalid token');
+      logger.security('Invalid token in flight logs request');
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    console.log('🔍 User authenticated:', decoded.userId);
+    logger.debug('🔍 User authenticated:', decoded.userId);
 
     const supabase = getSupabaseClient();
     if (!supabase) {
@@ -57,9 +58,9 @@ export async function GET(request: NextRequest) {
 
     // Block prospects from accessing flight logs
     if (isProspect) {
-      console.log('❌ Prospect user attempted to access flight logs:', decoded.userId);
-      return NextResponse.json({ 
-        error: 'Access denied. Flight logs are not available for prospect users.' 
+      logger.security('Prospect user attempted to access flight logs', { userId: decoded.userId });
+      return NextResponse.json({
+        error: 'Access denied. Flight logs are not available for prospect users.'
       }, { status: 403 });
     }
 
@@ -83,9 +84,9 @@ export async function GET(request: NextRequest) {
     // Build query - use the correct table name
     let query;
     const tableName = 'flight_logs';
-    
-    console.log('✅ Using table name: flight_logs');
-    
+
+    logger.debug('✅ Using table name: flight_logs');
+
     // Use simple query to avoid relationship conflicts, then enrich with manual joins
     query = supabase
       .from(tableName)
@@ -111,28 +112,29 @@ export async function GET(request: NextRequest) {
     // In company view, all users can see all logs (for fleet management purposes)
     else if (viewMode === 'company') {
       // All users can see all logs in company view for fleet management
-      console.log('✅ Company view - allowing access to all flight logs');
+      logger.debug('✅ Company view - allowing access to all flight logs');
       // No additional filtering needed - they can see everything
     }
-    
+
     // TEMPORARY: For debugging, let's bypass all filtering for SUPER_ADMIN
     if (userRoles.includes('SUPER_ADMIN')) {
-      console.log('🔧 TEMPORARY: Bypassing all filtering for SUPER_ADMIN');
+      logger.debug('🔧 TEMPORARY: Bypassing all filtering for SUPER_ADMIN');
       // Reset the query to show all records (simple query to avoid relationship conflicts)
       query = supabase
         .from('flight_logs')
         .select('*');
     }
-    
+
     // Debug logging
-    console.log('🔍 Flight Logs API Debug:');
-    console.log('👤 User ID:', user.id);
-    console.log('👤 User roles:', userRoles);
-    console.log('👤 Is Admin:', isAdmin);
-    console.log('👤 Is Instructor:', isInstructor);
-    console.log('👤 Is Base Manager:', isBaseManager);
-    console.log('👤 Is Pilot:', isPilot);
-    console.log('👤 View Mode:', viewMode);
+    logger.debug('🔍 Flight Logs API Debug:', {
+      userId: user.id,
+      userRoles,
+      isAdmin,
+      isInstructor,
+      isBaseManager,
+      isPilot,
+      viewMode
+    });
 
     // Apply filters to the query
     if (search) {
@@ -153,7 +155,7 @@ export async function GET(request: NextRequest) {
           if (userId === user.id) {
             query = query.eq('userId', userId);
           } else {
-            console.log('⚠️ userId filter ignored - pilot can only see their own logs');
+            logger.debug('⚠️ userId filter ignored - pilot can only see their own logs');
           }
         } else if (isInstructor && !isAdmin && !isBaseManager) {
           // Instructors can see logs where they are the instructor OR their own logs
@@ -168,14 +170,14 @@ export async function GET(request: NextRequest) {
           if (userId === user.id) {
             query = query.eq('userId', userId);
           } else {
-            console.log('⚠️ userId filter ignored - base manager can only see their own logs in personal view');
+            logger.debug('⚠️ userId filter ignored - base manager can only see their own logs in personal view');
           }
         } else if (isAdmin) {
           // Admins see their own logs in personal view
           if (userId === user.id) {
             query = query.eq('userId', userId);
           } else {
-            console.log('⚠️ userId filter ignored - admin can only see their own logs in personal view');
+            logger.debug('⚠️ userId filter ignored - admin can only see their own logs in personal view');
           }
         }
       } else {
@@ -215,7 +217,7 @@ export async function GET(request: NextRequest) {
 
     // Apply the same filters to the count query
     if (userRoles.includes('SUPER_ADMIN')) {
-      console.log('🔧 TEMPORARY: Bypassing all filtering for SUPER_ADMIN in count query');
+      logger.debug('🔧 TEMPORARY: Bypassing all filtering for SUPER_ADMIN in count query');
       countQuery = supabase
         .from(tableName)
         .select('*', { count: 'exact', head: true });
@@ -294,7 +296,7 @@ export async function GET(request: NextRequest) {
 
     const { count: total } = await countQuery;
 
-    console.log('📊 Total flight logs after filtering:', total);
+    logger.debug('📊 Total flight logs after filtering:', total);
 
     // Execute the filtered query
     const { data: flightLogsData, error: flightLogsErrorData } = await query
@@ -303,19 +305,19 @@ export async function GET(request: NextRequest) {
       .range(skip, skip + limit - 1);
 
     if (flightLogsErrorData) {
-      console.log('❌ Filtered query failed:', flightLogsErrorData);
+      logger.error('❌ Filtered query failed:', flightLogsErrorData);
       return NextResponse.json(
         { error: 'Internal server error' },
         { status: 500 }
       );
     }
 
-    console.log('✅ Filtered query succeeded, got', flightLogsData?.length, 'records');
+    logger.debug('✅ Filtered query succeeded, got', flightLogsData?.length, 'records');
       
     // Now apply manual joins
     try {
-      console.log('🔍 Enriching data with manual joins...');
-      
+      logger.debug('🔍 Enriching data with manual joins...');
+
       // Get all the IDs we need for relationships
       const aircraftIds = [...new Set(flightLogsData?.map(log => log.aircraftId) || [])];
       const userIds = [...new Set(flightLogsData?.map(log => log.userId) || [])];
@@ -328,7 +330,7 @@ export async function GET(request: NextRequest) {
       const createdByIds = [...new Set(flightLogsData?.map(log => log.createdById) || [])];
       const updatedByIds = [...new Set(flightLogsData?.map(log => log.updatedBy).filter(Boolean) || [])];
 
-      console.log('🔍 Manual joins - IDs found:', {
+      logger.debug('🔍 Manual joins - IDs found:', {
         aircraftIds: aircraftIds.length,
         userIds: userIds.length,
         instructorIds: instructorIds.length,
@@ -363,7 +365,7 @@ export async function GET(request: NextRequest) {
       const createdByMap = new Map(createdByData.data?.map(cb => [cb.id, cb]) || []);
       const updatedByMap = new Map(updatedByData.data?.map(ub => [ub.id, ub]) || []);
 
-      console.log('🔍 Lookup maps created:', {
+      logger.debug('🔍 Lookup maps created:', {
         aircraft: aircraftMap.size,
         pilots: pilotsMap.size,
         instructors: instructorsMap.size,
@@ -398,8 +400,8 @@ export async function GET(request: NextRequest) {
         };
       }) || [];
 
-      console.log('✅ Manual joins succeeded, returning enriched data');
-      
+      logger.debug('✅ Manual joins succeeded, returning enriched data');
+
       return NextResponse.json({
         flightLogs: enrichedFlightLogs || [],
         totalPages: Math.ceil((total || 0) / limit),
@@ -407,9 +409,9 @@ export async function GET(request: NextRequest) {
         currentPage: page,
         pageSize: limit,
       });
-      
+
     } catch (enrichError) {
-      console.log('❌ Manual joins failed, returning simple data:', enrichError);
+      logger.error('❌ Manual joins failed, returning simple data:', enrichError);
       // Return the simple data if enrichment fails
       return NextResponse.json({
         flightLogs: flightLogsData || [],
@@ -420,7 +422,7 @@ export async function GET(request: NextRequest) {
       });
     }
   } catch (error) {
-    console.error('Error fetching flight logs:', error);
+    logger.error('Error fetching flight logs:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -473,9 +475,9 @@ export async function POST(request: NextRequest) {
 
     // Block prospects from creating flight logs
     if (isProspect) {
-      console.log('❌ Prospect user attempted to create flight log:', decoded.userId);
-      return NextResponse.json({ 
-        error: 'Access denied. Flight logs are not available for prospect users.' 
+      logger.security('Prospect user attempted to create flight log', { userId: decoded.userId });
+      return NextResponse.json({
+        error: 'Access denied. Flight logs are not available for prospect users.'
       }, { status: 403 });
     }
 
@@ -654,16 +656,16 @@ export async function POST(request: NextRequest) {
     
     // Log the automatic flight type determination
     const pilotRoles = pilot.user_roles?.map((ur: any) => ur.roles?.name || '').filter(Boolean) || [];
-    console.log(`🔍 Automatic flight type for pilot ${userId} (CREATE mode):`, {
+    logger.debug(`🔍 Automatic flight type for pilot ${userId} (CREATE mode):`, {
       pilotRoles,
       providedFlightType: flightType,
       automaticFlightType,
       finalFlightType
     });
-    
+
     // Log if there was a mismatch
     if (flightType && flightType !== automaticFlightType) {
-      console.log(`✅ Overriding provided "${flightType}" with automatic "${automaticFlightType}" for new flight log`);
+      logger.debug(`✅ Overriding provided "${flightType}" with automatic "${automaticFlightType}" for new flight log`);
     }
 
     // Validate instructor if provided
@@ -771,7 +773,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (createError) {
-      console.error('Error creating flight log:', createError);
+      logger.error('Error creating flight log:', createError);
       return NextResponse.json(
         { error: 'Internal server error' },
         { status: 500 }
@@ -790,7 +792,7 @@ export async function POST(request: NextRequest) {
       try {
         await updateAircraftHobbs(aircraftId, flightLog.id, arrivalHobbs, date);
       } catch (hobbsError) {
-        console.error('Error updating aircraft hobbs:', hobbsError);
+        logger.error('Error updating aircraft hobbs:', hobbsError);
         // Don't fail the entire request if hobbs update fails
       }
     }
@@ -805,7 +807,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ flightLog }, { status: 201 });
   } catch (error) {
-    console.error('Error creating flight log:', error);
+    logger.error('Error creating flight log:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

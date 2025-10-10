@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
 import { writeFile, mkdir } from 'fs/promises';
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(summaryData);
 
   } catch (error) {
-    console.error('Error reading flight logs import summary:', error);
+    logger.error('Error reading flight logs import summary:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -144,7 +145,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: 'Import summary saved successfully' });
 
   } catch (error) {
-    console.error('Error saving flight logs import summary:', error);
+    logger.error('Error saving flight logs import summary:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 } 

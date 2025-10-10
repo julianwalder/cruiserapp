@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
 import { updateAircraftHobbs } from '@/lib/aircraft-hobbs';
@@ -65,7 +66,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('Error generating flight logs template:', error);
+    logger.error('Error generating flight logs template:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -397,7 +398,7 @@ export async function POST(request: NextRequest) {
               new Date(rowData.date).toISOString()
             );
           } catch (hobbsError) {
-            console.error('Error updating aircraft hobbs during import:', hobbsError);
+            logger.error('Error updating aircraft hobbs during import:', hobbsError);
             // Don't fail the import if hobbs update fails
           }
         }
@@ -456,7 +457,7 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify(importSummary),
       });
     } catch (error) {
-      console.error('Error saving import summary:', error);
+      logger.error('Error saving import summary:', error);
     }
 
     // Clean up progress data after 5 minutes
@@ -477,7 +478,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error importing flight logs:', error);
+    logger.error('Error importing flight logs:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 } 
