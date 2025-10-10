@@ -13,10 +13,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Modal } from './ui/Modal';
 import { Progress } from '@/components/ui/progress';
-import { 
-  Clock, 
-  User as UserIcon, 
-  Package, 
+import {
+  Clock,
+  User as UserIcon,
+  Package,
   AlertTriangle,
   Plus,
   RefreshCw,
@@ -32,7 +32,8 @@ import {
   MoreVertical,
   CheckCircle,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Plane
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -120,6 +121,7 @@ interface LocalHourPackage {
   invoiceId: string;
   totalHours: number;
   usedHours: number;
+  charteredHours: number;
   remainingHours: number;
   purchaseDate: string;
   expiryDate?: string;
@@ -970,7 +972,8 @@ export default function Usage() {
                       </TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Purchased</TableHead>
-                      <TableHead className="text-right">Used</TableHead>
+                      <TableHead className="text-right">Flown</TableHead>
+                      <TableHead className="text-right">Chartered</TableHead>
                       <TableHead className="text-right">Remaining</TableHead>
                       <TableHead className="text-center">Progress</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -1041,22 +1044,7 @@ export default function Usage() {
                           })()}
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getStatusBadge(clientData.totalRemainingHours)}
-                            {clientData.packages.length > 1 && (
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                                    FIFO
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Multiple packages - FIFO method applied</p>
-                                  <p className="text-xs text-muted-foreground">Oldest packages consumed first</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            )}
-                          </div>
+                          {getStatusBadge(clientData.totalRemainingHours)}
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           {formatHours(clientData.totalBoughtHours)}
@@ -1064,9 +1052,12 @@ export default function Usage() {
                         <TableCell className="text-right">
                           {formatHours(clientData.totalUsedHours)}
                         </TableCell>
+                        <TableCell className="text-right">
+                          {formatHours(clientData.charteredHoursTotal || 0)}
+                        </TableCell>
                         <TableCell className="text-right font-medium">
                           <span className={cn(
-                            clientData.totalRemainingHours <= 0 ? 'text-destructive' : 
+                            clientData.totalRemainingHours <= 0 ? 'text-destructive' :
                             clientData.totalRemainingHours <= 5 ? 'text-orange-600' : 'text-green-600'
                           )}>
                             {formatHours(clientData.totalRemainingHours)}
@@ -1141,8 +1132,9 @@ export default function Usage() {
                       <TableRow>
                         <TableHead>Client</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Bought Hours</TableHead>
-                        <TableHead className="text-right">Used Hours</TableHead>
+                        <TableHead className="text-right">Purchased</TableHead>
+                        <TableHead className="text-right">Flown</TableHead>
+                        <TableHead className="text-right">Chartered</TableHead>
                         <TableHead className="text-right">Remaining</TableHead>
                         <TableHead className="text-center">Progress</TableHead>
                       </TableRow>
@@ -1174,28 +1166,16 @@ export default function Usage() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <div className="flex items-center gap-2">
-                                {getStatusBadge(clientData.totalRemainingHours)}
-                                {clientData.packages.length > 1 && (
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                                        FIFO
-                                      </Badge>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                      <p>Multiple packages - FIFO method applied</p>
-                                      <p className="text-xs text-muted-foreground">Oldest packages consumed first</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                )}
-                              </div>
+                              {getStatusBadge(clientData.totalRemainingHours)}
                             </TableCell>
                             <TableCell className="text-right font-medium">
                               {clientData.totalBoughtHours > 0 ? formatHours(clientData.totalBoughtHours) : '0:00'}
                             </TableCell>
                             <TableCell className="text-right">
                               {clientData.totalUsedHours > 0 ? formatHours(clientData.totalUsedHours) : '0:00'}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {clientData.charteredHoursTotal > 0 ? formatHours(clientData.charteredHoursTotal) : '0:00'}
                             </TableCell>
                             <TableCell className="text-right font-medium">
                               <span className={cn(
@@ -1306,7 +1286,23 @@ export default function Usage() {
                           ) : (
                             <div className="space-y-4">
                               {clientData.packages
-                                .sort((a, b) => new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime())
+                                .sort((a, b) => {
+                                  // Sort by status priority first (active packages at top)
+                                  const statusPriority = { 'in progress': 0, 'low hours': 1, 'expired': 2, 'overdrawn': 3 };
+                                  const aPriority = statusPriority[a.status] ?? 4;
+                                  const bPriority = statusPriority[b.status] ?? 4;
+
+                                  if (aPriority !== bPriority) {
+                                    return aPriority - bPriority;
+                                  }
+
+                                  // If same status, sort by purchase date (oldest first for active, newest first for consumed)
+                                  if (a.status === 'in progress' || a.status === 'low hours') {
+                                    return new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime();
+                                  } else {
+                                    return new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime();
+                                  }
+                                })
                                 .map((pkg, index) => (
                                   <div key={pkg.id} className={cn(
                                     "border-2 rounded-lg p-4",
@@ -1350,10 +1346,14 @@ export default function Usage() {
                                     </div>
                                     
                                     <div className="space-y-3">
-                                      <div className="grid grid-cols-3 gap-4 text-sm">
+                                      <div className="grid grid-cols-4 gap-4 text-sm">
                                         <div className="text-center">
-                                          <p className="font-medium text-green-600 dark:text-green-400">Used</p>
+                                          <p className="font-medium text-green-600 dark:text-green-400">Flown</p>
                                           <p className="text-lg font-bold">{formatHours(pkg.usedHours)}</p>
+                                        </div>
+                                        <div className="text-center">
+                                          <p className="font-medium text-foreground">Chartered</p>
+                                          <p className="text-lg font-bold">{formatHours(pkg.charteredHours || 0)}</p>
                                         </div>
                                         <div className="text-center">
                                           <p className="font-medium text-blue-600 dark:text-blue-400">Remaining</p>
@@ -1368,10 +1368,10 @@ export default function Usage() {
                                       <div className="space-y-2">
                                         <div className="flex justify-between text-xs text-muted-foreground">
                                           <span>Usage Progress</span>
-                                          <span>{Math.round((pkg.usedHours / pkg.totalHours) * 100)}%</span>
+                                          <span>{Math.round(((pkg.usedHours + (pkg.charteredHours || 0)) / pkg.totalHours) * 100)}%</span>
                                         </div>
-                                        <Progress 
-                                          value={(pkg.usedHours / pkg.totalHours) * 100}
+                                        <Progress
+                                          value={((pkg.usedHours + (pkg.charteredHours || 0)) / pkg.totalHours) * 100}
                                           className={cn(
                                             pkg.remainingHours <= 0 ? 'bg-green-500' :
                                             pkg.remainingHours <= pkg.totalHours * 0.25 ? 'bg-orange-500' :
@@ -1608,7 +1608,23 @@ export default function Usage() {
                   ) : (
                     <div className="space-y-4">
                       {clientData.packages
-                        .sort((a, b) => new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime())
+                        .sort((a, b) => {
+                          // Sort by status priority first (active packages at top)
+                          const statusPriority = { 'in progress': 0, 'low hours': 1, 'expired': 2, 'overdrawn': 3 };
+                          const aPriority = statusPriority[a.status] ?? 4;
+                          const bPriority = statusPriority[b.status] ?? 4;
+
+                          if (aPriority !== bPriority) {
+                            return aPriority - bPriority;
+                          }
+
+                          // If same status, sort by purchase date (oldest first for active, newest first for consumed)
+                          if (a.status === 'in progress' || a.status === 'low hours') {
+                            return new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime();
+                          } else {
+                            return new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime();
+                          }
+                        })
                         .map((pkg, index) => (
                                                  <div key={pkg.id} className={cn(
                            "border-2 rounded-lg p-4",
@@ -1652,10 +1668,14 @@ export default function Usage() {
                           </div>
                           
                           <div className="space-y-3">
-                            <div className="grid grid-cols-3 gap-4 text-sm">
+                            <div className="grid grid-cols-4 gap-4 text-sm">
                               <div className="text-center">
-                                <p className="font-medium text-green-600 dark:text-green-400">Used</p>
+                                <p className="font-medium text-green-600 dark:text-green-400">Flown</p>
                                 <p className="text-lg font-bold">{formatHours(pkg.usedHours)}</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="font-medium text-foreground">Chartered</p>
+                                <p className="text-lg font-bold">{formatHours(pkg.charteredHours || 0)}</p>
                               </div>
                               <div className="text-center">
                                 <p className="font-medium text-blue-600 dark:text-blue-400">Remaining</p>
@@ -1666,14 +1686,14 @@ export default function Usage() {
                                 <p className="text-lg font-bold">{formatHours(pkg.totalHours)}</p>
                               </div>
                             </div>
-                            
+
                             <div className="space-y-2">
                               <div className="flex justify-between text-xs text-muted-foreground">
                                 <span>Usage Progress</span>
-                                <span>{Math.round((pkg.usedHours / pkg.totalHours) * 100)}%</span>
+                                <span>{Math.round(((pkg.usedHours + (pkg.charteredHours || 0)) / pkg.totalHours) * 100)}%</span>
                               </div>
-                              <Progress 
-                                value={(pkg.usedHours / pkg.totalHours) * 100}
+                              <Progress
+                                value={((pkg.usedHours + (pkg.charteredHours || 0)) / pkg.totalHours) * 100}
                                 className={cn(
                                   pkg.remainingHours <= 0 ? 'bg-green-500' :
                                   pkg.remainingHours <= pkg.totalHours * 0.25 ? 'bg-orange-500' :
@@ -1833,11 +1853,11 @@ export default function Usage() {
                   </div>
 
                   {/* Summary Stats */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div className="bg-muted rounded-lg p-6">
                       <h4 className="text-lg font-semibold text-card-foreground mb-2 flex items-center">
                         <Package className="h-4 w-4 mr-2" />
-                        Total Bought
+                        Purchased
                       </h4>
                       <div className="text-2xl font-bold">{formatHours(selectedClient.totalBoughtHours)}</div>
                       <p className="text-xs text-muted-foreground">All time packages</p>
@@ -1846,10 +1866,19 @@ export default function Usage() {
                     <div className="bg-muted rounded-lg p-6">
                       <h4 className="text-lg font-semibold text-card-foreground mb-2 flex items-center">
                         <Clock className="h-4 w-4 mr-2" />
-                        Total Used
+                        Flown
                       </h4>
                       <div className="text-2xl font-bold">{formatHours(selectedClient.totalUsedHours)}</div>
-                      <p className="text-xs text-muted-foreground">Flown hours</p>
+                      <p className="text-xs text-muted-foreground">Regular flights</p>
+                    </div>
+
+                    <div className="bg-muted rounded-lg p-6">
+                      <h4 className="text-lg font-semibold text-card-foreground mb-2 flex items-center">
+                        <Plane className="h-4 w-4 mr-2" />
+                        Chartered
+                      </h4>
+                      <div className="text-2xl font-bold">{formatHours(selectedClient.charteredHoursTotal || 0)}</div>
+                      <p className="text-xs text-muted-foreground">Charter flights</p>
                     </div>
 
                     <div className="bg-muted rounded-lg p-6">
@@ -1859,7 +1888,7 @@ export default function Usage() {
                       </h4>
                       <div className={cn(
                         "text-2xl font-bold",
-                        selectedClient.totalRemainingHours <= 0 ? 'text-destructive' : 
+                        selectedClient.totalRemainingHours <= 0 ? 'text-destructive' :
                         selectedClient.totalRemainingHours <= 5 ? 'text-orange-600' : 'text-green-600'
                       )}>
                         {formatHours(selectedClient.totalRemainingHours)}
@@ -1993,7 +2022,23 @@ export default function Usage() {
                     ) : (
                       <div className="space-y-4">
                         {selectedClient.packages
-                          .sort((a, b) => new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime())
+                          .sort((a, b) => {
+                            // Sort by status priority first (active packages at top)
+                            const statusPriority = { 'in progress': 0, 'low hours': 1, 'expired': 2, 'overdrawn': 3 };
+                            const aPriority = statusPriority[a.status] ?? 4;
+                            const bPriority = statusPriority[b.status] ?? 4;
+
+                            if (aPriority !== bPriority) {
+                              return aPriority - bPriority;
+                            }
+
+                            // If same status, sort by purchase date (oldest first for active, newest first for consumed)
+                            if (a.status === 'in progress' || a.status === 'low hours') {
+                              return new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime();
+                            } else {
+                              return new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime();
+                            }
+                          })
                           .map((pkg, index) => (
                           <div key={pkg.id} className={cn(
                             "border-2 rounded-lg p-4 bg-background",
@@ -2037,10 +2082,14 @@ export default function Usage() {
                             </div>
                             
                             <div className="space-y-3">
-                              <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div className="grid grid-cols-4 gap-4 text-sm">
                                 <div className="text-center">
-                                  <p className="font-medium text-green-600 dark:text-green-400">Used</p>
+                                  <p className="font-medium text-green-600 dark:text-green-400">Flown</p>
                                   <p className="text-lg font-bold">{formatHours(pkg.usedHours)}</p>
+                                </div>
+                                <div className="text-center">
+                                  <p className="font-medium text-foreground">Chartered</p>
+                                  <p className="text-lg font-bold">{formatHours(pkg.charteredHours || 0)}</p>
                                 </div>
                                 <div className="text-center">
                                   <p className="font-medium text-blue-600 dark:text-blue-400">Remaining</p>
@@ -2051,14 +2100,14 @@ export default function Usage() {
                                   <p className="text-lg font-bold">{formatHours(pkg.totalHours)}</p>
                                 </div>
                               </div>
-                              
+
                               <div className="space-y-2">
                                 <div className="flex justify-between text-xs text-muted-foreground">
                                   <span>Usage Progress</span>
-                                  <span>{Math.round((pkg.usedHours / pkg.totalHours) * 100)}%</span>
+                                  <span>{Math.round(((pkg.usedHours + (pkg.charteredHours || 0)) / pkg.totalHours) * 100)}%</span>
                                 </div>
-                                <Progress 
-                                  value={(pkg.usedHours / pkg.totalHours) * 100}
+                                <Progress
+                                  value={((pkg.usedHours + (pkg.charteredHours || 0)) / pkg.totalHours) * 100}
                                   className={cn(
                                     pkg.remainingHours <= 0 ? 'bg-green-500' :
                                     pkg.remainingHours <= pkg.totalHours * 0.25 ? 'bg-orange-500' :

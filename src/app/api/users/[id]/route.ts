@@ -3,8 +3,8 @@ import { requireAuth, requireRole } from '@/lib/middleware';
 import { userUpdateSchema } from '@/lib/validations';
 import { getSupabaseClient } from '@/lib/supabase';
 import { ActivityLogger } from '@/lib/activity-logger';
+import { logger } from '@/lib/logger';
 import crypto from 'crypto';
-import { UUID } from '@/types/uuid-types';
 
 
 // GET /api/users/[id] - Get user details
@@ -89,7 +89,7 @@ async function getUser(request: NextRequest, currentUser: any) {
     return NextResponse.json({ user: userWithRoles });
     
   } catch (error) {
-    console.error('Get user error:', error);
+    logger.error('Get user error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -102,9 +102,9 @@ async function updateUser(request: NextRequest, currentUser: any) {
   try {
     const userId = request.nextUrl.pathname.split('/').pop();
     const body = await request.json();
-    
-    console.log('API received body:', body); // Debug log
-    console.log('API received personalNumber:', body.personalNumber); // Debug log
+
+    logger.debug('API received body:', body);
+    logger.debug('API received personalNumber:', body.personalNumber);
 
     // Check if user has admin role or is updating their own profile
     const hasAdminRole = currentUser.user_roles?.some((userRole: any) => 
@@ -131,10 +131,10 @@ async function updateUser(request: NextRequest, currentUser: any) {
 
     // Prepare update data
     const updateData: any = { ...validatedData };
-    
-    console.log('Update data before processing:', updateData); // Debug log
-    console.log('Personal Number in updateData:', updateData.personalNumber); // Debug log
-    
+
+    logger.debug('Update data before processing:', updateData);
+    logger.debug('Personal Number in updateData:', updateData.personalNumber);
+
     // Convert camelCase to snake_case for database
     if (updateData.homebaseId !== undefined) {
       updateData.homebase_id = updateData.homebaseId;
@@ -235,7 +235,7 @@ async function updateUser(request: NextRequest, currentUser: any) {
       .single();
 
     if (updateError) {
-      console.error('Error updating user:', updateError);
+      logger.error('Error updating user:', updateError);
       return NextResponse.json(
         { error: 'Failed to update user', details: updateError },
         { status: 500 }
@@ -261,7 +261,7 @@ async function updateUser(request: NextRequest, currentUser: any) {
         .eq('userId', userId);
 
       if (deleteRolesError) {
-        console.error('Error deleting existing roles:', deleteRolesError);
+        logger.error('Error deleting existing roles:', deleteRolesError);
         return NextResponse.json(
           { error: 'Failed to update user roles' },
           { status: 500 }
@@ -280,7 +280,7 @@ async function updateUser(request: NextRequest, currentUser: any) {
         .insert(roleAssignments);
 
       if (createRolesError) {
-        console.error('Error creating new roles:', createRolesError);
+        logger.error('Error creating new roles:', createRolesError);
         return NextResponse.json(
           { error: 'Failed to assign new roles', details: createRolesError },
           { status: 500 }
@@ -329,7 +329,7 @@ async function updateUser(request: NextRequest, currentUser: any) {
         .single();
 
       if (fetchError) {
-        console.error('Error fetching user with roles:', fetchError);
+        logger.error('Error fetching user with roles:', fetchError);
         return NextResponse.json(
           { error: 'Failed to fetch updated user' },
           { status: 500 }
@@ -359,7 +359,7 @@ async function updateUser(request: NextRequest, currentUser: any) {
     });
 
   } catch (error: any) {
-    console.error('Update user error:', error);
+    logger.error('Update user error:', error);
 
     if (error.name === 'ZodError') {
       return NextResponse.json(
@@ -387,7 +387,7 @@ async function updateUser(request: NextRequest, currentUser: any) {
 async function deleteUser(request: NextRequest, currentUser: any) {
   try {
     const userId = request.nextUrl.pathname.split('/').pop();
-    
+
     // Prevent self-deletion
     if (currentUser.id === userId) {
       return NextResponse.json(
@@ -395,7 +395,7 @@ async function deleteUser(request: NextRequest, currentUser: any) {
         { status: 400 }
       );
     }
-    
+
     const supabase = getSupabaseClient();
     if (!supabase) {
       return NextResponse.json(
@@ -403,73 +403,86 @@ async function deleteUser(request: NextRequest, currentUser: any) {
         { status: 500 }
       );
     }
-    
+
+    // Check for flight logs where user is referenced in ANY capacity
+    const { data: flightLogs, error: flightLogsError } = await supabase
+      .from('flight_logs')
+      .select('id, userId, instructorId, payer_id, createdById, updatedBy')
+      .or(`userId.eq.${userId},instructorId.eq.${userId},payer_id.eq.${userId},createdById.eq.${userId},updatedBy.eq.${userId}`)
+      .limit(1);
+
+    if (flightLogsError) {
+      logger.error('Error checking flight logs:', flightLogsError);
+    }
+
+    if (flightLogs && flightLogs.length > 0) {
+      const log = flightLogs[0];
+      let relationship = '';
+
+      if (log.userId === userId) relationship = 'pilot';
+      else if (log.instructorId === userId) relationship = 'instructor';
+      else if (log.payer_id === userId) relationship = 'payer';
+      else if (log.createdById === userId) relationship = 'creator';
+      else if (log.updatedBy === userId) relationship = 'last updater';
+
+      return NextResponse.json(
+        {
+          error: `Cannot delete user because they are referenced in flight logs as ${relationship}. Please reassign or delete the flight logs first.`
+        },
+        { status: 400 }
+      );
+    }
+
+    // Delete user roles first (cascade delete)
+    const { error: deleteRolesError } = await supabase
+      .from('user_roles')
+      .delete()
+      .eq('userId', userId);
+
+    if (deleteRolesError) {
+      logger.error('Error deleting user roles:', deleteRolesError);
+      return NextResponse.json(
+        { error: 'Failed to delete user roles', details: deleteRolesError.message },
+        { status: 500 }
+      );
+    }
+
+    // Now delete the user
     const { data: user, error } = await supabase
       .from('users')
       .delete()
       .eq('id', userId)
       .select('id, email, "firstName", "lastName"')
       .single();
-    
+
     if (error) {
-      console.error('Error deleting user:', error);
-      
+      logger.error('Error deleting user:', error);
+
       // Handle foreign key constraint violations
       if (error.code === '23503') {
-        // Check which table is causing the constraint violation
-        if (error.message.includes('flight_logs')) {
-          return NextResponse.json(
-            { error: 'Cannot delete user because they have associated flight logs. Please delete the flight logs first or reassign them to another user.' },
-            { status: 400 }
-          );
-        } else if (error.message.includes('user_roles')) {
-          return NextResponse.json(
-            { error: 'Cannot delete user because they have role assignments. Please remove their roles first.' },
-            { status: 400 }
-          );
-        } else {
-          return NextResponse.json(
-            { error: 'Cannot delete user because they have associated data in the system. Please remove all related records first.' },
-            { status: 400 }
-          );
-        }
+        return NextResponse.json(
+          { error: 'Cannot delete user because they have associated data in the system. Please remove all related records first.', details: error.message },
+          { status: 400 }
+        );
       }
-      
+
       return NextResponse.json(
         { error: 'Failed to delete user', details: error.message },
         { status: 500 }
       );
     }
-    
+
+    // Log user deletion activity
+    logger.info('User deleted:', { deletedBy: currentUser.id, userId, email: user.email });
+
     return NextResponse.json({
       message: 'User deleted successfully',
       user,
     });
-    
+
   } catch (error: any) {
-    console.error('Delete user error:', error);
-    
-    // Handle specific error types
-    if (error.code === '23503') {
-      // Foreign key constraint violation
-      if (error.message.includes('flight_logs')) {
-        return NextResponse.json(
-          { error: 'Cannot delete user because they have associated flight logs. Please delete the flight logs first or reassign them to another user.' },
-          { status: 400 }
-        );
-      } else if (error.message.includes('user_roles')) {
-        return NextResponse.json(
-          { error: 'Cannot delete user because they have role assignments. Please remove their roles first.' },
-          { status: 400 }
-        );
-      } else {
-        return NextResponse.json(
-          { error: 'Cannot delete user because they have associated data in the system. Please remove all related records first.' },
-          { status: 400 }
-        );
-      }
-    }
-    
+    logger.error('Delete user error:', error);
+
     return NextResponse.json(
       { error: 'Internal server error', details: error.message || 'Unknown error occurred' },
       { status: 500 }

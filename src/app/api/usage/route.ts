@@ -406,118 +406,109 @@ export async function GET(request: NextRequest) {
         
         // Count flights for the last 12 months (all flight types)
         if (flightDate >= twelveMonthsAgo) {
-          const currentCount = flightCountLast12Months.get(pilot.id) || 0;
-          flightCountLast12Months.set(pilot.id, currentCount + 1);
-        }
-        
-        // Count flights for the last 90 days (all flight types)
-        if (flightDate >= ninetyDaysAgo) {
-          const currentCount = flightCountLast90Days.get(pilot.id) || 0;
-          flightCountLast90Days.set(pilot.id, currentCount + 1);
+          const currentCount = flightCountLast12Months.get(log.userId) || 0;
+          flightCountLast12Months.set(log.userId, currentCount + 1);
         }
 
-        
-        if (!isFerryFlight && !isDemoFlight && !isCharterFlight) {
-          const currentHours = clientFlightHours.get(pilot.id) || 0;
-          clientFlightHours.set(pilot.id, currentHours + log.totalHours);
-          
+        // Count flights for the last 90 days (all flight types)
+        if (flightDate >= ninetyDaysAgo) {
+          const currentCount = flightCountLast90Days.get(log.userId) || 0;
+          flightCountLast90Days.set(log.userId, currentCount + 1);
+        }
+
+
+        // Regular flights (non-FERRY, non-DEMO) - add to pilot's used hours
+        // Note: CHARTER flights are NOT added here if they have a payer_id (they're added to the payer below)
+        const isCharteredFlight = isCharterFlight && log.payer_id; // Charter with a payer
+
+        if (!isFerryFlight && !isDemoFlight && !isCharteredFlight) {
+          // Use log.userId directly as the key for consistency
+          const currentHours = clientFlightHours.get(log.userId) || 0;
+          clientFlightHours.set(log.userId, currentHours + log.totalHours);
+
           // Calculate year-specific hours for regular flights
           if (flightYear === currentYear) {
-            const currentYearHours = clientFlightHoursCurrentYear.get(pilot.id) || 0;
-            clientFlightHoursCurrentYear.set(pilot.id, currentYearHours + log.totalHours);
+            const currentYearHours = clientFlightHoursCurrentYear.get(log.userId) || 0;
+            clientFlightHoursCurrentYear.set(log.userId, currentYearHours + log.totalHours);
           } else if (flightYear === previousYear) {
-            const previousYearHours = clientFlightHoursPreviousYear.get(pilot.id) || 0;
-            clientFlightHoursPreviousYear.set(pilot.id, previousYearHours + log.totalHours);
+            const previousYearHours = clientFlightHoursPreviousYear.get(log.userId) || 0;
+            clientFlightHoursPreviousYear.set(log.userId, previousYearHours + log.totalHours);
           }
         }
-        
+
         // Handle chartered flights (charter flights with payer_id) - these should be deducted from payer's hours
-        if (isCharterFlight && log.payer_id) {
-          // Find the payer in the user map
-          const payer = userMap.get(log.payer_id) as any;
-          if (payer?.id) {
-            // Add to payer's used hours (this flight is paid for by the payer)
-            const currentPayerHours = clientFlightHours.get(payer.id) || 0;
-            clientFlightHours.set(payer.id, currentPayerHours + log.totalHours);
-            
-            // Calculate year-specific hours for payer
-            if (flightYear === currentYear) {
-              const currentYearHours = clientFlightHoursCurrentYear.get(payer.id) || 0;
-              clientFlightHoursCurrentYear.set(payer.id, currentYearHours + log.totalHours);
-            } else if (flightYear === previousYear) {
-              const previousYearHours = clientFlightHoursPreviousYear.get(payer.id) || 0;
-              clientFlightHoursPreviousYear.set(payer.id, previousYearHours + log.totalHours);
-            }
-          }
-        }
+        // NOTE: Chartered flights are NOT added to clientFlightHours (Used by Clients)
+        // They are tracked separately in charteredHoursTotal and deducted from remaining hours in the calculation
+        // This way "Used by Clients" shows only regular flight hours, and chartered flights are handled separately
         
         // Calculate year-specific hours for special flight types
         if (isFerryFlight) {
           // Calculate total FERRY hours from ALL years
-          const totalFerryHours = ferryHoursTotal.get(pilot.id) || 0;
-          ferryHoursTotal.set(pilot.id, totalFerryHours + log.totalHours);
-          
+          // Use log.userId directly as the key
+          const totalFerryHours = ferryHoursTotal.get(log.userId) || 0;
+          ferryHoursTotal.set(log.userId, totalFerryHours + log.totalHours);
+
           if (flightYear === currentYear) {
-            const currentYearHours = ferryHoursCurrentYear.get(pilot.id) || 0;
-            ferryHoursCurrentYear.set(pilot.id, currentYearHours + log.totalHours);
+            const currentYearHours = ferryHoursCurrentYear.get(log.userId) || 0;
+            ferryHoursCurrentYear.set(log.userId, currentYearHours + log.totalHours);
           } else if (flightYear === previousYear) {
-            const previousYearHours = ferryHoursPreviousYear.get(pilot.id) || 0;
-            ferryHoursPreviousYear.set(pilot.id, previousYearHours + log.totalHours);
+            const previousYearHours = ferryHoursPreviousYear.get(log.userId) || 0;
+            ferryHoursPreviousYear.set(log.userId, previousYearHours + log.totalHours);
           }
         }
-        
+
         if (isCharterFlight) {
           // Calculate total Charter hours from ALL years
-          const totalCharterHours = charterHoursTotal.get(pilot.id) || 0;
-          charterHoursTotal.set(pilot.id, totalCharterHours + log.totalHours);
-          
+          // Use log.userId directly as the key
+          const totalCharterHours = charterHoursTotal.get(log.userId) || 0;
+          charterHoursTotal.set(log.userId, totalCharterHours + log.totalHours);
+
           if (flightYear === currentYear) {
-            const currentYearHours = charterHoursCurrentYear.get(pilot.id) || 0;
-            charterHoursCurrentYear.set(pilot.id, currentYearHours + log.totalHours);
+            const currentYearHours = charterHoursCurrentYear.get(log.userId) || 0;
+            charterHoursCurrentYear.set(log.userId, currentYearHours + log.totalHours);
           } else if (flightYear === previousYear) {
-            const previousYearHours = charterHoursPreviousYear.get(pilot.id) || 0;
-            charterHoursPreviousYear.set(pilot.id, previousYearHours + log.totalHours);
+            const previousYearHours = charterHoursPreviousYear.get(log.userId) || 0;
+            charterHoursPreviousYear.set(log.userId, previousYearHours + log.totalHours);
           }
         }
-        
+
         // Calculate chartered hours (charter flights with a payer_id)
         if (isCharterFlight && log.payer_id) {
-          // Find the payer in the user map
-          const payer = userMap.get(log.payer_id) as any;
-          if (payer?.id) {
-            // Calculate total Chartered hours from ALL years
-            const totalCharteredHours = charteredHoursTotal.get(payer.id) || 0;
-            charteredHoursTotal.set(payer.id, totalCharteredHours + log.totalHours);
-            
-            if (flightYear === currentYear) {
-              const currentYearHours = charteredHoursCurrentYear.get(payer.id) || 0;
-              charteredHoursCurrentYear.set(payer.id, currentYearHours + log.totalHours);
-            } else if (flightYear === previousYear) {
-              const previousYearHours = charteredHoursPreviousYear.get(payer.id) || 0;
-              charteredHoursPreviousYear.set(payer.id, previousYearHours + log.totalHours);
-            }
+          // Use payer_id directly as the key
+          // Calculate total Chartered hours from ALL years
+          const totalCharteredHours = charteredHoursTotal.get(log.payer_id) || 0;
+          charteredHoursTotal.set(log.payer_id, totalCharteredHours + log.totalHours);
+
+          if (flightYear === currentYear) {
+            const currentYearHours = charteredHoursCurrentYear.get(log.payer_id) || 0;
+            charteredHoursCurrentYear.set(log.payer_id, currentYearHours + log.totalHours);
+          } else if (flightYear === previousYear) {
+            const previousYearHours = charteredHoursPreviousYear.get(log.payer_id) || 0;
+            charteredHoursPreviousYear.set(log.payer_id, previousYearHours + log.totalHours);
           }
         }
-        
+
         if (isDemoFlight) {
           // Calculate total Demo hours from ALL years
-          const totalDemoHours = demoHoursTotal.get(pilot.id) || 0;
-          demoHoursTotal.set(pilot.id, totalDemoHours + log.totalHours);
-          
+          // Use log.userId directly as the key
+          const totalDemoHours = demoHoursTotal.get(log.userId) || 0;
+          demoHoursTotal.set(log.userId, totalDemoHours + log.totalHours);
+
           if (flightYear === currentYear) {
-            const currentYearHours = demoHoursCurrentYear.get(pilot.id) || 0;
-            demoHoursCurrentYear.set(pilot.id, currentYearHours + log.totalHours);
+            const currentYearHours = demoHoursCurrentYear.get(log.userId) || 0;
+            demoHoursCurrentYear.set(log.userId, currentYearHours + log.totalHours);
           } else if (flightYear === previousYear) {
-            const previousYearHours = demoHoursPreviousYear.get(pilot.id) || 0;
-            demoHoursPreviousYear.set(pilot.id, previousYearHours + log.totalHours);
+            const previousYearHours = demoHoursPreviousYear.get(log.userId) || 0;
+            demoHoursPreviousYear.set(log.userId, previousYearHours + log.totalHours);
           }
         }
-        
+
         // Store flight log for this client (including FERRY, DEMO, and CHARTER flights for display purposes)
-        if (!clientFlightLogs.has(pilot.id)) {
-          clientFlightLogs.set(pilot.id, []);
+        // Use log.userId directly as the key
+        if (!clientFlightLogs.has(log.userId)) {
+          clientFlightLogs.set(log.userId, []);
         }
-        clientFlightLogs.get(pilot.id)!.push({
+        clientFlightLogs.get(log.userId)!.push({
           id: log.id,
           userId: log.userId,
           totalHours: log.totalHours,
@@ -528,42 +519,39 @@ export async function GET(request: NextRequest) {
           isDemoFlight: isDemoFlight,
           isCharterFlight: isCharterFlight
         });
-        
+
         // If this is a chartered flight (charter with payer_id), also add it to the payer's recent flights
         if (isCharterFlight && log.payer_id) {
-          const payer = userMap.get(log.payer_id) as any;
-          if (payer?.id) {
-            if (!clientFlightLogs.has(payer.id)) {
-              clientFlightLogs.set(payer.id, []);
-            }
-            clientFlightLogs.get(payer.id)!.push({
-              id: log.id,
-              userId: log.userId,
-              totalHours: log.totalHours,
-              date: log.date,
-              flightType: log.flightType,
-              role: 'Chartered',
-              isFerryFlight: false,
-              isDemoFlight: false,
-              isCharterFlight: false, // This is not a charter flight for the payer, it's a chartered flight
-              isCharteredFlight: true // New flag to identify chartered flights
-            });
+          // Use payer_id directly as the key
+          if (!clientFlightLogs.has(log.payer_id)) {
+            clientFlightLogs.set(log.payer_id, []);
           }
+          clientFlightLogs.get(log.payer_id)!.push({
+            id: log.id,
+            userId: log.userId,
+            totalHours: log.totalHours,
+            date: log.date,
+            flightType: log.flightType,
+            role: 'Chartered',
+            isFerryFlight: false,
+            isDemoFlight: false,
+            isCharterFlight: false, // This is not a charter flight for the payer, it's a chartered flight
+            isCharteredFlight: true // New flag to identify chartered flights
+          });
         }
       }
-      
+
       // If there's an instructor and it's dual training, count hours for the student/pilot
-      if (instructor?.id && log.instructorId) {
+      if (instructor?.id && log.instructorId && log.userId) {
         // This is dual training - the pilot is receiving instruction
         // The pilot's hours are already counted above, but we can track this as dual training
-        if (pilot?.id) {
-          // Update the flight log to indicate dual training
-          const existingLogs = clientFlightLogs.get(pilot.id) || [];
-          const existingLog = existingLogs.find(fl => fl.id === log.id);
-          if (existingLog) {
-            existingLog.role = 'Dual Training';
-            existingLog.instructorId = log.instructorId;
-          }
+        // Update the flight log to indicate dual training
+        // Use log.userId directly as the key
+        const existingLogs = clientFlightLogs.get(log.userId) || [];
+        const existingLog = existingLogs.find(fl => fl.id === log.id);
+        if (existingLog) {
+          existingLog.role = 'Dual Training';
+          existingLog.instructorId = log.instructorId;
         }
       }
     });
@@ -585,7 +573,7 @@ export async function GET(request: NextRequest) {
       filteredClients.map(async client => {
           const packages = clientPackages.get(client.id) || [];
           const totalUsedHours = clientFlightHours.get(client.user_id) || 0;
-          
+
           // Calculate remaining hours for each package using FIFO method
           let totalBoughtHours = 0;
           let totalRemainingHours = 0;
@@ -648,32 +636,84 @@ export async function GET(request: NextRequest) {
           // Add PPL course hours to total bought hours
           totalBoughtHours += pplBoughtHours;
 
-          // FIFO calculation: consume packages in chronological order
-          let remainingUsedHours = totalUsedHours;
-          
+          // Get chartered hours for this client
+          const clientCharteredHoursTotal = charteredHoursTotal.get(client.user_id) || 0;
+
           // Sort packages by purchase date (oldest first for FIFO)
-          const sortedPackages = [...packages].sort((a, b) => 
+          const sortedPackages = [...packages].sort((a, b) =>
             new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime()
           );
 
-          // Apply FIFO logic to each package
+          // Initialize chartered hours for each package
           sortedPackages.forEach(pkg => {
-            if (remainingUsedHours <= 0) {
-              // No more hours to consume
-              pkg.usedHours = 0;
-              pkg.remainingHours = pkg.totalHours;
-            } else if (remainingUsedHours >= pkg.totalHours) {
-              // Consume entire package
-              pkg.usedHours = pkg.totalHours;
-              pkg.remainingHours = 0;
-              remainingUsedHours -= pkg.totalHours;
-            } else {
-              // Partially consume package
-              pkg.usedHours = remainingUsedHours;
-              pkg.remainingHours = pkg.totalHours - remainingUsedHours;
-              remainingUsedHours = 0;
+            pkg.usedHours = 0;
+            pkg.charteredHours = 0;
+          });
+
+          // Get all flight logs for this client
+          const clientLogs = clientFlightLogs.get(client.user_id) || [];
+
+          // Separate regular flights from chartered flights and sort by date
+          const regularFlights = clientLogs
+            .filter(log => !log.isCharteredFlight)
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+          const charteredFlights = clientLogs
+            .filter(log => log.isCharteredFlight)
+            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+          // Apply FIFO logic for regular flights based on flight dates
+          regularFlights.forEach(flight => {
+            let hoursToDeduct = flight.totalHours;
+            const flightDate = new Date(flight.date);
+
+            // Find the first package that was purchased before or on the flight date and has remaining capacity
+            for (const pkg of sortedPackages) {
+              if (hoursToDeduct <= 0) break;
+
+              const purchaseDate = new Date(pkg.purchaseDate);
+
+              // Only deduct from packages that were purchased before or on the flight date
+              if (purchaseDate <= flightDate) {
+                const availableHours = pkg.totalHours - pkg.usedHours - pkg.charteredHours;
+
+                if (availableHours > 0) {
+                  const deduction = Math.min(hoursToDeduct, availableHours);
+                  pkg.usedHours += deduction;
+                  hoursToDeduct -= deduction;
+                }
+              }
             }
-            
+          });
+
+          // Apply FIFO logic for chartered flights based on flight dates
+          charteredFlights.forEach(flight => {
+            let hoursToDeduct = flight.totalHours;
+            const flightDate = new Date(flight.date);
+
+            // Find the first package that was purchased before or on the flight date and has remaining capacity
+            for (const pkg of sortedPackages) {
+              if (hoursToDeduct <= 0) break;
+
+              const purchaseDate = new Date(pkg.purchaseDate);
+
+              // Only deduct from packages that were purchased before or on the flight date
+              if (purchaseDate <= flightDate) {
+                const availableHours = pkg.totalHours - pkg.usedHours - pkg.charteredHours;
+
+                if (availableHours > 0) {
+                  const deduction = Math.min(hoursToDeduct, availableHours);
+                  pkg.charteredHours += deduction;
+                  hoursToDeduct -= deduction;
+                }
+              }
+            }
+          });
+
+          // Calculate remaining hours for each package after both regular and chartered consumption
+          sortedPackages.forEach(pkg => {
+            pkg.remainingHours = pkg.totalHours - pkg.usedHours - pkg.charteredHours;
+
             // Update package status based on remaining hours
             if (pkg.remainingHours <= 0) {
               pkg.status = 'overdrawn';
@@ -684,14 +724,24 @@ export async function GET(request: NextRequest) {
             }
           });
 
+          // Get year-specific data for special flight types
+          const clientFerryHoursCurrentYear = ferryHoursCurrentYear.get(client.user_id) || 0;
+          const clientFerryHoursPreviousYear = ferryHoursPreviousYear.get(client.user_id) || 0;
+          const clientFerryHoursTotal = ferryHoursTotal.get(client.user_id) || 0;
+          const clientCharterHoursCurrentYear = charterHoursCurrentYear.get(client.user_id) || 0;
+          const clientCharterHoursPreviousYear = charterHoursPreviousYear.get(client.user_id) || 0;
+          const clientCharterHoursTotal = charterHoursTotal.get(client.user_id) || 0;
+          const clientCharteredHoursCurrentYear = charteredHoursCurrentYear.get(client.user_id) || 0;
+          const clientCharteredHoursPreviousYear = charteredHoursPreviousYear.get(client.user_id) || 0;
+          // clientCharteredHoursTotal already defined above at line 640
+
           // Calculate total remaining hours
-          totalRemainingHours = totalBoughtHours - totalUsedHours;
-
-
+          // Deduct both regular used hours AND chartered hours (where user is the payer)
+          totalRemainingHours = totalBoughtHours - totalUsedHours - clientCharteredHoursTotal;
 
           // Get recent flights for this client (all records where they were involved)
           const recentFlights = clientFlightLogs.get(client.user_id) || [];
-          
+
           // Sort flights by date (most recent first) and take the last 5
           const sortedRecentFlights = recentFlights
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -702,18 +752,6 @@ export async function GET(request: NextRequest) {
           const previousYearHours = clientFlightHoursPreviousYear.get(client.user_id) || 0;
           const clientFlightCountLast12Months = flightCountLast12Months.get(client.user_id) || 0;
           const clientFlightCountLast90Days = flightCountLast90Days.get(client.user_id) || 0;
-
-          
-          // Get year-specific data for special flight types
-          const clientFerryHoursCurrentYear = ferryHoursCurrentYear.get(client.user_id) || 0;
-          const clientFerryHoursPreviousYear = ferryHoursPreviousYear.get(client.user_id) || 0;
-          const clientFerryHoursTotal = ferryHoursTotal.get(client.user_id) || 0;
-          const clientCharterHoursCurrentYear = charterHoursCurrentYear.get(client.user_id) || 0;
-          const clientCharterHoursPreviousYear = charterHoursPreviousYear.get(client.user_id) || 0;
-          const clientCharterHoursTotal = charterHoursTotal.get(client.user_id) || 0;
-          const clientCharteredHoursCurrentYear = charteredHoursCurrentYear.get(client.user_id) || 0;
-          const clientCharteredHoursPreviousYear = charteredHoursPreviousYear.get(client.user_id) || 0;
-          const clientCharteredHoursTotal = charteredHoursTotal.get(client.user_id) || 0;
           const clientDemoHoursCurrentYear = demoHoursCurrentYear.get(client.user_id) || 0;
           const clientDemoHoursPreviousYear = demoHoursPreviousYear.get(client.user_id) || 0;
           const clientDemoHoursTotal = demoHoursTotal.get(client.user_id) || 0;
