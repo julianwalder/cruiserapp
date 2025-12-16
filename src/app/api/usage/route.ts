@@ -2,10 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
 
+/**
+ * NEW LIGHTWEIGHT ARCHITECTURE
+ *
+ * This endpoint returns ONLY a paginated list of users with basic summary stats.
+ * NO FIFO calculation, NO package details, NO flight allocations.
+ *
+ * For detailed FIFO data, use: /api/usage/[userId]/details
+ * For flight allocations, use: /api/usage/[userId]/packages/[packageId]/flights
+ */
+
 export async function GET(request: NextRequest) {
   try {
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    
+
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -19,6 +29,16 @@ export async function GET(request: NextRequest) {
     if (!supabase) {
       return NextResponse.json({ error: 'Database connection error' }, { status: 500 });
     }
+
+    // Parse query parameters for pagination and search
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '50');
+    const search = searchParams.get('search') || '';
+    const sortBy = searchParams.get('sortBy') || 'email';
+    const sortOrder = searchParams.get('sortOrder') || 'asc';
+
+    const offset = (page - 1) * limit;
 
     // Get user to check permissions
     const { data: user, error: userError } = await supabase
@@ -44,42 +64,186 @@ export async function GET(request: NextRequest) {
     const isAdmin = userRoles.some(role => ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER'].includes(role));
     const isPilot = userRoles.includes('PILOT');
     const isStudent = userRoles.includes('STUDENT');
-    const isInstructor = userRoles.includes('INSTRUCTOR');
-    const isProspect = userRoles.includes('PROSPECT');
 
-    // Determine what data the user can access
-    let allowedClientEmails: string[] = [];
-    
-    if (isAdmin) {
-      // Admins can see all client hours
-      allowedClientEmails = [];
-    } else if (isPilot || isStudent) {
-      // Pilots and students can see their own hours
-      allowedClientEmails = [user.email];
-    } else if (isInstructor) {
-      // Instructors can see hours of pilots/students they've flown with
-      // We'll get this from flight logs where instructorId matches
-      const { data: instructorFlights } = await supabase
-        .from('flight_logs')
-        .select('userId')
-        .eq('instructorId', user.id);
-      
-      // Get pilot emails for instructor flights
-      const instructorUserIds = instructorFlights?.map(flight => flight.userId).filter(Boolean) || [];
-      const { data: instructorPilots } = await supabase
-        .from('users')
-        .select('email')
-                  .in('id', instructorUserIds);
-      
-      allowedClientEmails = instructorPilots?.map(pilot => pilot.email).filter(Boolean) || [];
-    } else if (isProspect) {
-      // Prospects can only access ordering (no viewing)
-      return NextResponse.json({ error: 'Prospects can only order hours, not view them' }, { status: 403 });
-    } else {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    // Get distinct user IDs from BOTH flight logs AND invoices
+    // We want to show all users who either:
+    // 1. Have flight activity (userId or payer_id in flight_logs)
+    // 2. Have purchased hour packages (invoices with hour items)
+
+    const { data: flightUserIds, error: flightUserIdsError } = await supabase
+      .from('flight_logs')
+      .select('userId, payer_id');
+
+    if (flightUserIdsError) {
+      console.error('Error fetching flight user IDs:', flightUserIdsError);
+      return NextResponse.json({ error: 'Failed to fetch flight logs' }, { status: 500 });
     }
 
-    // Fetch all imported invoices with hour packages
+    // Extract unique user IDs from flight logs
+    const flightBasedUserIds = [
+      ...flightUserIds?.map((f: any) => f.userId).filter(Boolean) || [],
+      ...flightUserIds?.map((f: any) => f.payer_id).filter(Boolean) || []
+    ];
+
+    // Get user IDs from invoices with hour packages
+    const { data: invoicesForUserIds, error: invoicesForUserIdsError } = await supabase
+      .from('invoices')
+      .select(`
+        id,
+        invoice_clients (
+          user_id
+        ),
+        invoice_items (
+          unit
+        )
+      `)
+      .in('status', ['paid', 'imported']);
+
+    if (invoicesForUserIdsError) {
+      console.error('Error fetching invoices for user IDs:', invoicesForUserIdsError);
+    }
+
+    // Extract user IDs from invoices that have hour packages
+    const invoiceBasedUserIds: string[] = [];
+    for (const invoice of invoicesForUserIds || []) {
+      const client = invoice.invoice_clients?.[0];
+      if (!client?.user_id) continue;
+
+      // Check if invoice has hour items
+      const hasHourItems = invoice.invoice_items?.some((item: any) =>
+        item.unit === 'HUR' || item.unit === 'HOUR' || item.unit === 'H'
+      );
+
+      if (hasHourItems) {
+        invoiceBasedUserIds.push(client.user_id);
+      }
+    }
+
+    // Combine both sources and deduplicate
+    const allUserIds = [...flightBasedUserIds, ...invoiceBasedUserIds];
+    const uniqueClientIds = [...new Set(allUserIds)];
+
+    if (uniqueClientIds.length === 0) {
+      return NextResponse.json({
+        clients: [],
+        pagination: { total: 0, page, limit, totalPages: 0 }
+      });
+    }
+
+    // Fetch client details from users table
+    const { data: usersData, error: usersError } = await supabase
+      .from('users')
+      .select('id, email, firstName, lastName')
+      .in('id', uniqueClientIds);
+
+    if (usersError) {
+      console.error('Error fetching users:', usersError);
+      return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 });
+    }
+
+    let clientsList = usersData || [];
+
+    // Apply search filter
+    if (search) {
+      const searchLower = search.toLowerCase();
+      clientsList = clientsList.filter((client: any) => {
+        const email = client.email?.toLowerCase() || '';
+        const firstName = client.firstName?.toLowerCase() || '';
+        const lastName = client.lastName?.toLowerCase() || '';
+        return email.includes(searchLower) ||
+               firstName.includes(searchLower) ||
+               lastName.includes(searchLower);
+      });
+    }
+
+    // Sort clients
+    clientsList.sort((a: any, b: any) => {
+      let aVal = a[sortBy] || '';
+      let bVal = b[sortBy] || '';
+      if (sortOrder === 'desc') {
+        [aVal, bVal] = [bVal, aVal];
+      }
+      return aVal > bVal ? 1 : -1;
+    });
+
+    // Apply pagination
+    const paginatedClients = clientsList.slice(offset, offset + limit);
+    const clientIds = paginatedClients.map((c: any) => c.id);
+
+    if (clientIds.length === 0) {
+      return NextResponse.json({
+        clients: [],
+        pagination: {
+          total: clientsList.length,
+          page,
+          limit,
+          totalPages: Math.ceil(clientsList.length / limit)
+        }
+      });
+    }
+
+    // Fetch aggregated flight data (for all users, then filter in memory)
+    const { data: allFlightAggs, error: flightAggsError } = await supabase
+      .rpc('get_flight_aggregations');
+
+    if (flightAggsError) {
+      console.error('Error fetching flight aggregations:', flightAggsError);
+    }
+
+    // IMPORTANT: get_flight_aggregations returns MULTIPLE rows per user (UNION ALL)
+    // One row for piloted flights, another for chartered flights (payer_id)
+    // We need to MERGE these rows by user_id to get correct totals
+    const mergedFlightAggs = new Map<string, any>();
+
+    allFlightAggs?.forEach((agg: any) => {
+      const userId = agg.user_id;
+      if (!mergedFlightAggs.has(userId)) {
+        mergedFlightAggs.set(userId, {
+          user_id: userId,
+          regular_hours: 0,
+          regular_hours_current_year: 0,
+          regular_hours_previous_year: 0,
+          ferry_hours_total: 0,
+          ferry_hours_current_year: 0,
+          ferry_hours_previous_year: 0,
+          charter_hours_total: 0,
+          charter_hours_current_year: 0,
+          charter_hours_previous_year: 0,
+          chartered_hours_total: 0,
+          chartered_hours_current_year: 0,
+          chartered_hours_previous_year: 0,
+          demo_hours_total: 0,
+          demo_hours_current_year: 0,
+          demo_hours_previous_year: 0,
+          flights_12_months: 0,
+          flights_90_days: 0,
+        });
+      }
+
+      const merged = mergedFlightAggs.get(userId);
+      merged.regular_hours += Number(agg.regular_hours || 0);
+      merged.regular_hours_current_year += Number(agg.regular_hours_current_year || 0);
+      merged.regular_hours_previous_year += Number(agg.regular_hours_previous_year || 0);
+      merged.ferry_hours_total += Number(agg.ferry_hours_total || 0);
+      merged.ferry_hours_current_year += Number(agg.ferry_hours_current_year || 0);
+      merged.ferry_hours_previous_year += Number(agg.ferry_hours_previous_year || 0);
+      merged.charter_hours_total += Number(agg.charter_hours_total || 0);
+      merged.charter_hours_current_year += Number(agg.charter_hours_current_year || 0);
+      merged.charter_hours_previous_year += Number(agg.charter_hours_previous_year || 0);
+      merged.chartered_hours_total += Number(agg.chartered_hours_total || 0);
+      merged.chartered_hours_current_year += Number(agg.chartered_hours_current_year || 0);
+      merged.chartered_hours_previous_year += Number(agg.chartered_hours_previous_year || 0);
+      merged.demo_hours_total += Number(agg.demo_hours_total || 0);
+      merged.demo_hours_current_year += Number(agg.demo_hours_current_year || 0);
+      merged.demo_hours_previous_year += Number(agg.demo_hours_previous_year || 0);
+      merged.flights_12_months += Number(agg.flights_12_months || 0);
+      merged.flights_90_days += Number(agg.flights_90_days || 0);
+    });
+
+    // Filter to only the clients we're paginating
+    const flightAggs = clientIds.map(id => mergedFlightAggs.get(id)).filter(Boolean);
+
+    // Fetch invoices to calculate purchased hours
     const { data: invoices, error: invoicesError } = await supabase
       .from('invoices')
       .select(`
@@ -111,722 +275,145 @@ export async function GET(request: NextRequest) {
           vat_rate
         )
       `)
-      .in('status', ['paid', 'imported']) // Include both paid and imported invoices
+      .in('status', ['paid', 'imported'])
       .order('issue_date', { ascending: false });
 
     if (invoicesError) {
       console.error('Error fetching invoices:', invoicesError);
-      return NextResponse.json({ error: 'Failed to fetch invoices' }, { status: 500 });
     }
 
-    // Fetch ALL flight logs without any limit - read hours directly from flight logs
-    // Use chunked queries to bypass Supabase's 1000 record limit
-    let allFlightLogs: any[] = [];
-    let offset = 0;
-    const chunkSize = 1000;
-    let hasMore = true;
+    // Process invoices to extract hour packages per client
+    const clientPackagesMap = new Map<string, { packages: any[], totalHours: number, totalValue: number, currency: string }>();
 
-    console.log('🔍 Fetching all flight logs in chunks to bypass 1000 record limit...');
-
-    while (hasMore) {
-      const { data: flightLogsChunk, error: flightLogsError } = await supabase
-        .from('flight_logs')
-        .select(`
-          id,
-          userId,
-          instructorId,
-          payer_id,
-          totalHours,
-          date,
-          flightType
-        `)
-        .order('date', { ascending: false }) // Order by date, newest first
-        .range(offset, offset + chunkSize - 1);
-
-      if (flightLogsError) {
-        console.error('Error fetching flight logs chunk:', flightLogsError);
-        return NextResponse.json({ error: 'Failed to fetch flight logs' }, { status: 500 });
-      }
-
-      if (!flightLogsChunk || flightLogsChunk.length === 0) {
-        hasMore = false;
-      } else {
-        allFlightLogs = allFlightLogs.concat(flightLogsChunk);
-        offset += chunkSize;
-        console.log(`   Chunk ${Math.floor(offset / chunkSize)}: ${flightLogsChunk.length} records (total: ${allFlightLogs.length})`);
-      }
-    }
-
-    console.log(`✅ Total flight logs fetched: ${allFlightLogs.length}`);
-
-    const flightLogs = allFlightLogs;
-
-    // Get company information for invoices with company_id
-    const companyIds = Array.from(new Set(
-      invoices?.flatMap(invoice => 
-        invoice.invoice_clients?.map(client => client.company_id).filter(Boolean) || []
-      ) || []
-    ));
-    
-    const { data: companies, error: companiesError } = await supabase
-      .from('companies')
-      .select('id, name, vat_code, email')
-      .in('id', companyIds);
-
-    if (companiesError) {
-      console.error('Error fetching companies:', companiesError);
-      // Don't fail the entire request, just log the error
-    }
-
-    // Create company lookup map
-    const companyMap = new Map(companies?.map((company: any) => [company.id, company]) || []);
-
-    // Get all user IDs from invoice_clients to fetch user information
-    const userIds = Array.from(new Set(
-      invoices?.flatMap(invoice => 
-        invoice.invoice_clients?.map(client => client.user_id).filter(Boolean) || []
-      ) || []
-    ));
-    
-    const { data: users, error: usersError } = await supabase
-      .from('users')
-      .select('id, email, firstName, lastName')
-      .in('id', userIds);
-
-    if (usersError) {
-      console.error('Error fetching users:', usersError);
-      return NextResponse.json({ error: 'Failed to fetch user information' }, { status: 500 });
-    }
-
-    // Create user lookup map
-    const userMap = new Map(users?.map((user: any) => [user.id, user]) || []);
-
-    // Process invoices to extract hour packages
-    const clientPackages = new Map<string, any[]>();
-    const clientMap = new Map<string, any>();
-    
-    // Also include users with PPL courses who might not have hour packages
-    console.log(`🔍 Checking for users with PPL courses...`);
-    const { data: pplInvoices, error: pplError } = await supabase
-      .from('invoices')
-      .select(`
-        is_ppl,
-        ppl_hours_paid,
-        invoice_clients!inner (
-          user_id,
-          email
-        )
-      `)
-      .eq('is_ppl', true);
-    
-    if (pplError) {
-      console.log('❌ Error fetching PPL invoices:', pplError.message);
-    } else {
-      console.log(`✅ Found ${pplInvoices?.length || 0} PPL course invoices`);
-      
-      // Get user IDs from PPL invoices
-      const pplUserIds = pplInvoices?.map(invoice => invoice.invoice_clients?.[0]?.user_id).filter(Boolean) || [];
-      
-      // Fetch user data for PPL course users
-      if (pplUserIds.length > 0) {
-        const { data: pplUsers, error: pplUsersError } = await supabase
-          .from('users')
-          .select('id, email, firstName, lastName')
-          .in('id', pplUserIds);
-        
-        if (pplUsersError) {
-          console.log('❌ Error fetching PPL users:', pplUsersError.message);
-        } else {
-          // Create user lookup map
-          const pplUserMap = new Map(pplUsers?.map(user => [user.id, user]) || []);
-          
-          // Log PPL course information
-          pplInvoices?.forEach(invoice => {
-            const client = invoice.invoice_clients?.[0];
-            const user = client?.user_id ? pplUserMap.get(client.user_id) : null;
-            if (user) {
-              console.log(`   - ${user.email} (${user.firstName} ${user.lastName}): ${invoice.ppl_hours_paid} hours`);
-            }
-          });
-          
-          // Add PPL course users to client map if they're not already included
-          pplInvoices?.forEach(invoice => {
-            const client = invoice.invoice_clients?.[0];
-            const user = client?.user_id ? pplUserMap.get(client.user_id) : null;
-            if (user && !clientMap.has(user.email)) {
-              clientMap.set(user.email, {
-                id: user.email,
-                name: `${user.firstName} ${user.lastName}`,
-                email: user.email,
-                user_id: user.id,
-                company: null
-              });
-              console.log(`➕ Added PPL course user to client map: ${user.email}`);
-            }
-          });
-        }
-      }
-    }
+    console.log(`📦 Fetched ${invoices?.length || 0} invoices for ${clientIds.length} clients`);
 
     for (const invoice of invoices || []) {
       try {
-        // Get client information - filter out invoices with invalid client data
         const client = invoice.invoice_clients?.[0];
-        if (!client || !client.email || client.email === 'undefined' || client.email === 'null') continue;
-        
-        // Create client data
-        const clientId = client.email;
-        if (!clientMap.has(clientId)) {
-          const company = client.company_id ? companyMap.get(client.company_id) : null;
-          
-          // Get the actual user information if user_id is available
-          let userInfo = null;
-          if (client.user_id) {
-            userInfo = userMap.get(client.user_id);
-          }
-          
-          clientMap.set(clientId, {
-            id: clientId,
-            name: userInfo ? `${userInfo.firstName} ${userInfo.lastName}` : client.name,
-            email: client.email,
-            vatCode: client.vat_code,
-            user_id: client.user_id,
-            company: company ? {
-              id: company.id,
-              name: company.name,
-              vatCode: company.vat_code,
-              email: company.email
-            } : null
-          });
-        }
+        if (!client || !client.user_id) continue;
 
-        // Extract hour packages from invoice items
-        const hourItems = invoice.invoice_items?.filter((item: any) => 
+        // Extract hour packages from invoice items (unit = 'HUR', 'HOUR', or 'H')
+        const hourItems = invoice.invoice_items?.filter((item: any) =>
           item.unit === 'HUR' || item.unit === 'HOUR' || item.unit === 'H'
         ) || [];
 
         hourItems.forEach((item: any) => {
-          const packageData = {
-            id: `${invoice.id}-${item.name}`,
-            clientId: clientId,
+          const userId = client.user_id;
+
+          if (!clientPackagesMap.has(userId)) {
+            clientPackagesMap.set(userId, {
+              packages: [],
+              totalHours: 0,
+              totalValue: 0,
+              currency: invoice.currency || 'RON'
+            });
+          }
+
+          const clientData = clientPackagesMap.get(userId)!;
+          clientData.packages.push({
+            id: `${invoice.id}-${item.line_id}`,
             invoiceId: invoice.smartbill_id,
             totalHours: item.quantity,
-            usedHours: 0, // Will be calculated from flight logs
-            remainingHours: item.quantity,
             purchaseDate: invoice.issue_date,
-            status: 'active',
             price: item.total_amount,
             currency: invoice.currency
-          };
-
-          if (!clientPackages.has(clientId)) {
-            clientPackages.set(clientId, []);
-          }
-          clientPackages.get(clientId)!.push(packageData);
+          });
+          clientData.totalHours += item.quantity;
+          clientData.totalValue += item.total_amount;
         });
       } catch (error) {
         console.error('Error processing invoice:', error);
       }
     }
 
-    // Get pilot and instructor information for flight logs
-    const flightLogUserIds = Array.from(new Set(flightLogs?.map((log: any) => log.userId).filter(Boolean) || []));
-    const instructorIds = Array.from(new Set(flightLogs?.map((log: any) => log.instructorId).filter(Boolean) || []));
-    const allUserIds = Array.from(new Set([...flightLogUserIds, ...instructorIds]));
-    
-    // Fetch additional users for flight logs if not already fetched
-    const additionalUserIds = allUserIds.filter(id => !userMap.has(id));
-    if (additionalUserIds.length > 0) {
-      const { data: additionalUsers, error: additionalUsersError } = await supabase
-        .from('users')
-        .select('id, email, firstName, lastName')
-        .in('id', additionalUserIds);
+    console.log(`💰 Processed packages for ${clientPackagesMap.size} clients with hour packages`);
 
-      if (additionalUsersError) {
-        console.error('Error fetching additional users:', additionalUsersError);
-      } else {
-        // Add additional users to the existing userMap
-        additionalUsers?.forEach((user: any) => {
-          userMap.set(user.id, user);
-        });
-      }
-    }
+    // Build response with lightweight summary data
+    const clientsWithSummary = paginatedClients.map((client: any) => {
+      const agg = flightAggs?.find((a: any) => a.user_id === client.id);
+      const packageData = clientPackagesMap.get(client.id);
 
-    // Process flight logs to calculate used hours for each client
-    // Consider all records where the client is involved (as pilot or receiving dual training)
-    // Exclude FERRY, DEMO, and CHARTER flights from hour calculations
-    const clientFlightHours = new Map<string, number>();
-    const clientFlightLogs = new Map<string, any[]>();
-    
-    // Calculate current year and previous year data dynamically
-    const currentYear = new Date().getFullYear();
-    const previousYear = currentYear - 1;
-    const clientFlightHoursCurrentYear = new Map<string, number>();
-    const clientFlightHoursPreviousYear = new Map<string, number>();
-    
-    // Calculate year-specific data for different flight types
-    const ferryHoursCurrentYear = new Map<string, number>();
-    const ferryHoursPreviousYear = new Map<string, number>();
-    const charterHoursCurrentYear = new Map<string, number>();
-    const charterHoursPreviousYear = new Map<string, number>();
-    const charteredHoursCurrentYear = new Map<string, number>();
-    const charteredHoursPreviousYear = new Map<string, number>();
-    const demoHoursCurrentYear = new Map<string, number>();
-    const demoHoursPreviousYear = new Map<string, number>();
-    
-    // Calculate flight counts for the last 12 months (rolling period)
-    const flightCountLast12Months = new Map<string, number>();
-    
-    // Calculate flight counts for the last 90 days (rolling period)
-    const flightCountLast90Days = new Map<string, number>();
-    
-    // Calculate total FERRY hours from ALL years (not just current + previous)
-    const ferryHoursTotal = new Map<string, number>();
-    const charterHoursTotal = new Map<string, number>();
-    const charteredHoursTotal = new Map<string, number>();
-    const demoHoursTotal = new Map<string, number>();
+      // Get purchased hours data
+      const totalPurchasedHours = packageData?.totalHours || 0;
+      const totalValue = packageData?.totalValue || 0;
+      const packageCount = packageData?.packages.length || 0;
+      const currency = packageData?.currency || 'RON';
 
-    flightLogs?.forEach((log: any) => {
-      const pilot = userMap.get(log.userId) as any;
-      const instructor = log.instructorId ? userMap.get(log.instructorId) as any : null;
-      
-      // Skip FERRY, DEMO, and CHARTER flights when calculating used hours
-      const isFerryFlight = log.flightType && log.flightType.toUpperCase().includes('FERRY');
-      const isDemoFlight = log.flightType && log.flightType.toUpperCase().includes('DEMO');
-      const isCharterFlight = log.flightType && log.flightType.toUpperCase().includes('CHARTER');
-      
-      // If there's a pilot, count their hours (excluding FERRY, DEMO, and CHARTER flights)
-      if (pilot?.id) {
-        const flightYear = new Date(log.date).getFullYear();
-        const flightDate = new Date(log.date);
-        const twelveMonthsAgo = new Date();
-        twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-        const ninetyDaysAgo = new Date();
-        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-        
-        // Count flights for the last 12 months (all flight types)
-        if (flightDate >= twelveMonthsAgo) {
-          const currentCount = flightCountLast12Months.get(log.userId) || 0;
-          flightCountLast12Months.set(log.userId, currentCount + 1);
+      // Get flight hours from aggregation
+      const regularHours = agg?.regular_hours || 0;
+      const ferryHours = agg?.ferry_hours_total || 0;
+      const charteredHours = agg?.chartered_hours_total || 0;
+      const demoHours = agg?.demo_hours_total || 0;
+
+      return {
+        id: client.id,
+        email: client.email,
+        firstName: client.firstName,
+        lastName: client.lastName,
+        summary: {
+          totalPurchasedHours,
+          totalFlownHours: regularHours,
+          totalFerryHours: ferryHours,
+          totalCharteredHours: charteredHours,
+          totalDemoHours: demoHours,
+          packageCount,
+          totalValue,
+          currency,
+          flights12Months: agg?.flights_12_months || 0,
+          flights90Days: agg?.flights_90_days || 0,
         }
-
-        // Count flights for the last 90 days (all flight types)
-        if (flightDate >= ninetyDaysAgo) {
-          const currentCount = flightCountLast90Days.get(log.userId) || 0;
-          flightCountLast90Days.set(log.userId, currentCount + 1);
-        }
-
-
-        // Regular flights (non-FERRY, non-DEMO) - add to pilot's used hours
-        // Note: CHARTER flights are NOT added here if they have a payer_id (they're added to the payer below)
-        const isCharteredFlight = isCharterFlight && log.payer_id; // Charter with a payer
-
-        if (!isFerryFlight && !isDemoFlight && !isCharteredFlight) {
-          // Use log.userId directly as the key for consistency
-          const currentHours = clientFlightHours.get(log.userId) || 0;
-          clientFlightHours.set(log.userId, currentHours + log.totalHours);
-
-          // Calculate year-specific hours for regular flights
-          if (flightYear === currentYear) {
-            const currentYearHours = clientFlightHoursCurrentYear.get(log.userId) || 0;
-            clientFlightHoursCurrentYear.set(log.userId, currentYearHours + log.totalHours);
-          } else if (flightYear === previousYear) {
-            const previousYearHours = clientFlightHoursPreviousYear.get(log.userId) || 0;
-            clientFlightHoursPreviousYear.set(log.userId, previousYearHours + log.totalHours);
-          }
-        }
-
-        // Handle chartered flights (charter flights with payer_id) - these should be deducted from payer's hours
-        // NOTE: Chartered flights are NOT added to clientFlightHours (Used by Clients)
-        // They are tracked separately in charteredHoursTotal and deducted from remaining hours in the calculation
-        // This way "Used by Clients" shows only regular flight hours, and chartered flights are handled separately
-        
-        // Calculate year-specific hours for special flight types
-        if (isFerryFlight) {
-          // Calculate total FERRY hours from ALL years
-          // Use log.userId directly as the key
-          const totalFerryHours = ferryHoursTotal.get(log.userId) || 0;
-          ferryHoursTotal.set(log.userId, totalFerryHours + log.totalHours);
-
-          if (flightYear === currentYear) {
-            const currentYearHours = ferryHoursCurrentYear.get(log.userId) || 0;
-            ferryHoursCurrentYear.set(log.userId, currentYearHours + log.totalHours);
-          } else if (flightYear === previousYear) {
-            const previousYearHours = ferryHoursPreviousYear.get(log.userId) || 0;
-            ferryHoursPreviousYear.set(log.userId, previousYearHours + log.totalHours);
-          }
-        }
-
-        if (isCharterFlight) {
-          // Calculate total Charter hours from ALL years
-          // Use log.userId directly as the key
-          const totalCharterHours = charterHoursTotal.get(log.userId) || 0;
-          charterHoursTotal.set(log.userId, totalCharterHours + log.totalHours);
-
-          if (flightYear === currentYear) {
-            const currentYearHours = charterHoursCurrentYear.get(log.userId) || 0;
-            charterHoursCurrentYear.set(log.userId, currentYearHours + log.totalHours);
-          } else if (flightYear === previousYear) {
-            const previousYearHours = charterHoursPreviousYear.get(log.userId) || 0;
-            charterHoursPreviousYear.set(log.userId, previousYearHours + log.totalHours);
-          }
-        }
-
-        // Calculate chartered hours (charter flights with a payer_id)
-        if (isCharterFlight && log.payer_id) {
-          // Use payer_id directly as the key
-          // Calculate total Chartered hours from ALL years
-          const totalCharteredHours = charteredHoursTotal.get(log.payer_id) || 0;
-          charteredHoursTotal.set(log.payer_id, totalCharteredHours + log.totalHours);
-
-          if (flightYear === currentYear) {
-            const currentYearHours = charteredHoursCurrentYear.get(log.payer_id) || 0;
-            charteredHoursCurrentYear.set(log.payer_id, currentYearHours + log.totalHours);
-          } else if (flightYear === previousYear) {
-            const previousYearHours = charteredHoursPreviousYear.get(log.payer_id) || 0;
-            charteredHoursPreviousYear.set(log.payer_id, previousYearHours + log.totalHours);
-          }
-        }
-
-        if (isDemoFlight) {
-          // Calculate total Demo hours from ALL years
-          // Use log.userId directly as the key
-          const totalDemoHours = demoHoursTotal.get(log.userId) || 0;
-          demoHoursTotal.set(log.userId, totalDemoHours + log.totalHours);
-
-          if (flightYear === currentYear) {
-            const currentYearHours = demoHoursCurrentYear.get(log.userId) || 0;
-            demoHoursCurrentYear.set(log.userId, currentYearHours + log.totalHours);
-          } else if (flightYear === previousYear) {
-            const previousYearHours = demoHoursPreviousYear.get(log.userId) || 0;
-            demoHoursPreviousYear.set(log.userId, previousYearHours + log.totalHours);
-          }
-        }
-
-        // Store flight log for this client (including FERRY, DEMO, and CHARTER flights for display purposes)
-        // Use log.userId directly as the key
-        if (!clientFlightLogs.has(log.userId)) {
-          clientFlightLogs.set(log.userId, []);
-        }
-        clientFlightLogs.get(log.userId)!.push({
-          id: log.id,
-          userId: log.userId,
-          totalHours: log.totalHours,
-          date: log.date,
-          flightType: log.flightType,
-          role: 'PIC',
-          isFerryFlight: isFerryFlight,
-          isDemoFlight: isDemoFlight,
-          isCharterFlight: isCharterFlight
-        });
-
-        // If this is a chartered flight (charter with payer_id), also add it to the payer's recent flights
-        if (isCharterFlight && log.payer_id) {
-          // Use payer_id directly as the key
-          if (!clientFlightLogs.has(log.payer_id)) {
-            clientFlightLogs.set(log.payer_id, []);
-          }
-          clientFlightLogs.get(log.payer_id)!.push({
-            id: log.id,
-            userId: log.userId,
-            totalHours: log.totalHours,
-            date: log.date,
-            flightType: log.flightType,
-            role: 'Chartered',
-            isFerryFlight: false,
-            isDemoFlight: false,
-            isCharterFlight: false, // This is not a charter flight for the payer, it's a chartered flight
-            isCharteredFlight: true // New flag to identify chartered flights
-          });
-        }
-      }
-
-      // If there's an instructor and it's dual training, count hours for the student/pilot
-      if (instructor?.id && log.instructorId && log.userId) {
-        // This is dual training - the pilot is receiving instruction
-        // The pilot's hours are already counted above, but we can track this as dual training
-        // Update the flight log to indicate dual training
-        // Use log.userId directly as the key
-        const existingLogs = clientFlightLogs.get(log.userId) || [];
-        const existingLog = existingLogs.find(fl => fl.id === log.id);
-        if (existingLog) {
-          existingLog.role = 'Dual Training';
-          existingLog.instructorId = log.instructorId;
-        }
-      }
+      };
     });
 
-    // Build final response
-    const filteredClients = Array.from(clientMap.values())
-      .filter(client => {
-        // Filter based on user's access level
-        if (isAdmin) return true; // Admins can see all
-        return allowedClientEmails.includes(client.email);
-      });
-    
-    console.log(`🔍 Processing ${filteredClients.length} clients for API response`);
-    filteredClients.forEach(client => {
-      console.log(`   - ${client.email} (user_id: ${client.user_id})`);
+    // Calculate aggregate statistics for ALL clients (not just paginated ones)
+    const aggregateStats = {
+      totalPurchasedHours: 0,
+      totalFlownHours: 0,
+      totalFerryHours: 0,
+      totalCharteredHours: 0,
+      totalDemoHours: 0,
+      totalRemainingHours: 0,
+    };
+
+    // Calculate aggregates from ALL clients (before pagination)
+    clientsList.forEach((client: any) => {
+      const agg = mergedFlightAggs.get(client.id);
+      const packageData = clientPackagesMap.get(client.id);
+
+      const purchasedHours = packageData?.totalHours || 0;
+      const regularHours = agg?.regular_hours || 0;
+      const ferryHours = agg?.ferry_hours_total || 0;
+      const charteredHours = agg?.chartered_hours_total || 0;
+      const demoHours = agg?.demo_hours_total || 0;
+
+      aggregateStats.totalPurchasedHours += purchasedHours;
+      aggregateStats.totalFlownHours += regularHours;
+      aggregateStats.totalFerryHours += ferryHours;
+      aggregateStats.totalCharteredHours += charteredHours;
+      aggregateStats.totalDemoHours += demoHours;
+      // IMPORTANT: Remaining hours = purchased - flown - chartered
+      // Chartered hours are flights paid by client but flown by another pilot
+      aggregateStats.totalRemainingHours += (purchasedHours - regularHours - charteredHours);
     });
-    
-    const clientsData = await Promise.all(
-      filteredClients.map(async client => {
-          const packages = clientPackages.get(client.id) || [];
-          const totalUsedHours = clientFlightHours.get(client.user_id) || 0;
 
-          // Calculate remaining hours for each package using FIFO method
-          let totalBoughtHours = 0;
-          let totalRemainingHours = 0;
-
-          packages.forEach(pkg => {
-            totalBoughtHours += pkg.totalHours;
-          });
-
-          // Get PPL course data for this client
-          let pplCourseData = null;
-          let pplBoughtHours = 0;
-          if (client.user_id) {
-            try {
-              console.log(`🔍 Fetching PPL course data for ${client.email} (user_id: ${client.user_id})`);
-              const { data: pplInvoices, error: pplError } = await supabase
-                .from('invoices')
-                .select(`
-                  is_ppl, 
-                  ppl_hours_paid, 
-                  smartbill_id, 
-                  issue_date,
-                  invoice_clients!inner (
-                    user_id,
-                    email
-                  )
-                `)
-                .eq('is_ppl', true)
-                .eq('invoice_clients.user_id', client.user_id);
-              
-              if (pplError) {
-                console.error(`❌ Error fetching PPL invoices for ${client.email}:`, pplError.message);
-              } else if (pplInvoices && pplInvoices.length > 0) {
-                console.log(`📊 Found ${pplInvoices.length} PPL course invoices for ${client.email}`);
-                
-                const totalPPLHours = pplInvoices.reduce((sum, invoice) => sum + (invoice.ppl_hours_paid || 0), 0);
-                pplBoughtHours = totalPPLHours;
-                
-                pplCourseData = {
-                  invoices: pplInvoices,
-                  totalHoursPaid: totalPPLHours,
-                  totalHours: 45, // Standard PPL course is 45 hours
-                  remainingHours: Math.max(0, 45 - totalPPLHours)
-                };
-                
-                console.log(`✅ PPL course data created for ${client.email}:`, {
-                  invoices: pplInvoices.length,
-                  totalHoursPaid: totalPPLHours,
-                  pplBoughtHours
-                });
-              } else {
-                console.log(`⚠️  No PPL course invoices found for ${client.email}`);
-              }
-            } catch (error) {
-              console.error(`❌ Error fetching PPL course data for ${client.email}:`, error);
-            }
-          } else {
-            console.log(`⚠️  No user_id for client ${client.email}`);
-          }
-
-          // Add PPL course hours to total bought hours
-          totalBoughtHours += pplBoughtHours;
-
-          // Get chartered hours for this client
-          const clientCharteredHoursTotal = charteredHoursTotal.get(client.user_id) || 0;
-
-          // Sort packages by purchase date (oldest first for FIFO)
-          const sortedPackages = [...packages].sort((a, b) =>
-            new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime()
-          );
-
-          // Initialize chartered hours for each package
-          sortedPackages.forEach(pkg => {
-            pkg.usedHours = 0;
-            pkg.charteredHours = 0;
-          });
-
-          // Get all flight logs for this client
-          const clientLogs = clientFlightLogs.get(client.user_id) || [];
-
-          // Separate regular flights from chartered flights and sort by date
-          const regularFlights = clientLogs
-            .filter(log => !log.isCharteredFlight)
-            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-          const charteredFlights = clientLogs
-            .filter(log => log.isCharteredFlight)
-            .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-          // Apply FIFO logic for regular flights based on flight dates
-          regularFlights.forEach(flight => {
-            let hoursToDeduct = flight.totalHours;
-            const flightDate = new Date(flight.date);
-
-            // Find the first package that was purchased before or on the flight date and has remaining capacity
-            for (const pkg of sortedPackages) {
-              if (hoursToDeduct <= 0) break;
-
-              const purchaseDate = new Date(pkg.purchaseDate);
-
-              // Only deduct from packages that were purchased before or on the flight date
-              if (purchaseDate <= flightDate) {
-                const availableHours = pkg.totalHours - pkg.usedHours - pkg.charteredHours;
-
-                if (availableHours > 0) {
-                  const deduction = Math.min(hoursToDeduct, availableHours);
-                  pkg.usedHours += deduction;
-                  hoursToDeduct -= deduction;
-                }
-              }
-            }
-          });
-
-          // Apply FIFO logic for chartered flights based on flight dates
-          charteredFlights.forEach(flight => {
-            let hoursToDeduct = flight.totalHours;
-            const flightDate = new Date(flight.date);
-
-            // Find the first package that was purchased before or on the flight date and has remaining capacity
-            for (const pkg of sortedPackages) {
-              if (hoursToDeduct <= 0) break;
-
-              const purchaseDate = new Date(pkg.purchaseDate);
-
-              // Only deduct from packages that were purchased before or on the flight date
-              if (purchaseDate <= flightDate) {
-                const availableHours = pkg.totalHours - pkg.usedHours - pkg.charteredHours;
-
-                if (availableHours > 0) {
-                  const deduction = Math.min(hoursToDeduct, availableHours);
-                  pkg.charteredHours += deduction;
-                  hoursToDeduct -= deduction;
-                }
-              }
-            }
-          });
-
-          // Calculate remaining hours for each package after both regular and chartered consumption
-          sortedPackages.forEach(pkg => {
-            pkg.remainingHours = pkg.totalHours - pkg.usedHours - pkg.charteredHours;
-
-            // Update package status based on remaining hours
-            if (pkg.remainingHours <= 0) {
-              pkg.status = 'overdrawn';
-            } else if (pkg.remainingHours <= 1) {
-              pkg.status = 'low hours';
-            } else {
-              pkg.status = 'in progress';
-            }
-          });
-
-          // Get year-specific data for special flight types
-          const clientFerryHoursCurrentYear = ferryHoursCurrentYear.get(client.user_id) || 0;
-          const clientFerryHoursPreviousYear = ferryHoursPreviousYear.get(client.user_id) || 0;
-          const clientFerryHoursTotal = ferryHoursTotal.get(client.user_id) || 0;
-          const clientCharterHoursCurrentYear = charterHoursCurrentYear.get(client.user_id) || 0;
-          const clientCharterHoursPreviousYear = charterHoursPreviousYear.get(client.user_id) || 0;
-          const clientCharterHoursTotal = charterHoursTotal.get(client.user_id) || 0;
-          const clientCharteredHoursCurrentYear = charteredHoursCurrentYear.get(client.user_id) || 0;
-          const clientCharteredHoursPreviousYear = charteredHoursPreviousYear.get(client.user_id) || 0;
-          // clientCharteredHoursTotal already defined above at line 640
-
-          // Calculate total remaining hours
-          // Deduct both regular used hours AND chartered hours (where user is the payer)
-          totalRemainingHours = totalBoughtHours - totalUsedHours - clientCharteredHoursTotal;
-
-          // Get recent flights for this client (all records where they were involved)
-          const recentFlights = clientFlightLogs.get(client.user_id) || [];
-
-          // Sort flights by date (most recent first) and take the last 5
-          const sortedRecentFlights = recentFlights
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-            .slice(0, 5);
-
-          // Get year-specific data for this client
-          const currentYearHours = clientFlightHoursCurrentYear.get(client.user_id) || 0;
-          const previousYearHours = clientFlightHoursPreviousYear.get(client.user_id) || 0;
-          const clientFlightCountLast12Months = flightCountLast12Months.get(client.user_id) || 0;
-          const clientFlightCountLast90Days = flightCountLast90Days.get(client.user_id) || 0;
-          const clientDemoHoursCurrentYear = demoHoursCurrentYear.get(client.user_id) || 0;
-          const clientDemoHoursPreviousYear = demoHoursPreviousYear.get(client.user_id) || 0;
-          const clientDemoHoursTotal = demoHoursTotal.get(client.user_id) || 0;
-
-          return {
-            client,
-            packages,
-            pplCourse: pplCourseData,
-            totalBoughtHours,
-            totalUsedHours,
-            totalRemainingHours,
-            currentYearHours,
-            previousYearHours,
-            flightCountLast12Months: clientFlightCountLast12Months,
-            flightCountLast90Days: clientFlightCountLast90Days,
-
-            ferryHoursCurrentYear: clientFerryHoursCurrentYear,
-            ferryHoursPreviousYear: clientFerryHoursPreviousYear,
-            ferryHoursTotal: clientFerryHoursTotal,
-            charterHoursCurrentYear: clientCharterHoursCurrentYear,
-            charterHoursPreviousYear: clientCharterHoursPreviousYear,
-            charterHoursTotal: clientCharterHoursTotal,
-            charteredHoursCurrentYear: clientCharteredHoursCurrentYear,
-            charteredHoursPreviousYear: clientCharteredHoursPreviousYear,
-            charteredHoursTotal: clientCharteredHoursTotal,
-            demoHoursCurrentYear: clientDemoHoursCurrentYear,
-            demoHoursPreviousYear: clientDemoHoursPreviousYear,
-            demoHoursTotal: clientDemoHoursTotal,
-            recentFlights: sortedRecentFlights // Show last 5 flights sorted by date
-          };
-        })
-    );
-
-    // Calculate year-specific totals
-    const totalCurrentYearHours = clientsData.reduce((sum, c) => sum + (c.currentYearHours || 0), 0);
-    const totalPreviousYearHours = clientsData.reduce((sum, c) => sum + (c.previousYearHours || 0), 0);
-    
-    // Calculate year-specific totals for special flight types
-    const totalFerryHoursCurrentYear = clientsData.reduce((sum, c) => sum + (c.ferryHoursCurrentYear || 0), 0);
-    const totalFerryHoursPreviousYear = clientsData.reduce((sum, c) => sum + (c.ferryHoursPreviousYear || 0), 0);
-    const totalFerryHoursTotal = clientsData.reduce((sum, c) => sum + (c.ferryHoursTotal || 0), 0);
-    const totalCharterHoursCurrentYear = clientsData.reduce((sum, c) => sum + (c.charterHoursCurrentYear || 0), 0);
-    const totalCharterHoursPreviousYear = clientsData.reduce((sum, c) => sum + (c.charterHoursPreviousYear || 0), 0);
-    const totalCharterHoursTotal = clientsData.reduce((sum, c) => sum + (c.charterHoursTotal || 0), 0);
-    const totalCharteredHoursCurrentYear = clientsData.reduce((sum, c) => sum + (c.charteredHoursCurrentYear || 0), 0);
-    const totalCharteredHoursPreviousYear = clientsData.reduce((sum, c) => sum + (c.charteredHoursPreviousYear || 0), 0);
-    const totalCharteredHoursTotal = clientsData.reduce((sum, c) => sum + (c.charteredHoursTotal || 0), 0);
-    const totalDemoHoursCurrentYear = clientsData.reduce((sum, c) => sum + (c.demoHoursCurrentYear || 0), 0);
-    const totalDemoHoursPreviousYear = clientsData.reduce((sum, c) => sum + (c.demoHoursPreviousYear || 0), 0);
-    const totalDemoHoursTotal = clientsData.reduce((sum, c) => sum + (c.demoHoursTotal || 0), 0);
+    console.log(`📊 Aggregate stats for ALL ${clientsList.length} clients:`, aggregateStats);
 
     return NextResponse.json({
-      clients: clientsData,
-      totalClients: clientsData.length,
-      totalBoughtHours: clientsData.reduce((sum, c) => sum + c.totalBoughtHours, 0),
-      totalUsedHours: clientsData.reduce((sum, c) => sum + c.totalUsedHours, 0),
-      totalRemainingHours: clientsData.reduce((sum, c) => sum + c.totalRemainingHours, 0),
-      totalCurrentYearHours,
-      totalPreviousYearHours,
-      totalFerryHoursCurrentYear,
-      totalFerryHoursPreviousYear,
-      totalFerryHoursTotal,
-      totalCharterHoursCurrentYear,
-      totalCharterHoursPreviousYear,
-      totalCharterHoursTotal,
-      totalCharteredHoursCurrentYear,
-      totalCharteredHoursPreviousYear,
-      totalCharteredHoursTotal,
-      totalDemoHoursCurrentYear,
-      totalDemoHoursPreviousYear,
-      totalDemoHoursTotal
+      clients: clientsWithSummary,
+      pagination: {
+        total: clientsList.length,
+        page,
+        limit,
+        totalPages: Math.ceil(clientsList.length / limit)
+      },
+      aggregateStats
     });
 
   } catch (error) {
-    console.error('Error in client hours API:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error in /api/usage:', error);
+    return NextResponse.json(
+      { error: 'Internal server error', details: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
   }
-} 
+}

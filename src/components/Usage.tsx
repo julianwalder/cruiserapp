@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,8 @@ import {
   DollarSign,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Building2,
   MoreVertical,
   CheckCircle,
@@ -45,6 +48,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { Skeleton } from '@/components/ui/skeleton';
 // import { User, HourPackage as HourPackageType } from "@/types/uuid-types";
 
 // Temporary inline type definitions
@@ -115,6 +119,15 @@ interface Client {
   } | null;
 }
 
+interface FlightAllocation {
+  flightId: string;
+  date: string;
+  hours: number;
+  totalFlightHours: number;
+  flightType: string;
+  role?: string;
+}
+
 interface LocalHourPackage {
   id: string;
   clientId: string;
@@ -128,6 +141,8 @@ interface LocalHourPackage {
   status: 'in progress' | 'expired' | 'overdrawn' | 'low hours';
   price: number;
   currency: string;
+  allocatedFlights?: FlightAllocation[];
+  allocatedCharteredFlights?: FlightAllocation[];
 }
 
 interface FlightLog {
@@ -203,6 +218,7 @@ interface ClientHoursData {
 }
 
 export default function Usage() {
+  const router = useRouter();
   const [clients, setClients] = useState<ClientHoursData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -224,6 +240,7 @@ export default function Usage() {
   const [viewMode, setViewMode] = useState<'personal' | 'company'>('company');
   const [totalCurrentYearHours, setTotalCurrentYearHours] = useState(0);
   const [totalPreviousYearHours, setTotalPreviousYearHours] = useState(0);
+  const [expandedPackages, setExpandedPackages] = useState<Set<string>>(new Set());
   const [totalFerryHoursCurrentYear, setTotalFerryHoursCurrentYear] = useState(0);
   const [totalFerryHoursPreviousYear, setTotalFerryHoursPreviousYear] = useState(0);
   const [totalCharterHoursCurrentYear, setTotalCharterHoursCurrentYear] = useState(0);
@@ -232,7 +249,19 @@ export default function Usage() {
   const [totalCharteredHoursPreviousYear, setTotalCharteredHoursPreviousYear] = useState(0);
   const [totalDemoHoursCurrentYear, setTotalDemoHoursCurrentYear] = useState(0);
   const [totalDemoHoursPreviousYear, setTotalDemoHoursPreviousYear] = useState(0);
-  
+  const [sortBy] = useState('email');
+  const [sortOrder] = useState<'asc' | 'desc'>('asc');
+
+  // Aggregate statistics for ALL clients (from API)
+  const [aggregateStats, setAggregateStats] = useState({
+    totalPurchasedHours: 0,
+    totalFlownHours: 0,
+    totalFerryHours: 0,
+    totalCharteredHours: 0,
+    totalDemoHours: 0,
+    totalRemainingHours: 0,
+  });
+
   // Get current and previous year dynamically
   const currentYear = new Date().getFullYear();
   const previousYear = currentYear - 1;
@@ -267,13 +296,23 @@ export default function Usage() {
     }
   };
 
-  const fetchClientHours = async () => {
+  const fetchClientHours = async (page: number = 1, limit: number = 50, search: string = '') => {
     setLoading(true);
     setError(null);
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/usage', {
+      // NEW API: Paginated, lightweight summary data only
+      const url = new URL('/api/usage', window.location.origin);
+      url.searchParams.set('page', page.toString());
+      url.searchParams.set('limit', limit.toString());
+      if (search) {
+        url.searchParams.set('search', search);
+      }
+      url.searchParams.set('sortBy', sortBy);
+      url.searchParams.set('sortOrder', sortOrder);
+
+      const response = await fetch(url.toString(), {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -284,17 +323,78 @@ export default function Usage() {
       }
 
       const data = await response.json();
-      setClients(data.clients || []);
-      setTotalCurrentYearHours(data.totalCurrentYearHours || 0);
-      setTotalPreviousYearHours(data.totalPreviousYearHours || 0);
-      setTotalFerryHoursCurrentYear(data.totalFerryHoursCurrentYear || 0);
-      setTotalFerryHoursPreviousYear(data.totalFerryHoursPreviousYear || 0);
-      setTotalCharterHoursCurrentYear(data.totalCharterHoursCurrentYear || 0);
-      setTotalCharterHoursPreviousYear(data.totalCharterHoursPreviousYear || 0);
-      setTotalCharteredHoursCurrentYear(data.totalCharteredHoursCurrentYear || 0);
-      setTotalCharteredHoursPreviousYear(data.totalCharteredHoursPreviousYear || 0);
-      setTotalDemoHoursCurrentYear(data.totalDemoHoursCurrentYear || 0);
-      setTotalDemoHoursPreviousYear(data.totalDemoHoursPreviousYear || 0);
+
+      // Transform new API response to match old component structure
+      const transformedClients = data.clients.map((client: any) => ({
+        client: {
+          id: client.id,
+          email: client.email,
+          name: `${client.firstName || ''} ${client.lastName || ''}`.trim() || client.email,
+          firstName: client.firstName,
+          lastName: client.lastName,
+        },
+        totalBoughtHours: client.summary.totalPurchasedHours,
+        totalUsedHours: client.summary.totalFlownHours,
+        totalFerryHours: client.summary.totalFerryHours,
+        totalCharteredHours: client.summary.totalCharteredHours,
+        charteredHoursTotal: client.summary.totalCharteredHours, // Alias for table display
+        totalDemoHours: client.summary.totalDemoHours,
+        // IMPORTANT: Remaining hours must deduct BOTH flown hours AND chartered hours
+        // Chartered hours are flights paid by this user but flown by another pilot
+        totalRemainingHours: client.summary.totalPurchasedHours - client.summary.totalFlownHours - client.summary.totalCharteredHours,
+        flightCountLast12Months: client.summary.flights12Months,
+        flightCountLast90Days: client.summary.flights90Days,
+        packageCount: client.summary.packageCount,
+        totalValue: client.summary.totalValue,
+        currency: client.summary.currency,
+        // Packages will be loaded on-demand when user clicks on a client
+        packages: [],
+        // Placeholder for fields not available in summary API
+        currentYearHours: 0,
+        previousYearHours: 0,
+        ferryHoursCurrentYear: 0,
+        ferryHoursPreviousYear: 0,
+        ferryHoursTotal: client.summary.totalFerryHours,
+        charterHoursCurrentYear: 0,
+        charterHoursPreviousYear: 0,
+        charterHoursTotal: 0,
+        charteredHoursCurrentYear: 0,
+        charteredHoursPreviousYear: 0,
+        demoHoursCurrentYear: 0,
+        demoHoursPreviousYear: 0,
+        demoHoursTotal: client.summary.totalDemoHours,
+        recentFlights: [],
+      }));
+
+      setClients(transformedClients);
+
+      // Update pagination
+      setPagination({
+        page: data.pagination.page,
+        limit: data.pagination.limit,
+        total: data.pagination.total,
+        pages: data.pagination.totalPages
+      });
+
+      // Use aggregate statistics from API (for ALL clients, not just paginated)
+      if (data.aggregateStats) {
+        setAggregateStats(data.aggregateStats);
+        console.log('📊 Received aggregate stats from API:', data.aggregateStats);
+      }
+
+      // Keep the old state for backward compatibility (will be removed later)
+      const totalCurrentYear = transformedClients.reduce((sum: number, c: any) => sum + (c.totalUsedHours || 0), 0);
+      setTotalCurrentYearHours(totalCurrentYear);
+      setTotalPreviousYearHours(0); // Not available in summary
+      setTotalFerryHoursCurrentYear(transformedClients.reduce((sum: number, c: any) => sum + (c.totalFerryHours || 0), 0));
+      setTotalFerryHoursPreviousYear(0);
+      setTotalCharterHoursCurrentYear(0);
+      setTotalCharterHoursPreviousYear(0);
+      setTotalCharteredHoursCurrentYear(transformedClients.reduce((sum: number, c: any) => sum + (c.totalCharteredHours || 0), 0));
+      setTotalCharteredHoursPreviousYear(0);
+      setTotalDemoHoursCurrentYear(transformedClients.reduce((sum: number, c: any) => sum + (c.totalDemoHours || 0), 0));
+      setTotalDemoHoursPreviousYear(0);
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       toast.error('Failed to load usage data');
@@ -307,6 +407,15 @@ export default function Usage() {
     fetchCurrentUser();
     fetchClientHours();
   }, []);
+
+  // Debounced search effect - trigger API call when search term changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchClientHours(1, pagination.limit, searchTerm);
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   // Helper functions for role-based display
   const isPilotOrStudent = () => {
@@ -326,19 +435,17 @@ export default function Usage() {
     );
   };
 
-  // Filter clients by search term and status
+  // Filter clients by status and client type (search is now server-side)
+  // Note: Status and client type filters are still client-side for now
   const filteredClients = clients.filter(client => {
     // For personal mode (admin/manager users), only show current user's data
     if (isAdminOrManager() && viewMode === 'personal') {
       return currentUserEmail && client.client.email === currentUserEmail;
     }
-    
-    const matchesSearch = !searchTerm || 
-      client.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      client.client.company?.name.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'all' || 
+
+    // Search is now handled server-side via API
+
+    const matchesStatus = statusFilter === 'all' ||
       (statusFilter === 'low hours' && client.totalRemainingHours > 0 && client.totalRemainingHours <= 1) ||
       (statusFilter === 'in progress' && client.totalRemainingHours > 1) ||
       (statusFilter === 'overdrawn' && client.totalRemainingHours <= 0);
@@ -347,7 +454,7 @@ export default function Usage() {
       (clientTypeFilter === 'company' && client.client.company) ||
       (clientTypeFilter === 'individual' && !client.client.company);
 
-    return matchesSearch && matchesStatus && matchesClientType;
+    return matchesStatus && matchesClientType;
   });
 
   // Pagination logic
@@ -369,9 +476,14 @@ export default function Usage() {
     setPagination(prev => ({ ...prev, page: 1 }));
   }, [searchTerm, statusFilter, clientTypeFilter]);
 
-  const handleViewDetails = (client: ClientHoursData) => {
-    setSelectedClient(client);
-    setIsModalOpen(true);
+  const handleViewDetails = (clientData: ClientHoursData) => {
+    // The API returns client data with id directly on the client object
+    // But the ClientHoursData type has a nested client property
+    // We need to use the nested client.id
+    const userId = clientData.client?.id || (clientData as any).id;
+    if (userId) {
+      router.push(`/usage/${userId}`);
+    }
   };
 
   const handleOrderHours = (client: ClientHoursData) => {
@@ -515,6 +627,18 @@ export default function Usage() {
     return new Date(dateString).toLocaleDateString('ro-RO');
   };
 
+  const togglePackageExpansion = (packageId: string) => {
+    setExpandedPackages(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(packageId)) {
+        newSet.delete(packageId);
+      } else {
+        newSet.add(packageId);
+      }
+      return newSet;
+    });
+  };
+
   const availablePackages = [
     { hours: 10, price: 1500, popular: false },
     { hours: 20, price: 2800, popular: true },
@@ -554,7 +678,7 @@ export default function Usage() {
                   </div>
                 )}
                 <Button
-                  onClick={fetchClientHours}
+                  onClick={() => fetchClientHours(1, pagination.limit, searchTerm)}
                   disabled={loading}
                   variant="outline"
                   size="sm"
@@ -634,8 +758,8 @@ export default function Usage() {
               </Alert>
             )}
 
-            {/* Flight Hours Summary Cards */}
-            {filteredClients.length > 0 && (
+            {/* Flight Hours Summary Cards - REMOVED */}
+            {false && filteredClients.length > 0 && (
               <div className="space-y-6 mb-6">
                 {/* Main Business Metrics - 4 cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -643,7 +767,7 @@ export default function Usage() {
                      <CardContent className="p-2">
                        <CardTitle className="text-sm font-medium text-muted-foreground">Total Purchased</CardTitle>
                        <div className="mt-0.5">
-                         <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0))}</p>
+                         <p className="text-xl font-bold tracking-tight">{formatHours(aggregateStats.totalPurchasedHours)}</p>
                          <p className="text-xs text-muted-foreground">All flight hours acquired by users</p>
                        </div>
                      </CardContent>
@@ -652,7 +776,7 @@ export default function Usage() {
                            <div className="flex items-center space-x-1">
                              <span className="text-xs text-muted-foreground">{formatHours(totalPreviousYearHours)}</span>
                            {(() => {
-                             const currentBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
+                             const currentBought = aggregateStats.totalPurchasedHours;
                              const previousBought = totalPreviousYearHours;
                              const trend = currentBought > previousBought ? 'up' : currentBought < previousBought ? 'down' : 'same';
                              return trend === 'up' ? (
@@ -670,7 +794,7 @@ export default function Usage() {
                      <CardContent className="p-2">
                        <CardTitle className="text-sm font-medium text-muted-foreground">Used by Clients</CardTitle>
                        <div className="mt-0.5">
-                         <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => sum + client.totalUsedHours, 0))}</p>
+                         <p className="text-xl font-bold tracking-tight">{formatHours(aggregateStats.totalFlownHours)}</p>
                          <p className="text-xs text-muted-foreground">Hours used by clients during regular flights</p>
                        </div>
                      </CardContent>
@@ -680,7 +804,7 @@ export default function Usage() {
                            <div className="flex items-center space-x-1">
                              <span className="text-xs text-muted-foreground">{formatHours(totalPreviousYearHours)}</span>
                              {(() => {
-                               const currentUsed = filteredClients.reduce((sum, client) => sum + client.totalUsedHours, 0);
+                               const currentUsed = aggregateStats.totalFlownHours;
                                const previousUsed = totalPreviousYearHours;
                                const trend = currentUsed > previousUsed ? 'up' : currentUsed < previousUsed ? 'down' : 'same';
                                return trend === 'up' ? (
@@ -692,8 +816,8 @@ export default function Usage() {
                            </div>
                            <p className="text-sm font-medium text-green-600 dark:text-green-400">
                              {(() => {
-                               const totalBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
-                               const totalUsed = filteredClients.reduce((sum, client) => sum + client.totalUsedHours, 0);
+                               const totalBought = aggregateStats.totalPurchasedHours;
+                               const totalUsed = aggregateStats.totalFlownHours;
                                const percentage = totalBought > 0 ? (totalUsed / totalBought) * 100 : 0;
                                return `${percentage.toFixed(1)}%`;
                              })()}
@@ -707,9 +831,7 @@ export default function Usage() {
                      <CardContent className="p-2">
                        <CardTitle className="text-sm font-medium text-muted-foreground">Chartered Flights</CardTitle>
                        <div className="mt-0.5">
-                         <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => 
-                           sum + client.charteredHoursTotal, 0
-                         ))}</p>
+                         <p className="text-xl font-bold tracking-tight">{formatHours(aggregateStats.totalCharteredHours)}</p>
                          <p className="text-xs text-muted-foreground">Charter flights with assigned payer</p>
                        </div>
                      </CardContent>
@@ -733,10 +855,8 @@ export default function Usage() {
                            </div>
                            <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
                              {(() => {
-                               const totalBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
-                               const charteredHours = filteredClients.reduce((sum, client) => 
-                                 sum + client.charteredHoursTotal, 0
-                               );
+                               const totalBought = aggregateStats.totalPurchasedHours;
+                               const charteredHours = aggregateStats.totalCharteredHours;
                                const percentage = totalBought > 0 ? (charteredHours / totalBought) * 100 : 0;
                                return `${percentage.toFixed(1)}%`;
                              })()}
@@ -750,7 +870,7 @@ export default function Usage() {
                      <CardContent className="p-2">
                        <CardTitle className="text-sm font-medium text-muted-foreground">Remaining Hours</CardTitle>
                        <div className="mt-0.5">
-                         <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => sum + client.totalRemainingHours, 0))}</p>
+                         <p className="text-xl font-bold tracking-tight">{formatHours(aggregateStats.totalRemainingHours)}</p>
                          <p className="text-xs text-muted-foreground">Unused flight hours still available</p>
                        </div>
                      </CardContent>
@@ -772,8 +892,8 @@ export default function Usage() {
                            </div>
                            <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
                              {(() => {
-                               const totalBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
-                               const totalRemaining = filteredClients.reduce((sum, client) => sum + client.totalRemainingHours, 0);
+                               const totalBought = aggregateStats.totalPurchasedHours;
+                               const totalRemaining = aggregateStats.totalRemainingHours;
                                const percentage = totalBought > 0 ? (totalRemaining / totalBought) * 100 : 0;
                                return `${percentage.toFixed(1)}%`;
                              })()}
@@ -790,9 +910,7 @@ export default function Usage() {
                      <CardContent className="p-2">
                        <CardTitle className="text-sm font-medium text-muted-foreground">Ferry Flights</CardTitle>
                        <div className="mt-0.5">
-                         <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => 
-                           sum + client.ferryHoursTotal, 0
-                         ))}</p>
+                         <p className="text-xl font-bold tracking-tight">{formatHours(aggregateStats.totalFerryHours)}</p>
                          <p className="text-xs text-muted-foreground">Non-revenue positioning flights</p>
                        </div>
                      </CardContent>
@@ -816,10 +934,8 @@ export default function Usage() {
                            </div>
                            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
                              {(() => {
-                               const totalBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
-                               const ferryHours = filteredClients.reduce((sum, client) => 
-                                 sum + client.ferryHoursTotal, 0
-                               );
+                               const totalBought = aggregateStats.totalPurchasedHours;
+                               const ferryHours = aggregateStats.totalFerryHours;
                                const percentage = totalBought > 0 ? (ferryHours / totalBought) * 100 : 0;
                                return `${percentage.toFixed(1)}%`;
                              })()}
@@ -876,9 +992,7 @@ export default function Usage() {
                      <CardContent className="p-2">
                        <CardTitle className="text-sm font-medium text-muted-foreground">Demo Flights</CardTitle>
                        <div className="mt-0.5">
-                         <p className="text-xl font-bold tracking-tight">{formatHours(filteredClients.reduce((sum, client) => 
-                           sum + client.demoHoursTotal, 0
-                         ))}</p>
+                         <p className="text-xl font-bold tracking-tight">{formatHours(aggregateStats.totalDemoHours)}</p>
                          <p className="text-xs text-muted-foreground">Trial, marketing & introductory flights</p>
                        </div>
                      </CardContent>
@@ -902,10 +1016,8 @@ export default function Usage() {
                            </div>
                            <p className="text-sm font-medium text-blue-600 dark:text-blue-400">
                              {(() => {
-                               const totalBought = filteredClients.reduce((sum, client) => sum + client.totalBoughtHours, 0);
-                               const demoHours = filteredClients.reduce((sum, client) => 
-                                 sum + client.demoHoursTotal, 0
-                               );
+                               const totalBought = aggregateStats.totalPurchasedHours;
+                               const demoHours = aggregateStats.totalDemoHours;
                                const percentage = totalBought > 0 ? (demoHours / totalBought) * 100 : 0;
                                return `${percentage.toFixed(1)}%`;
                              })()}
@@ -928,10 +1040,63 @@ export default function Usage() {
 
             {/* Clients Table */}
             {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <RefreshCw className="h-6 w-6 animate-spin" />
-                <span className="ml-2">Loading usage data...</span>
+              <>
+                {/* Skeleton for Table */}
+                <div className="rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-48">Client</TableHead>
+                      <TableHead>
+                        <div className="text-left">
+                          <div>Last</div>
+                          <div>90 days</div>
+                        </div>
+                      </TableHead>
+                      <TableHead>
+                        <div className="text-left">
+                          <div>Last</div>
+                          <div>12 months</div>
+                        </div>
+                      </TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Purchased</TableHead>
+                      <TableHead className="text-right">Flown</TableHead>
+                      <TableHead className="text-right">Ferry</TableHead>
+                      <TableHead className="text-right">Chartered</TableHead>
+                      <TableHead className="text-right">Demo</TableHead>
+                      <TableHead className="text-right">Remaining</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <TableRow key={index}>
+                        <TableCell>
+                          <div className="flex items-center space-x-3">
+                            <Skeleton className="h-10 w-10 rounded-full" />
+                            <div className="space-y-2">
+                              <Skeleton className="h-4 w-[180px]" />
+                              <Skeleton className="h-3 w-[140px]" />
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-12" /></TableCell>
+                        <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+                        <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
+                        <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
+                        <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
+                        <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
+                        <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
+                        <TableCell className="text-right"><Skeleton className="h-4 w-16 ml-auto" /></TableCell>
+                        <TableCell className="text-right"><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </div>
+              </>
             ) : filteredClients.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 {clients.length === 0 ? (
@@ -1182,7 +1347,7 @@ export default function Usage() {
                                 clientData.totalRemainingHours <= 0 ? 'text-destructive' : 
                                 clientData.totalRemainingHours <= 5 ? 'text-orange-600' : 'text-green-600'
                               )}>
-                                {clientData.totalRemainingHours > 0 ? formatHours(clientData.totalRemainingHours) : '0:00'}
+                                {formatHours(clientData.totalRemainingHours)}
                               </span>
                             </TableCell>
                             <TableCell>
@@ -2121,6 +2286,87 @@ export default function Usage() {
                                 <span>{Math.round((pkg.remainingHours / pkg.totalHours) * 100)}% remaining</span>
                               </div>
                             </div>
+
+                            {/* Expandable Flight Details */}
+                            {(pkg.allocatedFlights?.length > 0 || pkg.allocatedCharteredFlights?.length > 0) && (
+                              <div className="mt-3 border-t pt-3">
+                                <button
+                                  onClick={() => togglePackageExpansion(pkg.id)}
+                                  className="flex items-center justify-between w-full text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                                >
+                                  <span>
+                                    View Flight Allocations ({(pkg.allocatedFlights?.length || 0) + (pkg.allocatedCharteredFlights?.length || 0)} flights)
+                                  </span>
+                                  {expandedPackages.has(pkg.id) ? (
+                                    <ChevronUp className="h-4 w-4" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4" />
+                                  )}
+                                </button>
+
+                                {expandedPackages.has(pkg.id) && (
+                                  <div className="mt-3 space-y-3">
+                                    {/* Regular Flights */}
+                                    {pkg.allocatedFlights && pkg.allocatedFlights.length > 0 && (
+                                      <div>
+                                        <h5 className="text-xs font-semibold text-green-600 dark:text-green-400 mb-2">
+                                          Regular Flights ({pkg.allocatedFlights.length})
+                                        </h5>
+                                        <div className="space-y-2">
+                                          {pkg.allocatedFlights.map((flight, idx) => (
+                                            <div key={`${flight.flightId}-${idx}`} className="flex items-center justify-between p-2 bg-green-50 dark:bg-green-950/20 rounded text-xs">
+                                              <div className="flex-1">
+                                                <div className="font-medium">{formatDate(flight.date)}</div>
+                                                <div className="text-muted-foreground text-[10px]">
+                                                  {flight.flightType}{flight.role && ` • ${flight.role}`}
+                                                </div>
+                                              </div>
+                                              <div className="text-right">
+                                                <div className="font-bold text-green-600 dark:text-green-400">
+                                                  {formatHours(flight.hours)}
+                                                </div>
+                                                <div className="text-muted-foreground text-[10px]">
+                                                  of {formatHours(flight.totalFlightHours)}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Chartered Flights */}
+                                    {pkg.allocatedCharteredFlights && pkg.allocatedCharteredFlights.length > 0 && (
+                                      <div>
+                                        <h5 className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-2">
+                                          Chartered Flights ({pkg.allocatedCharteredFlights.length})
+                                        </h5>
+                                        <div className="space-y-2">
+                                          {pkg.allocatedCharteredFlights.map((flight, idx) => (
+                                            <div key={`${flight.flightId}-${idx}`} className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-950/20 rounded text-xs">
+                                              <div className="flex-1">
+                                                <div className="font-medium">{formatDate(flight.date)}</div>
+                                                <div className="text-muted-foreground text-[10px]">
+                                                  {flight.flightType}{flight.role && ` • ${flight.role}`}
+                                                </div>
+                                              </div>
+                                              <div className="text-right">
+                                                <div className="font-bold text-blue-600 dark:text-blue-400">
+                                                  {formatHours(flight.hours)}
+                                                </div>
+                                                <div className="text-muted-foreground text-[10px]">
+                                                  of {formatHours(flight.totalFlightHours)}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
