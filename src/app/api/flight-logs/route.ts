@@ -299,10 +299,17 @@ export async function GET(request: NextRequest) {
     logger.debug('📊 Total flight logs after filtering:', total);
 
     // Execute the filtered query
-    const { data: flightLogsData, error: flightLogsErrorData } = await query
+    // If limit is >= 5000, fetch all records (for heatmaps and exports)
+    // Otherwise use pagination with range
+    let queryWithPagination = query
       .order('date', { ascending: false })
-      .order('departureTime', { ascending: false })
-      .range(skip, skip + limit - 1);
+      .order('departureTime', { ascending: false });
+
+    if (limit < 5000) {
+      queryWithPagination = queryWithPagination.range(skip, skip + limit - 1);
+    }
+
+    const { data: flightLogsData, error: flightLogsErrorData } = await queryWithPagination;
 
     if (flightLogsErrorData) {
       logger.error('❌ Filtered query failed:', flightLogsErrorData);
