@@ -69,6 +69,8 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
     const viewMode = searchParams.get('viewMode') || 'company';
+
+    logger.debug('📋 Request params:', { page, limit, viewMode });
     const search = searchParams.get('search') || '';
     const flightType = searchParams.get('flightType') || '';
     const userId = searchParams.get('userId') || '';
@@ -307,14 +309,18 @@ export async function GET(request: NextRequest) {
 
     if (limit < 5000) {
       // Normal pagination with range
+      logger.debug('📄 Using pagination with range:', { skip, limit });
       queryWithPagination = queryWithPagination.range(skip, skip + limit - 1);
     } else {
       // For large requests, set a very high limit to get all records
       // Supabase's default is 1000, so we need to explicitly set a higher limit
+      logger.debug('🔓 Using unlimited query with limit: 100000');
       queryWithPagination = queryWithPagination.limit(100000);
     }
 
     const { data: flightLogsData, error: flightLogsErrorData } = await queryWithPagination;
+
+    logger.debug('✅ Query returned', flightLogsData?.length, 'records');
 
     if (flightLogsErrorData) {
       logger.error('❌ Filtered query failed:', flightLogsErrorData);
