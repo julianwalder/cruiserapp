@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flight Heatmap</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin="anonymous" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    .leaflet-popup-content {
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .leaflet-popup-content strong {
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script>
+    // Data injection placeholders - these will be replaced by the API route
+    const AIRFIELDS = {{AIRFIELDS_JSON}};
+    const ROUTES = {{ROUTES_JSON}};
+    const CENTER = {{CENTER_JSON}};
+    const COORDINATES = {{COORDINATES_JSON}};
+
+    // Flags for tracking loading state
+    let tilesLoaded = 0;
+    let tilesTotal = 0;
+    let mapInitialized = false;
+
+    // Initialize the map
+    const map = L.map('map', {
+      center: CENTER,
+      zoom: 6,
+      zoomControl: false,
+      attributionControl: true
+    });
+
+    // Add OpenStreetMap tile layer
+    const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      crossOrigin: 'anonymous',
+      maxZoom: 19
+    });
+
+    // Track tile loading
+    tileLayer.on('loading', function() {
+      tilesTotal++;
+    });
+
+    tileLayer.on('load', function() {
+      tilesLoaded++;
+      checkIfReady();
+    });
+
+    tileLayer.addTo(map);
+
+    // Fit bounds if coordinates available
+    if (COORDINATES && COORDINATES.length > 0) {
+      const bounds = L.latLngBounds(COORDINATES);
+      map.fitBounds(bounds, { padding: [50, 50] });
+    }
+
+    // Add heatmap layer
+    if (AIRFIELDS && AIRFIELDS.length > 0) {
+      const heatData = AIRFIELDS.map(af => [af.latitude, af.longitude, af.visitCount]);
+
+      L.heatLayer(heatData, {
+        radius: 25,
+        blur: 15,
+        maxZoom: 10,
+        gradient: {
+          0.0: 'blue',
+          0.5: 'lime',
+          0.7: 'yellow',
+          1.0: 'red'
+        }
+      }).addTo(map);
+    }
+
+    // Add route lines (solid red lines)
+    if (ROUTES && ROUTES.length > 0) {
+      ROUTES.forEach(function(route) {
+        const lineWeight = Math.min(2 + route.flightCount * 0.5, 6);
+
+        L.polyline(
+          [[route.from.lat, route.from.lng], [route.to.lat, route.to.lng]],
+          {
+            color: '#ef4444',
+            weight: lineWeight,
+            opacity: 0.6
+          }
+        ).addTo(map);
+      });
+    }
+
+    // Add airfield markers
+    if (AIRFIELDS && AIRFIELDS.length > 0) {
+      AIRFIELDS.forEach(function(af) {
+        const marker = L.circleMarker([af.latitude, af.longitude], {
+          radius: 6,
+          color: '#dc2626',
+          fillColor: '#ef4444',
+          fillOpacity: 0.8,
+          weight: 2
+        }).addTo(map);
+
+        marker.bindPopup(
+          '<div style="font-size: 14px;">' +
+            '<strong>' + af.name + '</strong> (' + af.code + ')<br>' +
+            'Visits: <strong>' + af.visitCount + '</strong>' +
+          '</div>'
+        );
+      });
+    }
+
+    // Mark map as initialized
+    mapInitialized = true;
+
+    // Check if ready immediately in case tiles are cached
+    setTimeout(checkIfReady, 100);
+
+    // Fallback timeout to ensure we signal ready even if tile events don't fire
+    setTimeout(function() {
+      if (!window.mapReady) {
+        console.log('Fallback timeout: marking map as ready');
+        window.mapReady = true;
+      }
+    }, 5000);
+
+    // Function to check if map is ready for screenshot
+    function checkIfReady() {
+      // Map is ready when:
+      // 1. Map is initialized
+      // 2. All tiles that started loading have finished (or no tiles loaded)
+      // 3. A small delay has passed to ensure rendering is complete
+
+      if (mapInitialized && (tilesTotal === 0 || tilesLoaded >= tilesTotal)) {
+        setTimeout(function() {
+          console.log('Map is ready for screenshot');
+          window.mapReady = true;
+        }, 1000);
+      }
+    }
+  </script>
+</body>
+</html>

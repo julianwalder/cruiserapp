@@ -2,6 +2,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  // Note: React Strict Mode is disabled because Leaflet's MapContainer
+  // doesn't properly handle Strict Mode's intentional double-mounting behavior.
+  // This is a known limitation documented in the React Leaflet community.
+  // Strict Mode is a development-only tool and doesn't affect production.
+  // The server-side export feature works independently of this setting.
+  reactStrictMode: false,
   eslint: {
     // Warning: This allows production builds to successfully complete even if
     // your project has ESLint errors.

@@ -36,7 +36,8 @@ import {
   CheckCircle,
   ArrowUp,
   ArrowDown,
-  Plane
+  Plane,
+  Map
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -233,7 +234,7 @@ export default function Usage() {
   const [currentUserRoles, setCurrentUserRoles] = useState<string[]>([]);
   const [pagination, setPagination] = useState({
     page: 1,
-    limit: 10,
+    limit: 50,
     total: 0,
     pages: 0
   });
@@ -677,6 +678,13 @@ export default function Usage() {
                     </Tabs>
                   </div>
                 )}
+                <Button
+                  onClick={() => router.push('/usage/heatmap')}
+                  size="sm"
+                >
+                  <Map className="h-4 w-4 mr-2" />
+                  All Flights Heatmap
+                </Button>
                 <Button
                   onClick={() => fetchClientHours(1, pagination.limit, searchTerm)}
                   disabled={loading}

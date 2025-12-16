@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Map } from 'lucide-react';
 import SettlementLedger from '@/components/SettlementLedger';
 
 interface Package {
@@ -127,19 +127,27 @@ export default function UserUsagePage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push('/usage')}
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold">Usage Statistics</h1>
-          <p className="text-muted-foreground">{userName}</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push('/usage')}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">{userName}</h1>
+          </div>
         </div>
+        <Button
+          size="sm"
+          onClick={() => router.push(`/usage/${userId}/heatmap`)}
+        >
+          <Map className="h-4 w-4 mr-2" />
+          Heatmap
+        </Button>
       </div>
 
       {/* Chronological Settlement Ledger */}

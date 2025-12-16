@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "react-day-picker/dist/style.css";
+@import "leaflet/dist/leaflet.css";
 
 @custom-variant dark (&:is(.dark *));
 
