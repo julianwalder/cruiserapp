@@ -46,7 +46,7 @@ export async function GET(
     const isPilot = userRoles.includes('PILOT');
     const isStudent = userRoles.includes('STUDENT');
 
-    // Fetch the flight log with basic data and enrich with payer information
+    // Fetch the flight log with basic data
     const { data: flightLog, error: flightLogError } = await supabase
       .from('flight_logs')
       .select('*')
@@ -59,6 +59,77 @@ export async function GET(
         { error: 'Flight log not found' },
         { status: 404 }
       );
+    }
+
+    // Enrich with related data
+    let enrichedFlightLog: any = { ...flightLog };
+
+    // Fetch aircraft
+    if (flightLog.aircraftId) {
+      const { data: aircraft } = await supabase
+        .from('aircraft')
+        .select(`
+          id,
+          callSign,
+          icao_reference_type:icaoReferenceType (
+            model,
+            manufacturer,
+            type_designator
+          )
+        `)
+        .eq('id', flightLog.aircraftId)
+        .single();
+      if (aircraft) enrichedFlightLog.aircraft = aircraft;
+    }
+
+    // Fetch pilot
+    if (flightLog.userId) {
+      const { data: pilot } = await supabase
+        .from('users')
+        .select('id, firstName, lastName, email')
+        .eq('id', flightLog.userId)
+        .single();
+      if (pilot) enrichedFlightLog.pilot = pilot;
+    }
+
+    // Fetch instructor
+    if (flightLog.instructorId) {
+      const { data: instructor } = await supabase
+        .from('users')
+        .select('id, firstName, lastName, email')
+        .eq('id', flightLog.instructorId)
+        .single();
+      if (instructor) enrichedFlightLog.instructor = instructor;
+    }
+
+    // Fetch departure airfield
+    if (flightLog.departureAirfieldId) {
+      const { data: departureAirfield } = await supabase
+        .from('airfields')
+        .select('id, name, code, city, country')
+        .eq('id', flightLog.departureAirfieldId)
+        .single();
+      if (departureAirfield) enrichedFlightLog.departure_airfield = departureAirfield;
+    }
+
+    // Fetch arrival airfield
+    if (flightLog.arrivalAirfieldId) {
+      const { data: arrivalAirfield } = await supabase
+        .from('airfields')
+        .select('id, name, code, city, country')
+        .eq('id', flightLog.arrivalAirfieldId)
+        .single();
+      if (arrivalAirfield) enrichedFlightLog.arrival_airfield = arrivalAirfield;
+    }
+
+    // Fetch payer if exists
+    if (flightLog.payer_id) {
+      const { data: payer } = await supabase
+        .from('users')
+        .select('id, firstName, lastName, email')
+        .eq('id', flightLog.payer_id)
+        .single();
+      if (payer) enrichedFlightLog.payer = payer;
     }
 
     // Check permissions based on user role
@@ -78,28 +149,6 @@ export async function GET(
         { error: 'Insufficient permissions' },
         { status: 403 }
       );
-    }
-
-    // Enrich with payer information if payer_id exists
-    let enrichedFlightLog = { ...flightLog };
-    if (flightLog.payer_id) {
-      try {
-        const { data: payerData, error: payerError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', flightLog.payer_id)
-          .single();
-        
-        if (!payerError && payerData) {
-          enrichedFlightLog = {
-            ...flightLog,
-            payer: payerData
-          };
-        }
-      } catch (error) {
-        logger.debug('⚠️ Error fetching payer data:', error);
-        // Continue without payer data
-      }
     }
 
     logger.debug('✅ Flight log fetched successfully');
