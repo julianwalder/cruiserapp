@@ -306,7 +306,12 @@ export async function GET(request: NextRequest) {
       .order('departureTime', { ascending: false });
 
     if (limit < 5000) {
+      // Normal pagination with range
       queryWithPagination = queryWithPagination.range(skip, skip + limit - 1);
+    } else {
+      // For large requests, set a very high limit to get all records
+      // Supabase's default is 1000, so we need to explicitly set a higher limit
+      queryWithPagination = queryWithPagination.limit(100000);
     }
 
     const { data: flightLogsData, error: flightLogsErrorData } = await queryWithPagination;
