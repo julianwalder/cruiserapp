@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     const dateFrom = `${year}-01-01`;
     const dateTo = `${year}-12-31`;
 
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
     const flightResponse = await fetch(
       `${baseUrl}/api/flight-logs?userId=${userId}&dateFrom=${dateFrom}&dateTo=${dateTo}&limit=10000`,
       {

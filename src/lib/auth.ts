@@ -180,19 +180,25 @@ export class AuthService {
 
   // Utility function to get token from either localStorage or cookies
   static getToken(): string | null {
-    // Try localStorage first
+    // Check for impersonation token first
+    const impersonationToken = localStorage.getItem('impersonationToken');
+    if (impersonationToken) {
+      return impersonationToken;
+    }
+
+    // Try regular token from localStorage
     const localStorageToken = localStorage.getItem('token');
     if (localStorageToken) {
       return localStorageToken;
     }
-    
+
     // Fallback to cookies
     const cookies = document.cookie.split(';');
     const tokenCookie = cookies.find(cookie => cookie.trim().startsWith('token='));
     if (tokenCookie) {
       return tokenCookie.split('=')[1];
     }
-    
+
     return null;
   }
 
