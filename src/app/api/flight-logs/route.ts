@@ -303,31 +303,68 @@ export async function GET(request: NextRequest) {
     // Execute the filtered query
     // If limit is >= 5000, fetch all records (for heatmaps and exports)
     // Otherwise use pagination with range
-    let queryWithPagination = query
-      .order('date', { ascending: false })
-      .order('departureTime', { ascending: false });
+    let flightLogsData: any[] = [];
 
     if (limit < 5000) {
       // Normal pagination with range
       logger.debug('📄 Using pagination with range:', { skip, limit });
-      queryWithPagination = queryWithPagination.range(skip, skip + limit - 1);
+      const queryWithPagination = query
+        .order('date', { ascending: false })
+        .order('departureTime', { ascending: false })
+        .range(skip, skip + limit - 1);
+
+      const { data, error: flightLogsErrorData } = await queryWithPagination;
+
+      if (flightLogsErrorData) {
+        logger.error('❌ Filtered query failed:', flightLogsErrorData);
+        return NextResponse.json(
+          { error: 'Internal server error' },
+          { status: 500 }
+        );
+      }
+
+      flightLogsData = data || [];
+      logger.debug('✅ Query returned', flightLogsData?.length, 'records');
     } else {
-      // For large requests, set a very high limit to get all records
-      // Supabase's default is 1000, so we need to explicitly set a higher limit
-      logger.debug('🔓 Using unlimited query with limit: 100000');
-      queryWithPagination = queryWithPagination.limit(100000);
-    }
+      // For large requests (heatmaps, exports), fetch all records in chunks
+      // Supabase has a hard limit of 1000 rows per request, so we paginate
+      logger.debug('🔓 Fetching all records in chunks of 1000');
 
-    const { data: flightLogsData, error: flightLogsErrorData } = await queryWithPagination;
+      const CHUNK_SIZE = 1000;
+      let currentOffset = 0;
+      let hasMore = true;
 
-    logger.debug('✅ Query returned', flightLogsData?.length, 'records');
+      while (hasMore && currentOffset < (total || 0)) {
+        const chunkQuery = query
+          .order('date', { ascending: false })
+          .order('departureTime', { ascending: false })
+          .range(currentOffset, currentOffset + CHUNK_SIZE - 1);
 
-    if (flightLogsErrorData) {
-      logger.error('❌ Filtered query failed:', flightLogsErrorData);
-      return NextResponse.json(
-        { error: 'Internal server error' },
-        { status: 500 }
-      );
+        const { data: chunkData, error: chunkError } = await chunkQuery;
+
+        if (chunkError) {
+          logger.error('❌ Chunk query failed:', chunkError);
+          return NextResponse.json(
+            { error: 'Internal server error' },
+            { status: 500 }
+          );
+        }
+
+        if (!chunkData || chunkData.length === 0) {
+          hasMore = false;
+        } else {
+          flightLogsData = flightLogsData.concat(chunkData);
+          currentOffset += CHUNK_SIZE;
+          logger.debug(`📦 Fetched chunk: ${chunkData.length} records, total so far: ${flightLogsData.length}`);
+
+          // If we got fewer records than CHUNK_SIZE, we've reached the end
+          if (chunkData.length < CHUNK_SIZE) {
+            hasMore = false;
+          }
+        }
+      }
+
+      logger.debug('✅ All chunks fetched, total records:', flightLogsData.length);
     }
 
     logger.debug('✅ Filtered query succeeded, got', flightLogsData?.length, 'records');
