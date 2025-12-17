@@ -9,6 +9,7 @@ import {
   UserCheck
 } from 'lucide-react';
 import PilotOverview from '@/components/PilotOverview';
+import StudentDashboard from '@/components/StudentDashboard';
 import FleetStatus from '@/components/FleetStatus';
 import { StudentsStatus } from '@/components/StudentsStatus';
 import { User } from "@/types/uuid-types";
@@ -97,7 +98,6 @@ export default function DashboardPage() {
     return user?.userRoles?.some(userRole => userRole.roles.name === roleName) || false;
   };
 
-  const isPilotOrStudent = () => hasRole('PILOT') || hasRole('STUDENT');
   const isAdminOrManager = () => hasRole('ADMIN') || hasRole('SUPER_ADMIN') || hasRole('BASE_MANAGER');
 
   if (!user) {
@@ -119,8 +119,12 @@ export default function DashboardPage() {
       ) && <GreetingCard user={user} />}
       
       {/* Content based on user role */}
-      {isPilotOrStudent() && !isAdminOrManager() && (
+      {hasRole('PILOT') && !isAdminOrManager() && (
         <PilotOverview />
+      )}
+
+      {hasRole('STUDENT') && !hasRole('PILOT') && !isAdminOrManager() && (
+        <StudentDashboard />
       )}
       
       {isAdminOrManager() && (

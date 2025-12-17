@@ -52,13 +52,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Access denied - pilot/student only' }, { status: 403 });
     }
 
-    // Get hour package data from usage API
-    const usageResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/usage`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
-
+    // Get hour package data directly from database
     let hourSummary = {
       totalBought: 0,
       totalUsed: 0,
@@ -66,26 +60,62 @@ export async function GET(request: NextRequest) {
       packages: []
     };
 
-    if (usageResponse.ok) {
-      const usageData = await usageResponse.json();
-      // Find the current user's data by email
-      const userData = usageData.clients?.find((client: any) => client.client.email === decoded.email);
-      
-      if (userData) {
-        hourSummary = {
-          totalBought: userData.totalBoughtHours || 0,
-          totalUsed: userData.totalUsedHours || 0,
-          totalRemaining: userData.totalRemainingHours || 0,
-          packages: userData.packages || []
-        };
-        
-        console.log(`✅ Found user data for ${decoded.email}: ${userData.totalBoughtHours} bought, ${userData.totalUsedHours} used`);
-      } else {
-        console.log(`❌ User data not found for ${decoded.email} in usage API response`);
-      }
-    } else {
-      console.log('❌ Failed to fetch usage data:', usageResponse.status);
+    // First, get invoice IDs for this user from invoice_clients
+    const { data: userInvoiceClients, error: clientError } = await supabase
+      .from('invoice_clients')
+      .select('invoice_id')
+      .eq('user_id', user.id);
+
+    if (clientError) {
+      console.error('Error fetching invoice clients:', clientError);
     }
+
+    const invoiceIds = userInvoiceClients?.map(ic => ic.invoice_id) || [];
+
+    // Fetch invoices with their items for this user
+    const { data: invoices, error: invoicesError } = await supabase
+      .from('invoices')
+      .select(`
+        id,
+        smartbill_id,
+        issue_date,
+        total_amount,
+        currency,
+        status,
+        invoice_items (
+          line_id,
+          name,
+          quantity,
+          unit,
+          unit_price,
+          total_amount
+        )
+      `)
+      .in('id', invoiceIds.length > 0 ? invoiceIds : [-1])
+      .in('status', ['paid', 'imported'])
+      .order('issue_date', { ascending: false });
+
+    if (invoicesError) {
+      console.error('Error fetching invoices for hour packages:', invoicesError);
+    }
+
+    // Calculate total purchased hours from invoices
+    let totalPurchasedHours = 0;
+    if (invoices) {
+      for (const invoice of invoices) {
+        const hourItems = invoice.invoice_items?.filter((item: any) =>
+          item.unit === 'HUR' || item.unit === 'HOUR' || item.unit === 'H'
+        ) || [];
+
+        hourItems.forEach((item: any) => {
+          totalPurchasedHours += item.quantity || 0;
+        });
+      }
+    }
+
+    console.log(`✅ Found ${totalPurchasedHours} purchased hours for user ${user.id}`);
+
+    hourSummary.totalBought = totalPurchasedHours;
 
     // Fetch flight logs to get EASA currency data
     const { data: flightLogs, error: flightLogsError } = await supabase

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
+import { authenticateRequest, canAccessUserData } from '@/lib/auth-server';
 
 /**
  * GET /api/usage/[userId]
@@ -40,15 +40,10 @@ export async function GET(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-
-    if (!token) {
+    // Authenticate the request
+    const authContext = await authenticateRequest(request);
+    if (!authContext) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const decoded = AuthService.verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
     const supabase = getSupabaseClient();
@@ -58,31 +53,8 @@ export async function GET(
 
     const { userId } = await params;
 
-    // Get requesting user to check permissions
-    const { data: requestingUser, error: userError } = await supabase
-      .from('users')
-      .select(`
-        id,
-        email,
-        user_roles (
-          roles (
-            name
-          )
-        )
-      `)
-      .eq('id', decoded.userId)
-      .single();
-
-    if (userError || !requestingUser) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    // Check permissions
-    const userRoles = requestingUser.user_roles.map((userRole: any) => userRole.roles.name);
-    const isAdmin = userRoles.some(role => ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER'].includes(role));
-    const isOwnData = decoded.userId === userId;
-
-    if (!isAdmin && !isOwnData) {
+    // Check permissions - can this user access the requested userId's data?
+    if (!canAccessUserData(authContext, userId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

@@ -269,7 +269,9 @@ export default function Usage() {
 
   const fetchCurrentUser = async () => {
     try {
-      const token = localStorage.getItem('token');
+      // Check for impersonation token first, then fall back to regular token
+      const impersonationToken = localStorage.getItem('impersonationToken');
+      const token = impersonationToken || localStorage.getItem('token');
       const response = await fetch('/api/auth/me', {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -280,7 +282,7 @@ export default function Usage() {
         const userData = await response.json();
         console.log('🔍 User data from /api/auth/me:', userData);
         setCurrentUserEmail(userData.email);
-        
+
         // Extract all user roles
         let roles: string[] = [];
         if (userData.roles && Array.isArray(userData.roles)) {
@@ -288,7 +290,7 @@ export default function Usage() {
         } else if (userData.userRoles && Array.isArray(userData.userRoles)) {
           roles = userData.userRoles.map((ur: any) => ur.roles?.name).filter(Boolean);
         }
-        
+
         console.log('🔍 Extracted user roles:', roles);
         setCurrentUserRoles(roles);
       }
@@ -302,7 +304,9 @@ export default function Usage() {
     setError(null);
 
     try {
-      const token = localStorage.getItem('token');
+      // Check for impersonation token first, then fall back to regular token
+      const impersonationToken = localStorage.getItem('impersonationToken');
+      const token = impersonationToken || localStorage.getItem('token');
       // NEW API: Paginated, lightweight summary data only
       const url = new URL('/api/usage', window.location.origin);
       url.searchParams.set('page', page.toString());
@@ -409,6 +413,7 @@ export default function Usage() {
     fetchClientHours();
   }, []);
 
+
   // Debounced search effect - trigger API call when search term changes
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -422,7 +427,7 @@ export default function Usage() {
   const isPilotOrStudent = () => {
     // Only PILOT and STUDENT should have the simplified view
     // BASE_MANAGER, ADMIN, SUPER_ADMIN should have full admin functionality
-    const hasAdminRole = currentUserRoles.some(role => 
+    const hasAdminRole = currentUserRoles.some(role =>
       role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'BASE_MANAGER' || role === 'INSTRUCTOR'
     );
     const isPilotStudent = !hasAdminRole && currentUserRoles.some(role => role === 'PILOT' || role === 'STUDENT');
@@ -431,7 +436,7 @@ export default function Usage() {
   };
 
   const isAdminOrManager = () => {
-    return currentUserRoles.some(role => 
+    return currentUserRoles.some(role =>
       role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'BASE_MANAGER' || role === 'INSTRUCTOR'
     );
   };
@@ -562,8 +567,10 @@ export default function Usage() {
     if (!orderPackage || !selectedClient) return;
 
     try {
-      const token = localStorage.getItem('token');
-      
+      // Check for impersonation token first, then fall back to regular token
+      const impersonationToken = localStorage.getItem('impersonationToken');
+      const token = impersonationToken || localStorage.getItem('token');
+
       // Call our microservice to issue proforma invoice
       const response = await fetch('/api/usage/order', {
         method: 'POST',
@@ -678,13 +685,16 @@ export default function Usage() {
                     </Tabs>
                   </div>
                 )}
-                <Button
-                  onClick={() => router.push('/usage/heatmap')}
-                  size="sm"
-                >
-                  <Map className="h-4 w-4 mr-2" />
-                  All Flights Heatmap
-                </Button>
+                {/* Only show All Flights Heatmap for SUPER_ADMIN */}
+                {currentUserRoles.includes('SUPER_ADMIN') && (
+                  <Button
+                    onClick={() => router.push('/usage/heatmap')}
+                    size="sm"
+                  >
+                    <Map className="h-4 w-4 mr-2" />
+                    All Flights Heatmap
+                  </Button>
+                )}
                 <Button
                   onClick={() => fetchClientHours(1, pagination.limit, searchTerm)}
                   disabled={loading}
@@ -1154,12 +1164,16 @@ export default function Usage() {
                   </TableHeader>
                   <TableBody>
                     {paginatedClients.map((clientData) => (
-                      <TableRow 
+                      <TableRow
                         key={clientData.client.id}
-                        className={cn(
-                          (!isPilotOrStudent() && viewMode === 'company') && "cursor-pointer hover:bg-muted/50 transition-colors"
-                        )}
-                        onClick={(!isPilotOrStudent() && viewMode === 'company') ? () => handleViewDetails(clientData) : undefined}
+                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => {
+                          if (isPilotOrStudent()) {
+                            router.push(`/usage/${clientData.client.id}`);
+                          } else if (viewMode === 'company') {
+                            handleViewDetails(clientData);
+                          }
+                        }}
                       >
                         <TableCell className="w-48">
                           <div>
@@ -1315,7 +1329,11 @@ export default function Usage() {
                     <TableBody>
                       {filteredClients.length > 0 ? (
                         filteredClients.map((clientData) => (
-                          <TableRow key={clientData.client.id}>
+                          <TableRow
+                            key={clientData.client.id}
+                            className="cursor-pointer hover:bg-muted/50 transition-colors"
+                            onClick={() => router.push(`/usage/${clientData.client.id}`)}
+                          >
                             <TableCell>
                               <div>
                                 <div className="flex items-center gap-2">
@@ -1441,189 +1459,6 @@ export default function Usage() {
                             </div>
                           </div>
                         )}
-
-                        {/* Hour Packages */}
-                        <div className="bg-background rounded-lg p-6 border">
-                          <h4 className="text-lg font-semibold text-card-foreground mb-4 flex items-center">
-                            <Package className="h-4 w-4 mr-2" />
-                            Hour Packages ({clientData.packages.length}) - FIFO Method
-                          </h4>
-                          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                            <p className="text-sm text-blue-800 dark:text-blue-200">
-                              <strong>FIFO Method:</strong> Hours are consumed from the oldest packages first. 
-                              This ensures fair usage tracking and proper package expiration management.
-                            </p>
-                          </div>
-                          {clientData.packages.length === 0 ? (
-                            <p className="text-muted-foreground text-center py-4">No hour packages found</p>
-                          ) : (
-                            <div className="space-y-4">
-                              {clientData.packages
-                                .sort((a, b) => {
-                                  // Sort by status priority first (active packages at top)
-                                  const statusPriority = { 'in progress': 0, 'low hours': 1, 'expired': 2, 'overdrawn': 3 };
-                                  const aPriority = statusPriority[a.status] ?? 4;
-                                  const bPriority = statusPriority[b.status] ?? 4;
-
-                                  if (aPriority !== bPriority) {
-                                    return aPriority - bPriority;
-                                  }
-
-                                  // If same status, sort by purchase date (oldest first for active, newest first for consumed)
-                                  if (a.status === 'in progress' || a.status === 'low hours') {
-                                    return new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime();
-                                  } else {
-                                    return new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime();
-                                  }
-                                })
-                                .map((pkg, index) => (
-                                  <div key={pkg.id} className={cn(
-                                    "border-2 rounded-lg p-4",
-                                    pkg.remainingHours <= 0 && "opacity-60",
-                                    pkg.remainingHours <= 0 ? "border-gray-800" :
-                                    pkg.remainingHours <= pkg.totalHours * 0.25 ? "border-orange-500" :
-                                    "border-green-500"
-                                  )}>
-                                    <div className="flex items-center justify-between mb-3">
-                                      <div className="flex-1">
-                                        <div className="flex items-center gap-2 mb-1">
-                                          <p className="font-medium text-lg">{formatHours(pkg.totalHours)} Package</p>
-                                          {index === 0 && pkg.usedHours > 0 && (
-                                            <Badge variant="outline" className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                              <Clock className="h-3 w-3 mr-1" />
-                                              First Used
-                                            </Badge>
-                                          )}
-                                          {pkg.remainingHours <= 0 && (
-                                            <Badge variant="outline" className="text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-                                              Consumed
-                                            </Badge>
-                                          )}
-                                        </div>
-                                        <p className="text-sm text-muted-foreground">
-                                          Purchased: {formatDate(pkg.purchaseDate)}
-                                          {pkg.expiryDate && ` • Expires: ${formatDate(pkg.expiryDate)}`}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                          Invoice: {pkg.invoiceId} • Price: {formatCurrency(pkg.price, pkg.currency)}
-                                        </p>
-                                      </div>
-                                      <Badge className={
-                                        pkg.status === 'in progress' ? 'bg-green-500 hover:bg-green-600 text-white' :
-                                        pkg.status === 'low hours' ? 'bg-orange-500 hover:bg-orange-600 text-white' :
-                                        pkg.status === 'overdrawn' ? 'bg-destructive text-white' :
-                                        'bg-gray-500 hover:bg-gray-600 text-white'
-                                      }>
-                                        {pkg.status}
-                                      </Badge>
-                                    </div>
-                                    
-                                    <div className="space-y-3">
-                                      <div className="grid grid-cols-4 gap-4 text-sm">
-                                        <div className="text-center">
-                                          <p className="font-medium text-green-600 dark:text-green-400">Flown</p>
-                                          <p className="text-lg font-bold">{formatHours(pkg.usedHours)}</p>
-                                        </div>
-                                        <div className="text-center">
-                                          <p className="font-medium text-foreground">Chartered</p>
-                                          <p className="text-lg font-bold">{formatHours(pkg.charteredHours || 0)}</p>
-                                        </div>
-                                        <div className="text-center">
-                                          <p className="font-medium text-blue-600 dark:text-blue-400">Remaining</p>
-                                          <p className="text-lg font-bold">{formatHours(pkg.remainingHours)}</p>
-                                        </div>
-                                        <div className="text-center">
-                                          <p className="font-medium text-gray-600 dark:text-gray-400">Total</p>
-                                          <p className="text-lg font-bold">{formatHours(pkg.totalHours)}</p>
-                                        </div>
-                                      </div>
-                                      
-                                      <div className="space-y-2">
-                                        <div className="flex justify-between text-xs text-muted-foreground">
-                                          <span>Usage Progress</span>
-                                          <span>{Math.round(((pkg.usedHours + (pkg.charteredHours || 0)) / pkg.totalHours) * 100)}%</span>
-                                        </div>
-                                        <Progress
-                                          value={((pkg.usedHours + (pkg.charteredHours || 0)) / pkg.totalHours) * 100}
-                                          className={cn(
-                                            pkg.remainingHours <= 0 ? 'bg-green-500' :
-                                            pkg.remainingHours <= pkg.totalHours * 0.25 ? 'bg-orange-500' :
-                                            'bg-green-500'
-                                          )}
-                                        />
-                                      </div>
-                                      
-                                      <div className="flex justify-between text-xs text-muted-foreground">
-                                        <span>Rate: {formatCurrency(pkg.price / pkg.totalHours, pkg.currency)}/hour</span>
-                                        <span>{Math.round((pkg.remainingHours / pkg.totalHours) * 100)}% remaining</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Recent Flights */}
-                        <div className="bg-background rounded-lg p-6 border">
-                          <h4 className="text-lg font-semibold text-card-foreground mb-4 flex items-center">
-                            <TrendingUp className="h-4 w-4 mr-2" />
-                            Recent Flights ({clientData.recentFlights.length})
-                          </h4>
-                          {clientData.recentFlights.length === 0 ? (
-                            <p className="text-muted-foreground text-center py-4">No recent flights found</p>
-                          ) : (
-                            <div className="space-y-3">
-                              {clientData.recentFlights.slice(0, 10).map((flight) => (
-                                <div key={flight.id} className={cn(
-                                  "flex items-center justify-between p-3 border rounded-lg",
-                                  (flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && "bg-gray-50 dark:bg-gray-900/20 opacity-75"
-                                )}>
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <p className="text-sm font-medium">{formatDate(flight.date)}</p>
-                                      {flight.role && (
-                                        <Badge variant="outline" className="text-xs">
-                                          {flight.role}
-                                        </Badge>
-                                      )}
-                                      {flight.isFerryFlight && (
-                                        <Badge variant="outline" className="text-xs bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                                          FERRY
-                                        </Badge>
-                                      )}
-                                      {flight.isDemoFlight && (
-                                        <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-300">
-                                          DEMO
-                                        </Badge>
-                                      )}
-                                      {flight.isCharterFlight && (
-                                        <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-800 dark:text-purple-300">
-                                          CHARTER
-                                        </Badge>
-                                      )}
-                                    </div>
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                      {flight.flightType}
-                                      {(flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && (
-                                        <span className="text-gray-500 ml-1">(excluded from hour calculation)</span>
-                                      )}
-                                    </p>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className={cn(
-                                      "text-sm font-medium",
-                                      (flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && "text-gray-500 line-through"
-                                    )}>
-                                      {formatHours(flight.totalHours)}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">hours</p>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
                       </div>
                     ))}
                   </div>
@@ -1763,209 +1598,6 @@ export default function Usage() {
                      </div>
                   </div>
                 )}
-
-                {/* Hour Packages */}
-                <div className="bg-background rounded-lg p-6 border">
-                  <h4 className="text-lg font-semibold text-card-foreground mb-4 flex items-center">
-                    <Package className="h-4 w-4 mr-2" />
-                    Hour Packages ({clientData.packages.length}) - FIFO Method
-                  </h4>
-                  <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                    <p className="text-sm text-blue-800 dark:text-blue-200">
-                      <strong>FIFO Method:</strong> Hours are consumed from the oldest packages first. 
-                      This ensures fair usage tracking and proper package expiration management.
-                    </p>
-                  </div>
-                  {clientData.packages.length === 0 ? (
-                    <p className="text-muted-foreground text-center py-4">No hour packages found</p>
-                  ) : (
-                    <div className="space-y-4">
-                      {clientData.packages
-                        .sort((a, b) => {
-                          // Sort by status priority first (active packages at top)
-                          const statusPriority = { 'in progress': 0, 'low hours': 1, 'expired': 2, 'overdrawn': 3 };
-                          const aPriority = statusPriority[a.status] ?? 4;
-                          const bPriority = statusPriority[b.status] ?? 4;
-
-                          if (aPriority !== bPriority) {
-                            return aPriority - bPriority;
-                          }
-
-                          // If same status, sort by purchase date (oldest first for active, newest first for consumed)
-                          if (a.status === 'in progress' || a.status === 'low hours') {
-                            return new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime();
-                          } else {
-                            return new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime();
-                          }
-                        })
-                        .map((pkg, index) => (
-                                                 <div key={pkg.id} className={cn(
-                           "border-2 rounded-lg p-4",
-                           pkg.remainingHours <= 0 && "opacity-60",
-                           pkg.remainingHours <= 0 ? "border-gray-800" :
-                           pkg.remainingHours <= pkg.totalHours * 0.25 ? "border-orange-500" :
-                           "border-green-500"
-                         )}>
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <p className="font-medium text-lg">{formatHours(pkg.totalHours)} Package</p>
-                                {index === 0 && pkg.usedHours > 0 && (
-                                  <Badge variant="outline" className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                    <Clock className="h-3 w-3 mr-1" />
-                                    First Used
-                                  </Badge>
-                                )}
-                                {pkg.remainingHours <= 0 && (
-                                  <Badge variant="outline" className="text-xs bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-                                    Consumed
-                                  </Badge>
-                                )}
-                              </div>
-                              <p className="text-sm text-muted-foreground">
-                                Purchased: {formatDate(pkg.purchaseDate)}
-                                {pkg.expiryDate && ` • Expires: ${formatDate(pkg.expiryDate)}`}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                Invoice: {pkg.invoiceId} • Price: {formatCurrency(pkg.price, pkg.currency)}
-                              </p>
-                            </div>
-                            <Badge className={
-                              pkg.status === 'in progress' ? 'bg-green-500 hover:bg-green-600 text-white' :
-                              pkg.status === 'low hours' ? 'bg-orange-500 hover:bg-orange-600 text-white' :
-                              pkg.status === 'overdrawn' ? 'bg-destructive text-white' :
-                              'bg-gray-500 hover:bg-gray-600 text-white'
-                            }>
-                              {pkg.status}
-                            </Badge>
-                          </div>
-                          
-                          <div className="space-y-3">
-                            <div className="grid grid-cols-4 gap-4 text-sm">
-                              <div className="text-center">
-                                <p className="font-medium text-green-600 dark:text-green-400">Flown</p>
-                                <p className="text-lg font-bold">{formatHours(pkg.usedHours)}</p>
-                              </div>
-                              <div className="text-center">
-                                <p className="font-medium text-foreground">Chartered</p>
-                                <p className="text-lg font-bold">{formatHours(pkg.charteredHours || 0)}</p>
-                              </div>
-                              <div className="text-center">
-                                <p className="font-medium text-blue-600 dark:text-blue-400">Remaining</p>
-                                <p className="text-lg font-bold">{formatHours(pkg.remainingHours)}</p>
-                              </div>
-                              <div className="text-center">
-                                <p className="font-medium text-gray-600 dark:text-gray-400">Total</p>
-                                <p className="text-lg font-bold">{formatHours(pkg.totalHours)}</p>
-                              </div>
-                            </div>
-
-                            <div className="space-y-2">
-                              <div className="flex justify-between text-xs text-muted-foreground">
-                                <span>Usage Progress</span>
-                                <span>{Math.round(((pkg.usedHours + (pkg.charteredHours || 0)) / pkg.totalHours) * 100)}%</span>
-                              </div>
-                              <Progress
-                                value={((pkg.usedHours + (pkg.charteredHours || 0)) / pkg.totalHours) * 100}
-                                className={cn(
-                                  pkg.remainingHours <= 0 ? 'bg-green-500' :
-                                  pkg.remainingHours <= pkg.totalHours * 0.25 ? 'bg-orange-500' :
-                                  'bg-green-500'
-                                )}
-                              />
-                            </div>
-                            
-                            <div className="flex justify-between text-xs text-muted-foreground">
-                              <span>Rate: {formatCurrency(pkg.price / pkg.totalHours, pkg.currency)}/hour</span>
-                              <span>{Math.round((pkg.remainingHours / pkg.totalHours) * 100)}% remaining</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Recent Flights */}
-                <div className="bg-background rounded-lg p-6 border">
-                  <h4 className="text-lg font-semibold text-card-foreground mb-4 flex items-center">
-                    <TrendingUp className="h-4 w-4 mr-2" />
-                    Recent Flights ({clientData.recentFlights.length})
-                  </h4>
-                  {clientData.recentFlights.some(flight => flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight || flight.isCharteredFlight) && (
-                    <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                      <p className="text-sm text-blue-800 dark:text-blue-200">
-                        <strong>Note:</strong> FERRY, DEMO, and CHARTER flights are excluded from hour calculations. CHARTERED flights are deducted from your purchased hours and are marked with badges.
-                      </p>
-                    </div>
-                  )}
-                  {clientData.recentFlights.length === 0 ? (
-                    <p className="text-muted-foreground text-center py-4">No recent flights found</p>
-                  ) : (
-                    <div className="space-y-3">
-                                            {clientData.recentFlights.slice(0, 10).map((flight) => (
-                        <div key={flight.id} className={cn(
-                          "flex items-center justify-between p-3 border rounded-lg",
-                          (flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && "bg-gray-50 dark:bg-gray-900/20 opacity-75",
-                          flight.isCharteredFlight && "bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800"
-                        )}>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium">{formatDate(flight.date)}</p>
-                              {flight.role && (
-                                <Badge 
-                                  variant={flight.isCharteredFlight ? "default" : "outline"} 
-                                  className={cn(
-                                    "text-xs",
-                                    flight.isCharteredFlight && "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
-                                  )}
-                                >
-                                  {flight.role}
-                                </Badge>
-                              )}
-                              {flight.isFerryFlight && (
-                                <Badge variant="outline" className="text-xs bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                                  FERRY
-                                </Badge>
-                              )}
-                              {flight.isDemoFlight && (
-                                <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-800 dark:text-blue-300">
-                                  DEMO
-                                </Badge>
-                              )}
-                              {flight.isCharterFlight && (
-                                <Badge variant="outline" className="text-xs bg-purple-100 text-purple-700 dark:bg-purple-800 dark:text-purple-300">
-                                  CHARTER
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {flight.flightType}
-                              {(flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && (
-                                <span className="text-gray-500 ml-1">(excluded from hour calculation)</span>
-                              )}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <span className={cn(
-                              "text-sm font-medium",
-                              (flight.isFerryFlight || flight.isDemoFlight || flight.isCharterFlight) && "text-gray-500 line-through",
-                              flight.isCharteredFlight && "text-purple-700 dark:text-purple-300"
-                            )}>
-                              {formatHours(flight.totalHours)}
-                            </span>
-                            <p className="text-xs text-muted-foreground">hours</p>
-                          </div>
-                        </div>
-                      ))}
-                      {clientData.recentFlights.length > 10 && (
-                        <p className="text-xs text-muted-foreground text-center">
-                          Showing last 10 flights of {clientData.recentFlights.length} total
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
               </div>
             ))}
           </div>

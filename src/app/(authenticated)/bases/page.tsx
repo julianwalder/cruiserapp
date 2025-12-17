@@ -10,7 +10,9 @@ export default function BasesPage() {
     console.log('🔍 BasesPage - Component mounted');
     const fetchUser = async () => {
       console.log('🔍 BasesPage - Fetching user data');
-      const token = localStorage.getItem('token');
+      // Check for impersonation token first, fallback to regular token
+      const impersonationToken = localStorage.getItem('impersonationToken');
+      const token = impersonationToken || localStorage.getItem('token');
       if (token) {
         const response = await fetch('/api/auth/me', {
           headers: { 'Authorization': `Bearer ${token}` }
