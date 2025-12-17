@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { AuthService } from '@/lib/auth';
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import fs from 'fs';
 import path from 'path';
 import { z } from 'zod';
@@ -118,15 +119,21 @@ export async function POST(request: NextRequest) {
     // 7. Launch Puppeteer and render
     logger.debug('🚀 Launching Puppeteer browser');
 
+    // Use chromium for serverless environments (Vercel), fallback to local Chrome for development
+    const isProduction = process.env.NODE_ENV === 'production';
+
     browser = await puppeteer.launch({
-      headless: true,
-      args: [
+      args: isProduction ? chromium.args : [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--disable-software-rasterizer',
       ],
+      executablePath: isProduction
+        ? await chromium.executablePath()
+        : process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+      headless: true,
     });
 
     const page = await browser.newPage();
