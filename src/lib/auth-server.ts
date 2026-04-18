@@ -78,9 +78,11 @@ export async function authenticateRequest(request: NextRequest): Promise<AuthCon
       email = user.email;
     }
 
-    // Determine access levels
+    // Determine access levels. INSTRUCTOR is deliberately *not* in `isAdmin`:
+    // instructors have a role-specific, scoped relationship (see
+    // canAccessUserData) rather than unrestricted access to any user's data.
     const isAdmin = userRoles.some(role =>
-      ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER', 'INSTRUCTOR'].includes(role)
+      ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER'].includes(role)
     );
     const isPilot = userRoles.includes('PILOT');
     const isStudent = userRoles.includes('STUDENT');
@@ -116,19 +118,53 @@ export async function authenticateRequest(request: NextRequest): Promise<AuthCon
 }
 
 /**
- * Checks if the authenticated user can access another user's data
+ * Checks if the authenticated user can access another user's data.
  * Rules:
- * - Admins can access anyone's data
- * - Non-admins can only access their own data
+ * - Self-access is always allowed
+ * - SUPER_ADMIN / ADMIN / BASE_MANAGER (isAdmin) can access anyone's data
+ * - INSTRUCTOR can access a user's data *only* if they have taught that user
+ *   (at least one flight_logs row with userId=target, instructorId=self)
+ * - Everyone else is denied
+ *
+ * Async because the instructor check requires a DB query.
  */
-export function canAccessUserData(authContext: AuthContext, targetUserId: string): boolean {
-  // Admins can access any user's data
+export async function canAccessUserData(
+  authContext: AuthContext,
+  targetUserId: string,
+): Promise<boolean> {
+  if (authContext.userId === targetUserId) {
+    return true;
+  }
   if (authContext.isAdmin) {
     return true;
   }
+  if (authContext.isInstructor) {
+    return await isInstructorOf(authContext.userId, targetUserId);
+  }
+  return false;
+}
 
-  // Non-admins can only access their own data
-  return authContext.userId === targetUserId;
+/**
+ * Returns true if `instructorId` has at least one flight_logs entry where
+ * they are the instructor and the student is `studentId`.
+ */
+async function isInstructorOf(instructorId: string, studentId: string): Promise<boolean> {
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    console.error('[auth-server] Supabase unavailable for instructor check');
+    return false;
+  }
+  const { data, error } = await supabase
+    .from('flight_logs')
+    .select('id')
+    .eq('instructorId', instructorId)
+    .eq('userId', studentId)
+    .limit(1);
+  if (error) {
+    console.error('[auth-server] isInstructorOf query failed:', error);
+    return false;
+  }
+  return (data?.length ?? 0) > 0;
 }
 
 /**

@@ -54,7 +54,7 @@ export async function GET(
     const { userId } = await params;
 
     // Check permissions - can this user access the requested userId's data?
-    if (!canAccessUserData(authContext, userId)) {
+    if (!(await canAccessUserData(authContext, userId))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
