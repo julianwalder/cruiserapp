@@ -68,8 +68,7 @@ export async function GET(
     console.error('❌ Enhanced verification data error:', error);
     
     return NextResponse.json({ 
-      error: 'Failed to retrieve verification data',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Failed to retrieve verification data'
     }, { status: 500 });
   }
 }

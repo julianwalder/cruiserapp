@@ -24,8 +24,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Webhook monitor error:', error);
     return NextResponse.json({ 
-      error: 'Webhook monitoring failed',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Webhook monitoring failed'
     }, { status: 500 });
   }
 }
@@ -59,10 +58,10 @@ async function getWebhookOverview() {
       totalWebhooks: totalWebhooks || 0,
       successfulWebhooks: successfulWebhooks || 0,
       failedWebhooks: (totalWebhooks || 0) - (successfulWebhooks || 0),
-      successRate: totalWebhooks ? ((successfulWebhooks || 0) / totalWebhooks * 100).toFixed(1) : 0,
+      successRate: totalWebhooks ? ((successfulWebhooks || 0) / totalWebhooks * 100).toFixed(1) : 0
     },
     recentWebhooks: recentWebhooks || [],
-    failedWebhooks: failedWebhooks || [],
+    failedWebhooks: failedWebhooks || []
   });
 }
 
@@ -83,7 +82,7 @@ async function getRecentWebhooks() {
 
   return NextResponse.json({
     success: true,
-    webhooks: webhooks || [],
+    webhooks: webhooks || []
   });
 }
 
@@ -106,7 +105,7 @@ async function getUserWebhookHistory(userId: string | null) {
   return NextResponse.json({
     success: true,
     userId,
-    webhooks: webhooks || [],
+    webhooks: webhooks || []
   });
 }
 
@@ -128,7 +127,7 @@ async function getFailedWebhooks() {
 
   return NextResponse.json({
     success: true,
-    webhooks: webhooks || [],
+    webhooks: webhooks || []
   });
 }
 
@@ -152,7 +151,7 @@ async function getWebhookStats() {
     successful: webhooks?.filter(w => w.status === 'success').length || 0,
     failed: webhooks?.filter(w => w.status === 'failed').length || 0,
     byType: {} as Record<string, number>,
-    byDay: {} as Record<string, number>,
+    byDay: {} as Record<string, number>
   };
 
   // Group by webhook type
@@ -169,7 +168,7 @@ async function getWebhookStats() {
 
   return NextResponse.json({
     success: true,
-    stats,
+    stats
   });
 }
 
@@ -189,8 +188,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Webhook monitor POST error:', error);
     return NextResponse.json({ 
-      error: 'Webhook monitoring action failed',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Webhook monitoring action failed'
     }, { status: 500 });
   }
 }
@@ -213,18 +211,17 @@ async function retryFailedWebhook(userId: string, webhookData: any) {
         sessionId: webhookData.id,
         status: 'success',
         payload: webhookData,
-        retryCount: 1,
+        retryCount: 1
       });
 
     return NextResponse.json({
       success: true,
-      message: 'Webhook retry processed successfully',
+      message: 'Webhook retry processed successfully'
     });
   } catch (error) {
     console.error('Error retrying webhook:', error);
     return NextResponse.json({ 
-      error: 'Failed to retry webhook',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Failed to retry webhook'
     }, { status: 500 });
   }
 }
@@ -247,18 +244,17 @@ async function processManualWebhook(userId: string, webhookData: any) {
         sessionId: webhookData.id,
         status: 'success',
         payload: webhookData,
-        retryCount: 0,
+        retryCount: 0
       });
 
     return NextResponse.json({
       success: true,
-      message: 'Manual webhook processing completed successfully',
+      message: 'Manual webhook processing completed successfully'
     });
   } catch (error) {
     console.error('Error processing manual webhook:', error);
     return NextResponse.json({ 
-      error: 'Failed to process manual webhook',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Failed to process manual webhook'
     }, { status: 500 });
   }
 } 

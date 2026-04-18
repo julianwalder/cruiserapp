@@ -58,8 +58,7 @@ export async function GET(
   } catch (error) {
     console.error('❌ Error getting Stripe Identity verification data:', error);
     return NextResponse.json({
-      error: 'Failed to get verification data',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Failed to get verification data'
     }, { status: 500 });
   }
 }

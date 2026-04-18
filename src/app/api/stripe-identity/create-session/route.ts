@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
     const session = await StripeIdentityService.createSession(decoded.userId, {
       firstName,
       lastName,
-      email,
+      email
     });
 
     // Debug: Log the response being sent to frontend
@@ -67,8 +67,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('❌ Error creating Stripe Identity session:', error);
     return NextResponse.json({
-      error: 'Failed to create verification session',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Failed to create verification session'
     }, { status: 500 });
   }
 }

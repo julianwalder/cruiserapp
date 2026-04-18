@@ -359,23 +359,23 @@ export async function GET(
       statistics: {
         flownHours: {
           regular: regularHours,
-          regularCount: regularFlights.length,
+          regularCount: regularFlights.length
         },
         charteredHours: {
           total: charteredHoursTotal,
-          count: charteredFlights.length,
+          count: charteredFlights.length
         },
         demoHours: {
           total: demoHours,
-          count: demoFlights.length,
+          count: demoFlights.length
         },
         ferryHours: {
           total: ferryHours,
-          count: ferryFlights.length,
+          count: ferryFlights.length
         },
         pilotCharterHours: {
           total: pilotCharterHours,
-          count: pilotCharterFlights.length,
+          count: pilotCharterFlights.length
         }
       }
     });
@@ -383,7 +383,7 @@ export async function GET(
   } catch (error) {
     console.error(`Error in /api/usage/[userId]:`, error);
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : String(error) },
+      { error: 'Internal server error'},
       { status: 500 }
     );
   }

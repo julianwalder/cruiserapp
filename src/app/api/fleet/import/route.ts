@@ -26,8 +26,8 @@ YR-DEF,789012,2019,CRUZ,PiperSport,PIPER,ACTIVE,/uploads/cruz3.jpg`;
     return new NextResponse(csvTemplate, {
       headers: {
         'Content-Type': 'text/csv',
-        'Content-Disposition': 'attachment; filename="fleet-import-template.csv"',
-      },
+        'Content-Disposition': 'attachment; filename="fleet-import-template.csv"'
+      }
     });
   } catch (error) {
     console.error('Error generating template:', error);
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
             yearOfManufacture: year,
             icaoReferenceTypeId: icaoRef.id,
             status: rowData.status,
-            imagePath: rowData.imagePath || null,
+            imagePath: rowData.imagePath || null
           });
 
         if (createError) {
@@ -201,8 +201,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error importing fleet:', error);
     return NextResponse.json({ 
-      error: 'Failed to import fleet',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Failed to import fleet'
     }, { status: 500 });
   }
 } 

@@ -98,7 +98,7 @@ async function getUser(request: NextRequest, currentUser: any) {
     // Map roles to array of strings
     const userWithRoles = {
       ...user,
-      roles: user.user_roles.map((ur: any) => ur.roles.name),
+      roles: user.user_roles.map((ur: any) => ur.roles.name)
     };
 
     // Admins viewing another user's record don't need national-ID, DOB,
@@ -304,7 +304,7 @@ async function updateUser(request: NextRequest, currentUser: any) {
       const roleAssignments = rolesToAssign.map((role) => ({
         id: crypto.randomUUID(),
         userId: userId,
-        roleId: role.id,
+        roleId: role.id
       }));
 
       const { error: createRolesError } = await supabase
@@ -370,7 +370,7 @@ async function updateUser(request: NextRequest, currentUser: any) {
 
       const result = {
         ...userWithRoles,
-        roles: userWithRoles.user_roles.map((ur: any) => ur.roles.name),
+        roles: userWithRoles.user_roles.map((ur: any) => ur.roles.name)
       };
 
       const safeResult = currentUser.id === userId
@@ -379,14 +379,14 @@ async function updateUser(request: NextRequest, currentUser: any) {
 
       return NextResponse.json({
         message: 'User updated successfully',
-        user: safeResult,
+        user: safeResult
       });
     }
 
     // Map roles to array of strings
     const userWithRoles = {
       ...updatedUser,
-      roles: updatedUser.user_roles.map((ur: any) => ur.roles.name),
+      roles: updatedUser.user_roles.map((ur: any) => ur.roles.name)
     };
 
     const safeUser = currentUser.id === userId
@@ -395,7 +395,7 @@ async function updateUser(request: NextRequest, currentUser: any) {
 
     return NextResponse.json({
       message: 'User updated successfully',
-      user: safeUser,
+      user: safeUser
     });
 
   } catch (error: any) {
@@ -501,13 +501,13 @@ async function deleteUser(request: NextRequest, currentUser: any) {
       // Handle foreign key constraint violations
       if (error.code === '23503') {
         return NextResponse.json(
-          { error: 'Cannot delete user because they have associated data in the system. Please remove all related records first.', details: error.message },
+          { error: 'Cannot delete user because they have associated data in the system. Please remove all related records first.' },
           { status: 400 }
         );
       }
 
       return NextResponse.json(
-        { error: 'Failed to delete user', details: error.message },
+        { error: 'Failed to delete user' },
         { status: 500 }
       );
     }
@@ -517,14 +517,14 @@ async function deleteUser(request: NextRequest, currentUser: any) {
 
     return NextResponse.json({
       message: 'User deleted successfully',
-      user,
+      user
     });
 
   } catch (error: any) {
     logger.error('Delete user error:', error);
 
     return NextResponse.json(
-      { error: 'Internal server error', details: error.message || 'Unknown error occurred' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

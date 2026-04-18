@@ -66,7 +66,7 @@ async function getUpdates(request: NextRequest, currentUser: any) {
               authorFirstName: post.users?.first_name,
               authorLastName: post.users?.last_name,
               authorAvatarUrl: post.users?.avatar_url,
-              responseCount: 0,
+              responseCount: 0
             }
           });
         });
@@ -113,7 +113,7 @@ async function getUpdates(request: NextRequest, currentUser: any) {
             responderFirstName: response.users?.first_name,
             responderLastName: response.users?.last_name,
             responderAvatarUrl: response.users?.avatar_url,
-            postAuthorId: response.help_posts?.author_id,
+            postAuthorId: response.help_posts?.author_id
           }
         });
       });
@@ -144,7 +144,7 @@ async function getUpdates(request: NextRequest, currentUser: any) {
             type: post.type,
             title: post.title,
             status: post.status,
-            updatedAt: post.updated_at,
+            updatedAt: post.updated_at
           }
         });
       });
@@ -155,7 +155,7 @@ async function getUpdates(request: NextRequest, currentUser: any) {
   } catch (error) {
     console.error('Error in getUpdates:', error);
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
+      { error: 'Internal server error'},
       { status: 500 }
     );
   }

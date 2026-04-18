@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
         demo_hours_current_year: 0,
         demo_hours_previous_year: 0,
         flights_12_months: 0,
-        flights_90_days: 0,
+        flights_90_days: 0
       };
 
       ownFlightAggs?.filter((agg: any) => agg.user_id === userId).forEach((agg: any) => {
@@ -196,7 +196,7 @@ export async function GET(request: NextRequest) {
           totalValue,
           currency,
           flights12Months: mergedFlightAgg.flights_12_months,
-          flights90Days: mergedFlightAgg.flights_90_days,
+          flights90Days: mergedFlightAgg.flights_90_days
         }
       };
 
@@ -206,7 +206,7 @@ export async function GET(request: NextRequest) {
         totalFerryHours: mergedFlightAgg.ferry_hours_total,
         totalCharteredHours: mergedFlightAgg.chartered_hours_total,
         totalDemoHours: mergedFlightAgg.demo_hours_total,
-        totalRemainingHours: totalHours - mergedFlightAgg.regular_hours - mergedFlightAgg.chartered_hours_total,
+        totalRemainingHours: totalHours - mergedFlightAgg.regular_hours - mergedFlightAgg.chartered_hours_total
       };
 
       return NextResponse.json({
@@ -372,7 +372,7 @@ export async function GET(request: NextRequest) {
           demo_hours_current_year: 0,
           demo_hours_previous_year: 0,
           flights_12_months: 0,
-          flights_90_days: 0,
+          flights_90_days: 0
         });
       }
 
@@ -516,7 +516,7 @@ export async function GET(request: NextRequest) {
           totalValue,
           currency,
           flights12Months: agg?.flights_12_months || 0,
-          flights90Days: agg?.flights_90_days || 0,
+          flights90Days: agg?.flights_90_days || 0
         }
       };
     });
@@ -528,7 +528,7 @@ export async function GET(request: NextRequest) {
       totalFerryHours: 0,
       totalCharteredHours: 0,
       totalDemoHours: 0,
-      totalRemainingHours: 0,
+      totalRemainingHours: 0
     };
 
     // Calculate aggregates from ALL clients (before pagination)
@@ -568,7 +568,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error in /api/usage:', error);
     return NextResponse.json(
-      { error: 'Internal server error', details: error instanceof Error ? error.message : String(error) },
+      { error: 'Internal server error'},
       { status: 500 }
     );
   }

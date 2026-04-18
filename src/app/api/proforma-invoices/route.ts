@@ -8,7 +8,7 @@ import { z } from 'zod';
 const proformaInvoiceSchema = z.object({
   packageId: z.string().uuid('Invalid package ID'),
   paymentMethod: z.enum(['proforma', 'fiscal']),
-  paymentLink: z.boolean().optional().default(false),
+  paymentLink: z.boolean().optional().default(false)
 });
 
 // GET /api/proforma-invoices - Get user invoice data for validation
@@ -55,8 +55,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
       console.error('Error getting user invoice data:', error);
       return NextResponse.json({ 
-        error: 'Database schema not ready. Please run the migration first.',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        error: 'Database schema not ready. Please run the migration first.'
       }, { status: 500 });
     }
     
@@ -70,7 +69,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       userData: userInvoiceData,
       validation,
-      canGenerateInvoice: validation.valid,
+      canGenerateInvoice: validation.valid
     });
 
   } catch (error) {
@@ -140,7 +139,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         error: 'Missing required data for invoice generation',
         missingFields: validation.missingFields,
-        userData: userInvoiceData,
+        userData: userInvoiceData
       }, { status: 400 });
     }
 
@@ -153,7 +152,7 @@ export async function POST(request: NextRequest) {
       pricePerHour: packageTemplate.price_per_hour,
       totalPrice: packageTemplate.total_price,
       currency: packageTemplate.currency,
-      validityDays: packageTemplate.validity_days,
+      validityDays: packageTemplate.validity_days
     };
 
     // Generate proforma invoice
@@ -161,7 +160,7 @@ export async function POST(request: NextRequest) {
       invoiceData,
       userData: userInvoiceData,
       paymentMethod: validatedData.paymentMethod,
-      paymentLink: validatedData.paymentLink,
+      paymentLink: validatedData.paymentLink
     });
 
     if (!result.success) {
@@ -181,14 +180,14 @@ export async function POST(request: NextRequest) {
           name: packageTemplate.name,
           hours: packageTemplate.hours,
           totalPrice: packageTemplate.total_price,
-          currency: packageTemplate.currency,
+          currency: packageTemplate.currency
         },
         userData: {
           name: `${userInvoiceData.firstName} ${userInvoiceData.lastName}`,
           email: userInvoiceData.email,
-          hasCompany: !!userInvoiceData.companyId,
-        },
-      },
+          hasCompany: !!userInvoiceData.companyId
+        }
+      }
     });
 
   } catch (error) {
@@ -197,7 +196,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({
         error: 'Invalid request data',
-        details: error.issues,
+        details: error.issues
       }, { status: 400 });
     }
 

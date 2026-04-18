@@ -41,8 +41,7 @@ export async function GET(
     console.error('Error fetching invoice XML:', error);
     return NextResponse.json(
       { 
-        error: 'Failed to fetch invoice XML',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        error: 'Failed to fetch invoice XML'
       },
       { status: 500 }
     );

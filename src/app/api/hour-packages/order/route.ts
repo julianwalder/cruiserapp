@@ -12,7 +12,7 @@ const hourPackageOrderSchema = z.object({
   pricePerHour: z.number().positive(),
   totalPrice: z.number().positive(),
   currency: z.string().default('EUR'),
-  validityDays: z.number().positive().default(365),
+  validityDays: z.number().positive().default(365)
 });
 
 export async function POST(request: NextRequest) {
@@ -117,13 +117,13 @@ export async function POST(request: NextRequest) {
         companyVatCode: companyData?.vatCode,
         companyAddress: companyData?.address,
         companyCity: companyData?.city,
-        companyCountry: companyData?.country,
+        companyCountry: companyData?.country
       },
       paymentMethod: 'card',
       paymentLink: true,
       vatPercentage: 21,
       pricesIncludeVat: true,
-      convertToRON: true,
+      convertToRON: true
     };
 
     // Send command to microservice
@@ -138,9 +138,9 @@ export async function POST(request: NextRequest) {
       const testResponse = await fetch(`${process.env.MICROSERVICE_URL}/api/health`, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json',
+          'Accept': 'application/json'
         },
-        signal: controller.signal,
+        signal: controller.signal
       });
       
       clearTimeout(timeoutId);
@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         error: 'Microservice is not reachable',
         details: healthError instanceof Error ? healthError.message : 'Network connectivity issue',
-        microserviceUrl: process.env.MICROSERVICE_URL,
+        microserviceUrl: process.env.MICROSERVICE_URL
       }, { status: 500 });
     }
 
@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         error: 'Failed to place order',
         details: microserviceResponse.error,
-        microserviceUrl: process.env.MICROSERVICE_URL,
+        microserviceUrl: process.env.MICROSERVICE_URL
       }, { status: 500 });
     }
 
@@ -185,14 +185,14 @@ export async function POST(request: NextRequest) {
           name: validatedData.packageName,
           hours: validatedData.hours,
           totalPrice: validatedData.totalPrice,
-          currency: validatedData.currency,
+          currency: validatedData.currency
         },
         userData: {
           name: `${userData.firstName} ${userData.lastName}`,
           email: userData.email,
-          hasCompany: !!companyData,
-        },
-      },
+          hasCompany: !!companyData
+        }
+      }
     });
 
   } catch (error) {
@@ -201,7 +201,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({
         error: 'Invalid request data',
-        details: error.issues,
+        details: error.issues
       }, { status: 400 });
     }
 
@@ -216,8 +216,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       { 
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        error: 'Internal server error'
       },
       { status: 500 }
     );

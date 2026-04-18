@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
     // Transform the data to match frontend expectations
     const transformedAircraft = (aircraft || []).map((aircraft: any) => ({
       ...aircraft,
-      icaoReferenceType: aircraft.icao_reference_type,
+      icaoReferenceType: aircraft.icao_reference_type
     }));
 
     return NextResponse.json({
@@ -144,14 +144,13 @@ export async function GET(request: NextRequest) {
         page,
         limit,
         total: total || 0,
-        pages,
-      },
+        pages
+      }
     });
   } catch (error) {
     console.error('Error fetching aircraft:', error);
     return NextResponse.json({ 
-      error: 'Internal server error', 
-      details: error instanceof Error ? error.message : 'Unknown error' 
+      error: 'Internal server error'
     }, { status: 500 });
   }
 }
@@ -256,7 +255,7 @@ export async function POST(request: NextRequest) {
       
       const blob = await put(filename, imageFile, {
         access: 'public',
-        addRandomSuffix: false,
+        addRandomSuffix: false
       });
       
       imagePath = blob.url;
@@ -270,7 +269,7 @@ export async function POST(request: NextRequest) {
         yearOfManufacture,
         icaoReferenceTypeId: icaoRef.id,
         imagePath,
-        status,
+        status
       })
       .select(`
         *,
@@ -289,7 +288,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ aircraft }, { status: 201 });
   } catch (error) {
     console.error('Error creating aircraft:', error);
-    return NextResponse.json({ error: 'Internal server error', details: (error as any)?.message || String(error) }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
