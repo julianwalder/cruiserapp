@@ -1,10 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
+import { getLazySupabaseClient } from './supabase';
 import { VeriffService } from './veriff-service';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabase = getLazySupabaseClient();
 
 export interface VeriffDataManagerConfig {
   enableRealTimeSync?: boolean;

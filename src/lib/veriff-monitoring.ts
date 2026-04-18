@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { getLazySupabaseClient } from './supabase';
 import { RobustVeriffService } from './robust-veriff-service';
 
 export interface VerificationSessionMetrics {
@@ -41,10 +41,7 @@ export interface SessionHealthCheck {
 }
 
 export class VeriffMonitoring {
-  private static readonly supabase = createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  private static readonly supabase = getLazySupabaseClient();
 
   /**
    * Get comprehensive verification metrics

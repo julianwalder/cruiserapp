@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { getLazySupabaseClient } from './supabase';
 
 export interface WebhookEvent {
   id: string;
@@ -30,10 +30,7 @@ export interface WebhookMetrics {
 }
 
 export class WebhookMonitor {
-  private static supabase = createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  private static supabase = getLazySupabaseClient();
 
   /**
    * Log a webhook event for monitoring

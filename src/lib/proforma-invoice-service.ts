@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { getLazySupabaseClient } from './supabase';
 import { SmartBillService } from './smartbill-service';
 
 interface ProformaInvoiceData {
@@ -66,10 +66,7 @@ interface ProformaInvoiceResponse {
 }
 
 export class ProformaInvoiceService {
-  private static supabase = createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
+  private static supabase = getLazySupabaseClient();
 
   /**
    * Generate proforma invoice and optionally payment link for hour package order

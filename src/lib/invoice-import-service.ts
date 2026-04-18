@@ -1,11 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
+import { getLazySupabaseClient } from './supabase';
 import { XMLInvoiceParser, type XMLInvoice } from './xml-invoice-parser';
 import { PPLDetectionService } from './ppl-detection-service';
 
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabase = getLazySupabaseClient();
 
 export interface InvoiceImportResult {
   success: boolean;

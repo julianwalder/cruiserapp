@@ -1,16 +1,24 @@
 import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
+import { getLazySupabaseClient } from './supabase';
 
-// Initialize Stripe with API key
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-12-18.acacia',
+// Lazily initialize Stripe so module load doesn't require the env var.
+let _stripe: Stripe | null = null;
+const stripe: Stripe = new Proxy({} as Stripe, {
+  get(_t, prop) {
+    if (!_stripe) {
+      const key = process.env.STRIPE_SECRET_KEY;
+      if (!key) {
+        throw new Error('Stripe client unavailable: STRIPE_SECRET_KEY is not set');
+      }
+      _stripe = new Stripe(key, { apiVersion: '2024-12-18.acacia' });
+    }
+    const value = (_stripe as any)[prop];
+    return typeof value === 'function' ? value.bind(_stripe) : value;
+  },
 });
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Lazily initialized Supabase client (safe at module load)
+const supabase = getLazySupabaseClient();
 
 export interface StripeIdentitySession {
   id: string;

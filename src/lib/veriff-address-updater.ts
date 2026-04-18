@@ -1,11 +1,8 @@
-import { createClient } from '@supabase/supabase-js';
+import { getLazySupabaseClient } from './supabase';
 import OpenAI from 'openai';
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Lazily initialized Supabase client (safe at module load)
+const supabase = getLazySupabaseClient();
 
 // Initialize OpenAI client (only if API key is available)
 let openai: OpenAI | null = null;
