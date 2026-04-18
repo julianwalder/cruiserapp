@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getLazySupabaseClient } from '@/lib/supabase';
 import crypto from 'crypto';
 
-// Initialize Supabase client
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Lazily initialized Supabase client (safe at module load)
+const supabase = getLazySupabaseClient();
 
 // Veriff webhook payload interface based on official documentation
 interface VeriffWebhookPayload {

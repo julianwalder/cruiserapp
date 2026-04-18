@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getLazySupabaseClient } from '@/lib/supabase';
 import { PPLCourseService } from '@/lib/ppl-course-service';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabase = getLazySupabaseClient();
 
 export async function POST(request: NextRequest) {
   try {
