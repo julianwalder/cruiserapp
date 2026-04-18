@@ -153,6 +153,34 @@ async function updateUser(request: NextRequest, currentUser: any) {
     // Validate input
     const validatedData = userUpdateSchema.parse(body);
 
+    // Privilege-escalation guard. userUpdateSchema intentionally
+    // permits `roles`, `role`, `status`, and `totalFlightHours` so that
+    // admin flows can edit them, but a non-admin updating their own
+    // record must not be able to self-assign SUPER_ADMIN, flip their
+    // status from SUSPENDED to ACTIVE, or inflate their flight hours.
+    // Silently drop those fields for non-admin self-updates rather
+    // than 403'ing, since legit UI flows may send the current values
+    // back unmodified.
+    if (!hasAdminRole) {
+      const forbiddenFields: Array<keyof typeof validatedData | 'role'> = [
+        'roles',
+        'role' as any,
+        'status',
+        'totalFlightHours',
+      ];
+      for (const f of forbiddenFields) {
+        if ((validatedData as any)[f] !== undefined) {
+          logger.security('Non-admin attempted to set privileged field on self-update', {
+            actorId: currentUser.id,
+            targetUserId: userId,
+            field: String(f),
+          });
+          delete (validatedData as any)[f];
+          delete (body as any)[f];
+        }
+      }
+    }
+
     const supabase = getSupabaseClient();
     if (!supabase) {
       return NextResponse.json(

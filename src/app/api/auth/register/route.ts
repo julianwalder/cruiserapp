@@ -93,13 +93,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Log user registration activity
+    // Self-registration always produces a PROSPECT account. Ignore any
+    // role / roles / status supplied by the client — the schema permits
+    // them for admin-side flows, but this route is anonymous and must
+    // never let a caller upgrade themselves at sign-up.
     await ActivityLogger.logUserRegistration(
       user.id,
       validatedData.email,
-      validatedData.role || 'PROSPECT'
+      'PROSPECT'
     );
-    
+
     // Assign PROSPECT role to user (if role exists)
     if (prospectRole) {
       const { error: assignRoleError } = await supabase
@@ -116,12 +119,13 @@ export async function POST(request: NextRequest) {
         // Don't fail the registration, but log the error
       }
     }
-    
-    // Generate JWT token
+
+    // JWT must reflect only the role that was actually assigned in the
+    // database, not whatever the client asked for.
     const token = AuthService.generateToken({
       userId: user.id,
       email: user.email,
-      roles: [validatedData.role || 'PROSPECT'],
+      roles: ['PROSPECT'],
     });
     
     // Create session (for backward compatibility)
