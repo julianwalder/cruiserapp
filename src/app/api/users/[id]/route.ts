@@ -107,8 +107,19 @@ async function getUser(request: NextRequest, currentUser: any) {
       ? userWithRoles
       : stripSelfOnlyFields(userWithRoles);
 
+    // Audit: record cross-user profile reads. Fire-and-forget.
+    if (userId && currentUser.id !== userId) {
+      void ActivityLogger.logSensitiveUserRead(
+        currentUser.id,
+        userId,
+        'user_profile',
+        request.headers.get('x-forwarded-for') || undefined,
+        request.headers.get('user-agent') || undefined,
+      );
+    }
+
     return NextResponse.json({ user: safeUser });
-    
+
   } catch (error) {
     logger.error('Get user error:', error);
     return NextResponse.json(

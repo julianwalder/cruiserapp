@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
 import { StripeIdentityService } from '@/lib/stripe-identity-service';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function GET(
   request: NextRequest,
@@ -25,6 +26,17 @@ export async function GET(
     const isAdmin = decoded.roles?.some((r: string) => r === 'ADMIN' || r === 'SUPER_ADMIN');
     if (decoded.userId !== userId && !isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Audit: record cross-user identity-data access.
+    if (decoded.userId !== userId) {
+      void ActivityLogger.logSensitiveUserRead(
+        decoded.userId,
+        userId,
+        'stripe_identity_data',
+        request.headers.get('x-forwarded-for') || undefined,
+        request.headers.get('user-agent') || undefined,
+      );
     }
 
     // Get verification data

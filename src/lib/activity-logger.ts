@@ -258,4 +258,29 @@ export class ActivityLogger {
       metadata: { setting, value }
     });
   }
-} 
+
+  /**
+   * Records that an actor read sensitive data belonging to another user.
+   * Callers should only invoke this for cross-user reads, not self-reads.
+   * Fire-and-forget: any logging failure is swallowed inside `log`.
+   */
+  static async logSensitiveUserRead(
+    actorId: string,
+    targetUserId: string,
+    resource: string,
+    ipAddress?: string,
+    userAgent?: string,
+    metadata?: Record<string, any>,
+  ): Promise<void> {
+    await this.log({
+      userId: actorId,
+      action: 'SENSITIVE_READ',
+      entityType: 'user',
+      entityId: targetUserId,
+      description: `Accessed ${resource} for another user`,
+      metadata: { resource, targetUserId, ...metadata },
+      ipAddress,
+      userAgent,
+    });
+  }
+}

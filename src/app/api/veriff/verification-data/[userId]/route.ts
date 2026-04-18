@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
 import { EnhancedVeriffWebhook } from '@/lib/enhanced-veriff-webhook';
 import { getSupabaseClient } from '@/lib/supabase';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function GET(
   request: NextRequest,
@@ -26,6 +27,17 @@ export async function GET(
     const isAdmin = decoded.roles?.some((r: string) => r === 'ADMIN' || r === 'SUPER_ADMIN');
     if (decoded.userId !== userId && !isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Audit: record cross-user identity-data access.
+    if (decoded.userId !== userId) {
+      void ActivityLogger.logSensitiveUserRead(
+        decoded.userId,
+        userId,
+        'veriff_identity_data',
+        request.headers.get('x-forwarded-for') || undefined,
+        request.headers.get('user-agent') || undefined,
+      );
     }
 
     // Get comprehensive verification data

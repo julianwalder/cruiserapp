@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
 import { authenticateRequest, canAccessUserData } from '@/lib/auth-server';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 /**
  * GET /api/usage/[userId]
@@ -56,6 +57,17 @@ export async function GET(
     // Check permissions - can this user access the requested userId's data?
     if (!(await canAccessUserData(authContext, userId))) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Audit: record cross-user access to usage/billing data.
+    if (authContext.userId !== userId) {
+      void ActivityLogger.logSensitiveUserRead(
+        authContext.userId,
+        userId,
+        'user_usage',
+        request.headers.get('x-forwarded-for') || undefined,
+        request.headers.get('user-agent') || undefined,
+      );
     }
 
     // Get target user info
