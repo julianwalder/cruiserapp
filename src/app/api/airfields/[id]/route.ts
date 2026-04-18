@@ -65,7 +65,7 @@ export async function GET(
   }
 }
 
-// PUT /api/airfields/[id] - Update airfield
+// PUT /api/airfields/[id] - Update airfield (admin-only)
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -80,6 +80,19 @@ export async function PUT(
     const user = await AuthService.validateSession(token);
     if (!user) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    // Only admins can mutate airfields. Previously any authenticated
+    // user could PUT here and flip `status`, rename an airfield, etc.
+    // Explicit allowlist rather than hasPermission() because
+    // AuthService.hasPermission's role hierarchy omits BASE_MANAGER
+    // (see auth.ts:473-486), which would silently evaluate to 0.
+    const callerRoles: string[] = (AuthService.verifyToken(token) as any)?.roles || [];
+    const isAdmin = ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER'].some(r =>
+      callerRoles.includes(r),
+    );
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const supabase = getSupabaseClient();

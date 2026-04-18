@@ -171,6 +171,14 @@ export async function POST(
       );
     }
 
+    // Role just changed; drop outstanding refresh tokens so the user
+    // must re-authenticate to pick up the new role set.
+    try {
+      await AuthService.revokeAllUserTokens(params.id, 'Role upgrade');
+    } catch (err) {
+      console.error('Failed to revoke refresh tokens after role upgrade', err);
+    }
+
     return NextResponse.json({
       message: `User role upgraded from PROSPECT to ${newRole} successfully`,
       user: {

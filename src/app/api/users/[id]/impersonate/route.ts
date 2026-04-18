@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
+import { ActivityLogger } from '@/lib/activity-logger';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -128,8 +129,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       currentUser.id // Store the original user ID
     );
 
-    // Log the impersonation action
+    // Log the impersonation action both to stdout (ops) and to
+    // activity_log (durable audit trail).
     console.log(`SUPER_ADMIN ${currentUser.email} (${currentUser.id}) is impersonating ${targetUser.email} (${targetUser.id})`);
+    await ActivityLogger.log({
+      userId: currentUser.id,
+      action: 'USER_IMPERSONATED',
+      entityType: 'user',
+      entityId: targetUser.id,
+      description: `SUPER_ADMIN impersonated ${targetUser.email}`,
+      metadata: {
+        originalUserId: currentUser.id,
+        originalEmail: currentUser.email,
+        targetUserId: targetUser.id,
+        targetEmail: targetUser.email,
+      },
+      ipAddress: request.headers.get('x-forwarded-for') || undefined,
+      userAgent: request.headers.get('user-agent') || undefined,
+    });
 
     return NextResponse.json({
       success: true,

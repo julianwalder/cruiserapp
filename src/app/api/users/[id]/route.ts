@@ -3,6 +3,7 @@ import { requireAuth, requireRole } from '@/lib/middleware';
 import { userUpdateSchema } from '@/lib/validations';
 import { getSupabaseClient } from '@/lib/supabase';
 import { ActivityLogger } from '@/lib/activity-logger';
+import { AuthService } from '@/lib/auth';
 import { logger } from '@/lib/logger';
 import crypto from 'crypto';
 
@@ -345,6 +346,16 @@ async function updateUser(request: NextRequest, currentUser: any) {
           { error: 'Failed to assign new roles', details: createRolesError },
           { status: 500 }
         );
+      }
+
+      // Roles just changed — revoke any outstanding refresh tokens so
+      // the user can't keep refreshing a JWT that claims their old
+      // role set. The current access token still lives until its
+      // natural TTL since we have no JWT blocklist.
+      try {
+        await AuthService.revokeAllUserTokens(userId!, 'Role change');
+      } catch (err) {
+        logger.error('Failed to revoke refresh tokens after role change', err);
       }
 
       // Fetch updated user with roles

@@ -19,6 +19,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
+    // Admin-only: importing airfields mutates the shared reference
+    // set used across the app.
+    const callerRoles: string[] = (payload as any)?.roles || [];
+    const isAdmin = ['SUPER_ADMIN', 'ADMIN', 'BASE_MANAGER'].some(r =>
+      callerRoles.includes(r),
+    );
+    if (!isAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { airportId } = await request.json();
 
     if (!airportId) {

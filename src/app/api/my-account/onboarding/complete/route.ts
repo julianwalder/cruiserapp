@@ -150,6 +150,13 @@ export async function POST(request: NextRequest) {
         throw new Error('Failed to update user roles');
       }
 
+      // Role changed PROSPECT → STUDENT/PILOT — revoke refresh tokens.
+      try {
+        await AuthService.revokeAllUserTokens(payload.userId, 'Onboarding completed');
+      } catch (err) {
+        console.error('Failed to revoke refresh tokens after onboarding completion', err);
+      }
+
       // 2. Create user payment plan record (skip for now since columns don't exist)
       // TODO: Implement payment plan creation when database schema is updated
 
