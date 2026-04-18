@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
 import { authenticateRequest, getAllowedUserIds } from '@/lib/auth-server';
+import { checkRateLimit, rateLimitKey } from '@/lib/rate-limit';
 
 /**
  * NEW LIGHTWEIGHT ARCHITECTURE
@@ -18,6 +19,19 @@ export async function GET(request: NextRequest) {
     const authContext = await authenticateRequest(request);
     if (!authContext) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Rate limit: 60 requests per minute per user.
+    const rl = checkRateLimit(
+      rateLimitKey('usage.list', request, authContext.userId),
+      60,
+      60_000,
+    );
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } },
+      );
     }
 
     const supabase = getSupabaseClient();

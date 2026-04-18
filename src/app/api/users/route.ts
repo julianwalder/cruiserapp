@@ -7,6 +7,7 @@ import { ActivityLogger } from '@/lib/activity-logger';
 import crypto from 'crypto';
 import { UUID } from '@/types/uuid-types';
 import { USER_FIELDS_ADMIN_CSV, sanitizeUsers } from '@/lib/sanitize';
+import { checkRateLimit, rateLimitKey } from '@/lib/rate-limit';
 
 const MAX_PAGE_SIZE = 100;
 
@@ -14,6 +15,19 @@ const MAX_PAGE_SIZE = 100;
 async function getUsers(request: NextRequest, currentUser: any) {
   console.log('🔍 getUsers called with currentUser:', currentUser?.email);
   try {
+    // Rate limit: 60 requests per minute per admin user.
+    const rl = checkRateLimit(
+      rateLimitKey('users.list', request, currentUser?.id),
+      60,
+      60_000,
+    );
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } },
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, parseInt(searchParams.get('page') || '1') || 1);
     const rawLimit = parseInt(searchParams.get('limit') || '10') || 10;

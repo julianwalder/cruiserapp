@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { UUID } from '@/types/uuid-types';
 import { logger } from '@/lib/logger';
 import { USER_FIELDS_PUBLIC_CSV, sanitizeUser } from '@/lib/sanitize';
+import { checkRateLimit, rateLimitKey } from '@/lib/rate-limit';
 
 
 export async function GET(request: NextRequest) {
@@ -22,6 +23,19 @@ export async function GET(request: NextRequest) {
     if (!decoded) {
       logger.security('Invalid token in flight logs request');
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+    }
+
+    // Rate limit: 120 requests per minute per authenticated user.
+    const rl = checkRateLimit(
+      rateLimitKey('flight-logs.list', request, decoded.userId),
+      120,
+      60_000,
+    );
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Too many requests' },
+        { status: 429, headers: { 'Retry-After': String(rl.retryAfterSec) } },
+      );
     }
 
     logger.debug('🔍 User authenticated:', decoded.userId);
