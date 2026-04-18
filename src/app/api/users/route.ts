@@ -6,15 +6,18 @@ import { getSupabaseClient } from '@/lib/supabase';
 import { ActivityLogger } from '@/lib/activity-logger';
 import crypto from 'crypto';
 import { UUID } from '@/types/uuid-types';
+import { USER_FIELDS_ADMIN_CSV, sanitizeUsers } from '@/lib/sanitize';
 
+const MAX_PAGE_SIZE = 100;
 
 // GET /api/users - List users (ADMIN+ only)
 async function getUsers(request: NextRequest, currentUser: any) {
   console.log('🔍 getUsers called with currentUser:', currentUser?.email);
   try {
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1') || 1);
+    const rawLimit = parseInt(searchParams.get('limit') || '10') || 10;
+    const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, rawLimit));
     const role = searchParams.get('role');
     const status = searchParams.get('status');
     const search = searchParams.get('search');
@@ -55,9 +58,9 @@ async function getUsers(request: NextRequest, currentUser: any) {
       // For admins, fetch all users directly
       const { data: allUsers, error: allUsersError } = await supabase
         .from('users')
-        .select('*')
+        .select(USER_FIELDS_ADMIN_CSV)
         .order('createdAt', { ascending: false });
-      
+
       users = allUsers;
       error = allUsersError;
     } else {
@@ -138,14 +141,17 @@ async function getUsers(request: NextRequest, currentUser: any) {
     
     // Get total count AFTER role filtering
     const total = usersWithRoles.length;
-    
+
     // Apply pagination AFTER role filtering
     const from = (page - 1) * limit;
     const to = from + limit;
     const paginatedUsers = usersWithRoles.slice(from, to);
-    
+
+    // Defense in depth: strip any sensitive fields regardless of the source query.
+    const safeUsers = sanitizeUsers(paginatedUsers, 'admin');
+
     return NextResponse.json({
-      users: usersWithRoles,
+      users: safeUsers,
       pagination: {
         page,
         limit,

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { getSupabaseClient } from '@/lib/supabase';
 import { AuthService } from '@/lib/auth';
+import { USER_FIELDS_PUBLIC_CSV } from '@/lib/sanitize';
 
 export async function GET(request: NextRequest) {
   try {
@@ -98,19 +99,30 @@ export async function GET(request: NextRequest) {
       logger.debug('✅ Company view - allowing access to all flight logs');
       // No additional filtering needed - they can see everything
     }
-    
-    // TEMPORARY: For debugging, let's bypass all filtering for SUPER_ADMIN
-    if (userRoles.includes('SUPER_ADMIN')) {
-      logger.debug('🔧 TEMPORARY: Bypassing all filtering for SUPER_ADMIN');
-      // Reset the query to show all records (simple query to avoid relationship conflicts)
-      query = supabase
-        .from('flight_logs')
-        .select('*');
-    }
 
     // Apply filters
     if (userId) {
-      query = query.eq('userId', userId);
+      if (viewMode === 'personal') {
+        // In personal view, only the requesting user's own logs are allowed via userId.
+        if (userId !== user.id && !isAdmin && !isBaseManager) {
+          if (isInstructor) {
+            query = query.eq('userId', userId).eq('instructorId', user.id);
+          } else {
+            logger.debug('⚠️ userId filter ignored in personal view');
+          }
+        } else {
+          query = query.eq('userId', userId);
+        }
+      } else {
+        // Company view: only privileged roles may query another user's logs.
+        if (isAdmin || isBaseManager || userId === user.id) {
+          query = query.eq('userId', userId);
+        } else if (isInstructor) {
+          query = query.eq('userId', userId).eq('instructorId', user.id);
+        } else {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+      }
     }
 
     if (aircraftId) {
@@ -173,8 +185,8 @@ export async function GET(request: NextRequest) {
             *
           )
         `).in('id', aircraftIds) : { data: [], error: null },
-        pilotIds.length > 0 ? supabase.from('users').select('*').in('id', pilotIds) : { data: [], error: null },
-        instructorIds.length > 0 ? supabase.from('users').select('*').in('id', instructorIds) : { data: [], error: null },
+        pilotIds.length > 0 ? supabase.from('users').select(USER_FIELDS_PUBLIC_CSV).in('id', pilotIds) : { data: [], error: null },
+        instructorIds.length > 0 ? supabase.from('users').select(USER_FIELDS_PUBLIC_CSV).in('id', instructorIds) : { data: [], error: null },
         airfieldIds.length > 0 ? supabase.from('airfields').select('*').in('id', airfieldIds) : { data: [], error: null }
       ]);
 

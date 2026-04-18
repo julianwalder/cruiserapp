@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
+import { USER_FIELDS_ADMIN_CSV, sanitizeUser } from '@/lib/sanitize';
 
 // GET /api/users/import - Download CSV template
 export async function GET(request: NextRequest) {
@@ -141,7 +142,7 @@ export async function POST(request: NextRequest) {
             .from('users')
             .update(updateData)
             .eq('id', existingUser.id)
-            .select('*')
+            .select(USER_FIELDS_ADMIN_CSV)
             .single();
 
           if (updateError) {
@@ -154,7 +155,7 @@ export async function POST(request: NextRequest) {
           }
 
           results.updated++;
-          results.users.push(updatedUser);
+          results.users.push(sanitizeUser(updatedUser as any, 'admin'));
         } else {
           // Create new user
           const hashedPassword = await AuthService.hashPassword(userData.password || 'defaultPassword123');
@@ -181,7 +182,7 @@ export async function POST(request: NextRequest) {
               instructorRating: userData.instructorRating || null,
               createdById: user.id,
             })
-            .select('*')
+            .select(USER_FIELDS_ADMIN_CSV)
             .single();
 
           if (createError) {
@@ -231,7 +232,7 @@ export async function POST(request: NextRequest) {
           }
 
           results.created++;
-          results.users.push(newUser);
+          results.users.push(sanitizeUser(newUser as any, 'admin'));
         }
       } catch (error) {
         console.error('Error processing user:', error);

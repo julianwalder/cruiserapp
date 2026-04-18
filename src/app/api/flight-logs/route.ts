@@ -6,6 +6,7 @@ import { updateAircraftHobbs } from '@/lib/aircraft-hobbs';
 import crypto from 'crypto';
 import { UUID } from '@/types/uuid-types';
 import { logger } from '@/lib/logger';
+import { USER_FIELDS_PUBLIC_CSV, sanitizeUser } from '@/lib/sanitize';
 
 
 export async function GET(request: NextRequest) {
@@ -118,15 +119,6 @@ export async function GET(request: NextRequest) {
       // No additional filtering needed - they can see everything
     }
 
-    // TEMPORARY: For debugging, let's bypass all filtering for SUPER_ADMIN
-    if (userRoles.includes('SUPER_ADMIN')) {
-      logger.debug('🔧 TEMPORARY: Bypassing all filtering for SUPER_ADMIN');
-      // Reset the query to show all records (simple query to avoid relationship conflicts)
-      query = supabase
-        .from('flight_logs')
-        .select('*');
-    }
-
     // Debug logging
     logger.debug('🔍 Flight Logs API Debug:', {
       userId: user.id,
@@ -183,8 +175,24 @@ export async function GET(request: NextRequest) {
           }
         }
       } else {
-        // In company view, apply userId filter normally
-        query = query.eq('userId', userId);
+        // In company view, only privileged roles may query another user's logs.
+        // Instructors may query logs where they are the assigned instructor.
+        if (isAdmin || isBaseManager) {
+          query = query.eq('userId', userId);
+        } else if (userId === user.id) {
+          query = query.eq('userId', userId);
+        } else if (isInstructor) {
+          query = query.eq('userId', userId).eq('instructorId', user.id);
+        } else {
+          logger.security('Unauthorized userId filter in company view', {
+            requesterId: user.id,
+            requestedUserId: userId,
+          });
+          return NextResponse.json(
+            { error: 'Forbidden' },
+            { status: 403 },
+          );
+        }
       }
     }
 
@@ -403,12 +411,12 @@ export async function GET(request: NextRequest) {
             *
           )
         `).in('id', aircraftIds) : { data: [], error: null },
-        userIds.length > 0 ? supabase.from('users').select('*').in('id', userIds) : { data: [], error: null },
-        instructorIds.length > 0 ? supabase.from('users').select('*').in('id', instructorIds) : { data: [], error: null },
-        payerIds.length > 0 ? supabase.from('users').select('*').in('id', payerIds) : { data: [], error: null },
+        userIds.length > 0 ? supabase.from('users').select(USER_FIELDS_PUBLIC_CSV).in('id', userIds) : { data: [], error: null },
+        instructorIds.length > 0 ? supabase.from('users').select(USER_FIELDS_PUBLIC_CSV).in('id', instructorIds) : { data: [], error: null },
+        payerIds.length > 0 ? supabase.from('users').select(USER_FIELDS_PUBLIC_CSV).in('id', payerIds) : { data: [], error: null },
         airfieldIds.length > 0 ? supabase.from('airfields').select('*').in('id', airfieldIds) : { data: [], error: null },
-        createdByIds.length > 0 ? supabase.from('users').select('*').in('id', createdByIds) : { data: [], error: null },
-        updatedByIds.length > 0 ? supabase.from('users').select('*').in('id', updatedByIds) : { data: [], error: null }
+        createdByIds.length > 0 ? supabase.from('users').select(USER_FIELDS_PUBLIC_CSV).in('id', createdByIds) : { data: [], error: null },
+        updatedByIds.length > 0 ? supabase.from('users').select(USER_FIELDS_PUBLIC_CSV).in('id', updatedByIds) : { data: [], error: null }
       ]);
 
       // Create lookup maps
@@ -445,13 +453,13 @@ export async function GET(request: NextRequest) {
               manufacturer: aircraft.icao_reference_type.manufacturer
             } : null
           } : null,
-          pilot: pilotsMap.get(log.userId) || null,
-          instructor: log.instructorId ? instructorsMap.get(log.instructorId) || null : null,
-          payer: log.payer_id ? payersMap.get(log.payer_id) || null : null,
+          pilot: sanitizeUser(pilotsMap.get(log.userId) || null),
+          instructor: log.instructorId ? sanitizeUser(instructorsMap.get(log.instructorId) || null) : null,
+          payer: log.payer_id ? sanitizeUser(payersMap.get(log.payer_id) || null) : null,
           departureAirfield: airfieldsMap.get(log.departureAirfieldId) || null,
           arrivalAirfield: airfieldsMap.get(log.arrivalAirfieldId) || null,
-          createdBy: createdByMap.get(log.createdById) || null,
-          updatedByUser: log.updatedBy ? updatedByMap.get(log.updatedBy) || null : null
+          createdBy: sanitizeUser(createdByMap.get(log.createdById) || null),
+          updatedByUser: log.updatedBy ? sanitizeUser(updatedByMap.get(log.updatedBy) || null) : null
         };
       }) || [];
 
