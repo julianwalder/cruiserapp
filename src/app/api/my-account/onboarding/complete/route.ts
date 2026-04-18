@@ -32,7 +32,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { onboardingId, veriffData } = body;
+    const { onboardingId } = body;
+    // veriffData MUST NOT come from the client. Accepting it would let
+    // any PROSPECT write arbitrary identity verification payloads into
+    // their own `users.veriffData` column and appear "verified" to the
+    // rest of the app. The only legitimate writer is the Veriff webhook
+    // (/api/veriff/webhook-*).
 
     if (!onboardingId) {
       return NextResponse.json(
@@ -81,22 +86,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Before promoting the user's role, require that identity
+    // verification has actually happened. `identityVerified` is only
+    // flipped to true by the Veriff/Stripe Identity webhooks, so this
+    // guarantees onboarding can't be "completed" before the third-party
+    // verification step.
+    const { data: userRecord, error: userFetchError } = await supabase
+      .from('users')
+      .select('id, identityVerified')
+      .eq('id', payload.userId)
+      .single();
+    if (userFetchError || !userRecord) {
+      console.error('Error fetching user for onboarding completion:', userFetchError);
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 },
+      );
+    }
+    if (!userRecord.identityVerified) {
+      return NextResponse.json(
+        { error: 'Identity verification is required before completing onboarding.' },
+        { status: 403 },
+      );
+    }
+
     // Start transaction-like operations
     try {
-      // 1. Update user with Veriff data only (if provided)
-      if (veriffData) {
-        const { error: userUpdateError } = await supabase
-          .from('users')
-          .update({ veriffData })
-          .eq('id', payload.userId);
-
-        if (userUpdateError) {
-          console.error('Error updating user with veriff data:', userUpdateError);
-          throw new Error('Failed to update user with verification data');
-        }
-      }
-
-      // 2. Remove PROSPECT role and add target role
+      // 1. Remove PROSPECT role and add target role
       // First, remove PROSPECT role
       const { data: prospectRole, error: prospectError } = await supabase
         .from('roles')
@@ -134,13 +150,10 @@ export async function POST(request: NextRequest) {
         throw new Error('Failed to update user roles');
       }
 
-      // 3. Create user payment plan record (skip for now since columns don't exist)
+      // 2. Create user payment plan record (skip for now since columns don't exist)
       // TODO: Implement payment plan creation when database schema is updated
 
-      // Skip payment plan creation for now
-
-
-      // 4. Update onboarding status to completed
+      // 3. Update onboarding status to completed
       const { error: onboardingUpdateError } = await supabase
         .from('user_onboarding')
         .update({
