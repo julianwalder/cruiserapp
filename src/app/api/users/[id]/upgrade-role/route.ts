@@ -36,10 +36,12 @@ export async function POST(
     const userRoles = payload?.roles || [];
     
     // Check if user has permission to upgrade roles (ADMIN+, SUPER_ADMIN, BASE_MANAGER, or INSTRUCTOR)
-    if (!AuthService.hasRole(userRoles, 'ADMIN') && 
-        !AuthService.hasRole(userRoles, 'SUPER_ADMIN') && 
-        !AuthService.hasRole(userRoles, 'BASE_MANAGER') &&
-        !AuthService.hasRole(userRoles, 'INSTRUCTOR')) {
+    const isAdmin =
+      AuthService.hasRole(userRoles, 'ADMIN') ||
+      AuthService.hasRole(userRoles, 'SUPER_ADMIN') ||
+      AuthService.hasRole(userRoles, 'BASE_MANAGER');
+    const isInstructor = AuthService.hasRole(userRoles, 'INSTRUCTOR');
+    if (!isAdmin && !isInstructor) {
       return NextResponse.json(
         { error: 'Insufficient permissions to upgrade user roles' },
         { status: 403 }
@@ -49,6 +51,16 @@ export async function POST(
     const body = await request.json();
     const validatedData = upgradeRoleSchema.parse(body);
     const { newRole, validationData } = validatedData;
+
+    // An instructor-only grantor must not be able to create more
+    // instructors — that's an admin privilege. Allow them to finalize
+    // a student's training by promoting PROSPECT → STUDENT/PILOT only.
+    if (!isAdmin && isInstructor && newRole === 'INSTRUCTOR') {
+      return NextResponse.json(
+        { error: 'Only admins can grant the INSTRUCTOR role.' },
+        { status: 403 }
+      );
+    }
 
     const supabase = getSupabaseClient();
     if (!supabase) {
