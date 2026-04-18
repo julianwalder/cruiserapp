@@ -526,7 +526,10 @@ export class AuthService {
     originalUserId: string
   ): string {
     const secret = process.env.JWT_SECRET!;
-    const expiresIn = '24h'; // Extended expiration for impersonation tokens
+    // Impersonation is a short-lived support action, not a session. Keep
+    // the window tight so an abandoned impersonation token can't be
+    // reused hours later if something leaks it.
+    const expiresIn = '30m';
     const now = Math.floor(Date.now() / 1000);
     
     // Generate unique JWT ID for token tracking
