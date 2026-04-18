@@ -4,6 +4,7 @@ import { AuthService } from '@/lib/auth';
 import { UUID } from '@/types/uuid-types';
 import { ActivityLogger } from '@/lib/activity-logger';
 import { logger } from '@/lib/logger';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 // Extended User interface for auth with user_roles
 interface AuthUser {
@@ -30,6 +31,33 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { email, password } = userLoginSchema.parse(body);
+
+    // Brute-force mitigation. Two independent buckets so an attacker
+    // can't slip past either by rotating one axis:
+    //  - per IP: 20 attempts / 15 min (distributed email-spraying)
+    //  - per email: 5 attempts / 15 min (targeted single-account attack)
+    // Both buckets must pass or we reject with 429.
+    const ip =
+      (request.headers.get('x-forwarded-for') || '').split(',')[0]?.trim() ||
+      request.headers.get('x-real-ip') ||
+      'unknown';
+    const emailKey = email.trim().toLowerCase();
+    const ipLimit = checkRateLimit(`auth.login:ip:${ip}`, 20, 15 * 60_000);
+    const emailLimit = checkRateLimit(
+      `auth.login:email:${emailKey}`,
+      5,
+      15 * 60_000,
+    );
+    if (!ipLimit.allowed || !emailLimit.allowed) {
+      const retry = !ipLimit.allowed
+        ? ipLimit.retryAfterSec
+        : (emailLimit as any).retryAfterSec;
+      logger.security('Login rate limit exceeded', { ip, email: emailKey });
+      return NextResponse.json(
+        { error: 'Too many login attempts. Try again later.' },
+        { status: 429, headers: { 'Retry-After': String(retry) } },
+      );
+    }
 
     // Validate user credentials using Supabase
     const user = await AuthService.validateUser(email, password) as AuthUser | null;
