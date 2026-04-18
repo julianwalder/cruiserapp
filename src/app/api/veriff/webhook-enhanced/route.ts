@@ -1,21 +1,63 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { veriffDataManager } from '@/lib/veriff-data-manager';
 import { getLazySupabaseClient } from '@/lib/supabase';
+import crypto from 'crypto';
 
 const supabase = getLazySupabaseClient();
+
+function verifyVeriffSignature(
+  rawBody: string,
+  signature: string,
+  secret: string,
+): boolean {
+  const expected = crypto
+    .createHmac('sha256', secret)
+    .update(rawBody, 'utf8')
+    .digest('hex');
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(signature, 'hex'),
+      Buffer.from(expected, 'hex'),
+    );
+  } catch {
+    // Mismatched lengths throw; treat as invalid rather than crashing.
+    return false;
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
     console.log('🔄 Enhanced Veriff webhook received');
 
-    // Verify webhook signature (if configured)
+    // Read the raw body ONCE so we can verify the signature against exactly
+    // the bytes Veriff signed, then parse it ourselves.
+    const rawBody = await request.text();
     const signature = request.headers.get('x-veriff-signature');
-    if (process.env.VERIFF_WEBHOOK_SECRET && signature) {
-      // TODO: Implement signature verification
-      console.log('🔐 Webhook signature verification (to be implemented)');
+    const webhookSecret = process.env.VERIFF_WEBHOOK_SECRET;
+
+    if (!webhookSecret) {
+      console.error('❌ VERIFF_WEBHOOK_SECRET is not configured; refusing webhook');
+      return NextResponse.json(
+        { error: 'Webhook not configured' },
+        { status: 500 },
+      );
+    }
+    if (!signature) {
+      console.error('❌ Missing x-veriff-signature header');
+      return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
+    }
+    if (!verifyVeriffSignature(rawBody, signature, webhookSecret)) {
+      console.error('❌ Invalid Veriff webhook signature');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
-    const webhookData = await request.json();
+    let webhookData: any;
+    try {
+      webhookData = JSON.parse(rawBody);
+    } catch (err) {
+      console.error('❌ Invalid JSON payload');
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    }
     console.log('📦 Webhook payload:', JSON.stringify(webhookData, null, 2));
 
     // Extract user ID from webhook data with multiple fallback strategies
