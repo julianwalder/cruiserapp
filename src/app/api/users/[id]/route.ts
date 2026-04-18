@@ -6,6 +6,21 @@ import { ActivityLogger } from '@/lib/activity-logger';
 import { logger } from '@/lib/logger';
 import crypto from 'crypto';
 
+// Fields only visible when a user reads their own record. Admins viewing
+// another user's record get everything else but not these.
+const SELF_ONLY_USER_FIELDS = [
+  'personalNumber',
+  'dateOfBirth',
+  'address',
+  'zipCode',
+] as const;
+
+function stripSelfOnlyFields<T extends Record<string, any>>(user: T): T {
+  const out: Record<string, any> = { ...user };
+  for (const f of SELF_ONLY_USER_FIELDS) delete out[f];
+  return out as T;
+}
+
 
 // GET /api/users/[id] - Get user details
 async function getUser(request: NextRequest, currentUser: any) {
@@ -85,8 +100,14 @@ async function getUser(request: NextRequest, currentUser: any) {
       ...user,
       roles: user.user_roles.map((ur: any) => ur.roles.name),
     };
-    
-    return NextResponse.json({ user: userWithRoles });
+
+    // Admins viewing another user's record don't need national-ID, DOB,
+    // or home address. The target user always sees their own fully.
+    const safeUser = currentUser.id === userId
+      ? userWithRoles
+      : stripSelfOnlyFields(userWithRoles);
+
+    return NextResponse.json({ user: safeUser });
     
   } catch (error) {
     logger.error('Get user error:', error);
@@ -341,9 +362,13 @@ async function updateUser(request: NextRequest, currentUser: any) {
         roles: userWithRoles.user_roles.map((ur: any) => ur.roles.name),
       };
 
+      const safeResult = currentUser.id === userId
+        ? result
+        : stripSelfOnlyFields(result);
+
       return NextResponse.json({
         message: 'User updated successfully',
-        user: result,
+        user: safeResult,
       });
     }
 
@@ -353,9 +378,13 @@ async function updateUser(request: NextRequest, currentUser: any) {
       roles: updatedUser.user_roles.map((ur: any) => ur.roles.name),
     };
 
+    const safeUser = currentUser.id === userId
+      ? userWithRoles
+      : stripSelfOnlyFields(userWithRoles);
+
     return NextResponse.json({
       message: 'User updated successfully',
-      user: userWithRoles,
+      user: safeUser,
     });
 
   } catch (error: any) {

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '../../../../lib/auth';
 import { getSupabaseClient } from '../../../../lib/supabase';
+import { requireRole } from '@/lib/middleware';
 
 // Debug endpoint to identify 403 error source
-export async function GET(request: NextRequest) {
+async function handler(request: NextRequest) {
   try {
     // 1. Check authentication
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
@@ -83,3 +84,5 @@ export async function GET(request: NextRequest) {
     }, { status: 500 });
   }
 }
+
+export const GET = requireRole('SUPER_ADMIN')(handler);

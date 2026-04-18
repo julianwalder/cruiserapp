@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase';
+import { requireRole } from '@/lib/middleware';
 
-export async function GET() {
+async function handler() {
   try {
     const supabase = getSupabaseClient();
     if (!supabase) {
@@ -108,3 +109,5 @@ export async function GET() {
     }, { status: 500 });
   }
 } 
+
+export const GET = requireRole('SUPER_ADMIN')(handler);

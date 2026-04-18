@@ -22,8 +22,8 @@ export async function GET(
     }
 
     // Check if user is requesting their own data or is admin
-    if (decoded.userId !== userId) {
-      // TODO: Add admin check here if needed
+    const isAdmin = decoded.roles?.some((r: string) => r === 'ADMIN' || r === 'SUPER_ADMIN');
+    if (decoded.userId !== userId && !isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireRole } from '@/lib/middleware';
 
-export async function GET(request: NextRequest) {
+async function handler(request: NextRequest) {
   try {
     const username = process.env.SMARTBILL_USERNAME;
     const password = process.env.SMARTBILL_PASSWORD;
@@ -142,3 +143,5 @@ export async function GET(request: NextRequest) {
     );
   }
 } 
+
+export const GET = requireRole('SUPER_ADMIN')(handler);

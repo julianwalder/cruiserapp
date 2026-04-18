@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { XMLInvoiceParser } from '@/lib/xml-invoice-parser';
 import { InvoiceImportService } from '@/lib/invoice-import-service';
+import { requireRole } from '@/lib/middleware';
 
-export async function POST(request: NextRequest) {
+async function handler(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
@@ -122,3 +123,5 @@ export async function POST(request: NextRequest) {
     );
   }
 } 
+
+export const POST = requireRole('SUPER_ADMIN')(handler);

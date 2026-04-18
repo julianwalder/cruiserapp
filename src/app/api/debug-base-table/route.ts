@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AuthService } from '@/lib/auth';
 import { getSupabaseClient } from '@/lib/supabase';
+import { requireRole } from '@/lib/middleware';
 
-export async function GET(request: NextRequest) {
+async function handler(request: NextRequest) {
   try {
     // Verify authentication
     const token = request.headers.get('authorization')?.replace('Bearer ', '');
@@ -82,3 +83,5 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export const GET = requireRole('SUPER_ADMIN')(handler);
