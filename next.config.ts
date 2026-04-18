@@ -31,6 +31,40 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
   },
+  // Baseline security headers applied to every response. Keep conservative
+  // defaults — no CSP yet (would need an audit of inline scripts / external
+  // origins first), and no Permissions-Policy beyond the obvious ones.
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          // Forces HTTPS for a year + includes subdomains. Only takes effect
+          // when the response is actually served over HTTPS.
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=31536000; includeSubDomains',
+          },
+          // Prevents the app from being framed by any site — mitigates
+          // clickjacking. Use CSP frame-ancestors if a framing allowlist
+          // is ever needed.
+          { key: 'X-Frame-Options', value: 'DENY' },
+          // Stops browsers from MIME-sniffing responses (e.g. treating a
+          // text/plain as JS).
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          // Send only the origin on cross-origin navigations; avoids
+          // leaking full URLs with query params (which may contain IDs)
+          // to third parties.
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          // Disable powerful APIs we don't use.
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(self), payment=(self)',
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
