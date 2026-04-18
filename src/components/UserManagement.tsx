@@ -437,11 +437,6 @@ export default function UserManagement() {
       localStorage.setItem('impersonationToken', result.impersonationToken);
       localStorage.setItem('originalToken', token || '');
       
-      console.log('🔍 Impersonation - Stored tokens:', {
-        impersonationToken: result.impersonationToken ? 'present' : 'missing',
-        originalToken: token ? 'present' : 'missing'
-      });
-      
       // Show success toast
       toast.success('Impersonation started!', {
         description: `You are now impersonating ${result.targetUser.firstName} ${result.targetUser.lastName}.`,
@@ -817,9 +812,6 @@ export default function UserManagement() {
       setSaveLoading(true);
       const token = localStorage.getItem('token');
       
-      console.log('Sending update data:', editForm); // Debug log
-      console.log('Personal Number in editForm:', editForm.personalNumber); // Debug log
-      
       const response = await fetch(`/api/users/${selectedUser?.id}`, {
         method: 'PUT',
         headers: {
@@ -836,13 +828,9 @@ export default function UserManagement() {
       }
 
       const result = await response.json();
-      
-      console.log('API Response:', result); // Debug log
-      console.log('API Response personalNumber:', result.user?.personalNumber); // Debug log
-      
+
       // Update the selectedUser state with the updated data
       if (result.user) {
-        console.log('Updating selectedUser with:', result.user); // Debug log
         
         // Force a complete state update by creating a new object
         const updatedUser = {

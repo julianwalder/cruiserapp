@@ -11,8 +11,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const decoded = AuthService.verifyToken(token);
-    console.log('🔍 Impersonation - Decoded token:', decoded);
-    
+    // Only log decoded token payload in development — it contains the
+    // caller's userId, email, roles, and jti.
+
     if (!decoded) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }

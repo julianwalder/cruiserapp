@@ -20,8 +20,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
     }
 
-    console.log('🔍 Notifications API - Current user:', currentUser);
-    console.log('🔍 Notifications API - Decoded token:', decoded);
+    // Previously logged decoded JWT + full user record to prod server
+    // logs (userId, email, roles, jti). Removed.
 
     const supabase = getSupabaseClient();
     if (!supabase) {

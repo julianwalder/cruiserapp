@@ -46,7 +46,6 @@ export async function authenticateRequest(request: NextRequest): Promise<AuthCon
     if (isImpersonation && decoded.roles && Array.isArray(decoded.roles)) {
       // For impersonation tokens, use the roles from the token (target user's roles)
       userRoles = decoded.roles;
-      console.log('🎭 [auth-server] Impersonation detected - using token roles:', userRoles, 'for userId:', decoded.userId);
     } else {
       // For regular tokens, fetch roles from database
       const supabase = getSupabaseClient();
@@ -100,14 +99,8 @@ export async function authenticateRequest(request: NextRequest): Promise<AuthCon
       isInstructor,
     };
 
-    console.log('🔐 [auth-server] Auth context:', {
-      userId: authContext.userId,
-      email: authContext.email,
-      roles: authContext.roles,
-      isAdmin: authContext.isAdmin,
-      isImpersonation: authContext.isImpersonation,
-      originalUserId: authContext.originalUserId,
-    });
+    // Previously logged the full auth context (email, roles, etc.) to
+    // prod. That's high-cardinality PII noise; skipped now.
 
     return authContext;
 

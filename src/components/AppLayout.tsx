@@ -70,8 +70,6 @@ export function AppLayout({ children, pageTitle }: AppLayoutProps) {
           AuthService.syncTokenToCookie(token);
         }
 
-        console.log('🔍 AppLayout - Making /api/auth/me request with token:', token.substring(0, 20) + '...');
-        
         const response = await fetch('/api/auth/me', {
           headers: {
             'Authorization': `Bearer ${token}`,
