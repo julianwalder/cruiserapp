@@ -471,17 +471,45 @@ export class AuthService {
   }
 
   static hasPermission(userRoles: string[], requiredRole: string): boolean {
+    // Linear role hierarchy. Higher-numbered roles implicitly satisfy
+    // lower-numbered ones (ADMIN can do everything INSTRUCTOR can, etc.).
+    //
+    // IMPORTANT: any role used with requireRole() or requireAnyRole() must
+    // appear in this map. Previously BASE_MANAGER, PILOT, and STUDENT were
+    // missing, which silently resolved to level 0. That caused two bugs:
+    //   1. `hasPermission(anyUserRoles, 'BASE_MANAGER')` returned true for
+    //      every authenticated user (even PROSPECT) because 0 >= 0,
+    //      effectively disabling the guard at several routes that used
+    //      requireAnyRole(['BASE_MANAGER', 'ADMIN', ...]).
+    //   2. An empty required-role string or typo also resolved to level 0
+    //      and passed.
+    // Both are fixed below.
     const roleHierarchy: { [key: string]: number } = {
-      'USER': 1,
-      'PROSPECT': 1,
-      'INSTRUCTOR': 2,
-      'ADMIN': 3,
-      'SUPER_ADMIN': 4
+      PROSPECT: 1,
+      USER: 1,
+      STUDENT: 1,
+      PILOT: 2,
+      INSTRUCTOR: 3,
+      BASE_MANAGER: 4,
+      ADMIN: 5,
+      SUPER_ADMIN: 6,
     };
 
-    const requiredLevel = roleHierarchy[requiredRole] || 0;
-    const userMaxLevel = Math.max(...userRoles.map(role => roleHierarchy[role] || 0));
+    const requiredLevel = roleHierarchy[requiredRole];
+    if (requiredLevel === undefined) {
+      // Fail-closed: unknown role name means caller made a typo or
+      // passed an unhandled value. Never silently grant.
+      console.warn('[auth] hasPermission called with unknown required role:', requiredRole);
+      return false;
+    }
 
+    let userMaxLevel = 0;
+    for (const r of userRoles) {
+      const level = roleHierarchy[r];
+      if (level !== undefined && level > userMaxLevel) {
+        userMaxLevel = level;
+      }
+    }
     return userMaxLevel >= requiredLevel;
   }
 
