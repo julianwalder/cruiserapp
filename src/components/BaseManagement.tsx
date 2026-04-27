@@ -200,8 +200,10 @@ export default function BaseManagement({ canEdit = true }: BaseManagementProps) 
         return;
       }
       
-      // First try to get BASE_MANAGER users
-      let response = await fetch('/api/users?role=BASE_MANAGER', {
+      // First try to get BASE_MANAGER users.
+      // Use /api/users/directory so this populates for non-admin callers
+      // too — the main /api/users list is admin-only.
+      let response = await fetch('/api/users/directory?role=BASE_MANAGER', {
         headers: {
           'Authorization': `Bearer ${token}`
         }

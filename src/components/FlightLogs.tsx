@@ -591,14 +591,17 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         return;
       }
 
-      // Fetch both pilots and students, including inactive/suspended ones
+      // Fetch both pilots and students, including inactive/suspended ones.
+      // Use the directory endpoint so non-admin callers (STUDENT, PILOT,
+      // INSTRUCTOR) can populate the picker — the main /api/users list
+      // is admin-only.
       const [pilotsResponse, studentsResponse] = await Promise.all([
-        fetch('/api/users?role=PILOT&limit=1000', {
+        fetch('/api/users/directory?role=PILOT&status=all', {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
         }),
-        fetch('/api/users?role=STUDENT&limit=1000', {
+        fetch('/api/users/directory?role=STUDENT&status=all', {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -669,9 +672,10 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
       
 
 
-      // If current user is a pilot-only user, they might not have access to instructor list
-      // This is fine since instructor is optional
-      let response = await fetch('/api/users?role=INSTRUCTOR&limit=1000', {
+      // The directory endpoint is callable by any authenticated,
+      // non-PROSPECT user — so this works for students/pilots filling
+      // out the optional instructor field.
+      let response = await fetch('/api/users/directory?role=INSTRUCTOR', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -684,7 +688,7 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         const newToken = await refreshTokenIfNeeded();
         if (newToken) {
           // Retry the request with the new token
-          response = await fetch('/api/users?role=INSTRUCTOR&limit=1000', {
+          response = await fetch('/api/users/directory?role=INSTRUCTOR', {
             headers: {
               'Authorization': `Bearer ${newToken}`,
             },
@@ -836,19 +840,21 @@ export default function FlightLogs({ openCreateModal = false }: FlightLogsProps)
         return;
       }
 
-      // Fetch all users (without role filter) for charter flight payer selection
-      let response = await fetch('/api/users?limit=1000', {
+      // Fetch all users (without role filter) for charter flight payer
+      // selection. Directory endpoint excludes PROSPECT users by default
+      // and works for non-admin callers.
+      let response = await fetch('/api/users/directory', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
-      
+
       // If we get a 401, try to refresh the token
       if (response.status === 401) {
         const newToken = await refreshTokenIfNeeded();
         if (newToken) {
           // Retry the request with the new token
-          response = await fetch('/api/users?limit=1000', {
+          response = await fetch('/api/users/directory', {
             headers: {
               'Authorization': `Bearer ${newToken}`,
             },

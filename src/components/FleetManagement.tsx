@@ -407,7 +407,8 @@ export default function FleetManagement({ canEdit = true }: FleetManagementProps
   const fetchPilots = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/users?role=PILOT&limit=1000', {
+      // Directory endpoint — works for non-admin viewers too.
+      const response = await fetch('/api/users/directory?role=PILOT', {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
